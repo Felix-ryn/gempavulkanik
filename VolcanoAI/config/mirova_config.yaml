@@ -1,0 +1,100 @@
+# ===================================================================================
+# Konfigurasi untuk Ekstraktor Gambar MIROVA (VERSI FINAL - Dikalibrasi Penuh)
+# ===================================================================================
+
+# --- Pengaturan Umum ---
+settings:
+  # Set ke 'false' setelah debugging selesai untuk menghemat ruang disk dan mempercepat proses.
+  generate_debug_images: false
+  
+# --- Definisi Region of Interest (ROI) [y1, y2, x1, x2] ---
+# --- KOORDINAT DI BAWAH INI TELAH DIPERKETAT UNTUK AKURASI OCR MAKSIMAL ---
+roi:
+  graph_last_2_years: [400, 580, 50, 960]  # OK
+
+  # DI REVISI: Dibuat sangat ketat untuk fokus hanya pada teks
+  s2pix_summit: [335, 355, 25, 180]        
+  s2pix_total: [595, 615, 25, 180]       
+  
+  # DI REVISI: Koordinat yang telah diperketat dari iterasi sebelumnya
+  acquisition_info: [48, 68, 680, 945]
+  sensor_type_info: [75, 95, 250, 440]
+
+# --- Parameter untuk Kalibrasi Sumbu Grafik ---
+graph_axis_calibration:
+  x_pixel_min: 45
+  x_pixel_max: 890
+  x_date_start: "2020-07-01"
+  x_date_end: "2022-09-01"
+  y_pixel_min: 150 
+  y_pixel_max: 15
+  y_vrp_log_min: 2
+  y_vrp_log_max: 11
+
+# ===================================================================================
+# --- Target Deteksi Titik Data pada Grafik (DIREVISI TOTAL SESUAI GAMBAR) ---
+# ===================================================================================
+detection_targets:
+  # Target 1: VRP_MIR (W) -> Kotak Biru
+  - name: "VRP_MIR (W)"
+    hsv_lower: [100, 150, 50]   # Rentang warna Biru
+    hsv_upper: [140, 255, 255]
+    shape: "square"
+    min_area: 5
+
+  # Target 2: OLI_total (W) -> Lingkaran Hitam/Abu-abu
+  - name: "OLI_total (W)"
+    hsv_lower: [0, 0, 50]      # Rentang warna Grayscale/Hitam
+    hsv_upper: [180, 70, 150]   # Saturasi rendah, Value tidak terlalu terang
+    shape: "circle"
+    min_area: 5
+
+  # Target 3: MSI_total (W) -> Segitiga Hitam/Abu-abu
+  - name: "MSI_total (W)"
+    hsv_lower: [0, 0, 0]        # Rentang warna Hitam
+    hsv_upper: [180, 255, 45]   # Value rendah
+    shape: "triangle"
+    min_area: 5
+
+  # Target 4: OLI_summit (W) -> Lingkaran Merah (INI PERBAIKAN PENTING!)
+  - name: "OLI_summit (W)"
+    hsv_lower: [0, 120, 70]     # Rentang warna Merah (hue bagian bawah)
+    hsv_upper: [10, 255, 255]
+    shape: "circle"
+    min_area: 3
+  
+  # Target 5: OLI_summit (W)_alt -> Lingkaran Merah (untuk hue bagian atas)
+  - name: "OLI_summit (W)" # Nama kolom sama agar data tergabung
+    hsv_lower: [170, 120, 70]   # Rentang warna Merah (hue bagian atas)
+    hsv_upper: [180, 255, 255]
+    shape: "circle"
+    min_area: 3
+
+  # Target 6: MSI_summit (W) -> Segitiga Merah
+  - name: "MSI_summit (W)"
+    hsv_lower: [0, 120, 70]     # Rentang warna Merah (hue bagian bawah)
+    hsv_upper: [10, 255, 255]
+    shape: "triangle"
+    min_area: 3
+    
+  # Target 7: MSI_summit (W)_alt -> Segitiga Merah (untuk hue bagian atas)
+  - name: "MSI_summit (W)" # Nama kolom sama agar data tergabung
+    hsv_lower: [170, 120, 70]   # Rentang warna Merah (hue bagian atas)
+    hsv_upper: [180, 255, 255]
+    shape: "triangle"
+    min_area: 3
+
+# --- Urutan kolom final untuk file output Excel ---
+final_columns_order:
+  - "Nama"
+  - "Acquired_Date"
+  - "Source_Sensor_Type"
+  - "VRP_MIR (W)"
+  - "OLI_total (W)"
+  - "OLI_summit (W)"
+  - "MSI_total (W)"
+  - "MSI_summit (W)"
+  - "S2Pix_summit"
+  - "S2Pix_total"
+  - "Data_Point_Date_on_Graph"
+  - "Source_Filename"

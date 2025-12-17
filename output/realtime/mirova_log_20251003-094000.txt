@@ -1,0 +1,14 @@
+ID      | Gunung         | Sensor    | URL Gambar                                                                                                    | Status
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------
+263300  | Semeru         | MODIS     | https://www.mirovaweb.it/OUTPUTweb/MIROVA/MODIS/VOLCANOES/Semeru/Semeru_MODIS_Latest10NTI.png                 | URL_VALID_dan_AKTIF
+263300  | Semeru         | VIIRS750  | https://www.mirovaweb.it/OUTPUTweb/MIROVA/VIIRS750/VOLCANOES/Semeru/Semeru_VIIRS750_Latest10NTI.png           | URL_VALID_dan_AKTIF
+263300  | Semeru         | VIIRS375  | https://www.mirovaweb.it/OUTPUTweb/MIROVA/VIIRS375/VOLCANOES/Semeru/Semeru_VIIRS375_Latest10NTI.png           | URL_VALID_dan_AKTIF
+263340  | Raung          | MODIS     | https://www.mirovaweb.it/OUTPUTweb/MIROVA/MODIS/VOLCANOES/Raung/Raung_MODIS_Latest10NTI.png                   | URL_VALID_dan_AKTIF
+263340  | Raung          | VIIRS750  | https://www.mirovaweb.it/OUTPUTweb/MIROVA/VIIRS750/VOLCANOES/Raung/Raung_VIIRS750_Latest10NTI.png             | URL_VALID_dan_AKTIF
+263340  | Raung          | VIIRS375  | https://www.mirovaweb.it/OUTPUTweb/MIROVA/VIIRS375/VOLCANOES/Raung/Raung_VIIRS375_Latest10NTI.png             | URL_VALID_dan_AKTIF
+263280  | Kelut          | MODIS     | https://www.mirovaweb.it/OUTPUTweb/MIROVA/MODIS/VOLCANOES/Kelut/Kelut_MODIS_Latest10NTI.png                   | URL_VALID_dan_AKTIF
+263280  | Kelut          | VIIRS750  | https://www.mirovaweb.it/OUTPUTweb/MIROVA/VIIRS750/VOLCANOES/Kelut/Kelut_VIIRS750_Latest10NTI.png             | URL_VALID_dan_AKTIF
+263280  | Kelut          | VIIRS375  | https://www.mirovaweb.it/OUTPUTweb/MIROVA/VIIRS375/VOLCANOES/Kelut/Kelut_VIIRS375_Latest10NTI.png             | URL_VALID_dan_AKTIF
+263350  | Ijen           | MODIS     | https://www.mirovaweb.it/OUTPUTweb/MIROVA/MODIS/VOLCANOES/Ijen/Ijen_MODIS_Latest10NTI.png                     | URL_VALID_dan_AKTIF
+263350  | Ijen           | VIIRS750  | https://www.mirovaweb.it/OUTPUTweb/MIROVA/VIIRS750/VOLCANOES/Ijen/Ijen_VIIRS750_Latest10NTI.png               | URL_VALID_dan_AKTIF
+263350  | Ijen           | VIIRS375  | https://www.mirovaweb.it/OUTPUTweb/MIROVA/VIIRS375/VOLCANOES/Ijen/Ijen_VIIRS375_Latest10NTI.png               | URL_VALID_dan_AKTIF

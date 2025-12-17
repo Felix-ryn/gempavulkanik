@@ -1,0 +1,111 @@
+2025-12-12 17:06:32,862 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251212_170632.log
+2025-12-12 17:06:32,862 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-12 17:06:32,862 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
+2025-12-12 17:06:32,862 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-12 17:06:32,878 [WARNING ] [VolcanoAI.processing.realtime_data_stream] [MainThread] --- File MIROVA tidak ditemukan di path: output/realtime/mirova_log.txt
+2025-12-12 17:06:32,878 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2025-12-12 17:06:32,878 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2025-12-12 17:06:32,878 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING ==========
+2025-12-12 17:06:32,878 [INFO    ] [SystemMonitor       ] [MainThread] --- RAM Usage: 72.1%
+2025-12-12 17:06:32,913 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 2: FEATURE ENGINEERING ==========
+2025-12-12 17:06:32,933 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-12 17:06:33,127 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-12 17:06:33,206 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: Kolom berikut kosong total saat training -> diisi 0.0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-12 17:06:34,049 [INFO    ] [VolcanoAI.processing.feature_engineer] [MainThread] --- Preprocessor state saved to: output\feature_preprocessor.pkl
+2025-12-12 17:06:34,049 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (1307, 55)
+2025-12-12 17:06:34,049 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-12 17:06:34,206 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-12 17:06:34,256 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: Kolom berikut kosong total saat training -> diisi 0.0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-12 17:06:35,097 [INFO    ] [VolcanoAI.processing.feature_engineer] [MainThread] --- Preprocessor state saved to: output\feature_preprocessor.pkl
+2025-12-12 17:06:35,097 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (561, 55)
+2025-12-12 17:06:35,097 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 3: MODEL TRAINING ==========
+2025-12-12 17:06:35,329 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Melanjutkan dari brain state sebelumnya.
+2025-12-12 17:07:06,124 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-134] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-12 17:07:20,940 [WARNING ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Dataframe kosong atau kurang kolom untuk visualisasi.
+2025-12-12 17:07:20,940 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- 
+================================================================================
+2025-12-12 17:07:20,940 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] ---                             === GA ENGINE START ===                             
+2025-12-12 17:07:20,956 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- ================================================================================
+2025-12-12 17:07:20,956 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA Evolution Start → Pop=80, Gen=150
+2025-12-12 17:07:20,971 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- Resuming GA from checkpoint...
+2025-12-12 17:07:43,558 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA Map saved → output\ga_results\ga_path_map.html
+2025-12-12 17:07:51,983 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- Excel exported → output\ga_results\ga_report.xlsx
+2025-12-12 17:07:51,985 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] ---                            === GA ENGINE COMPLETE ===                           
+2025-12-12 17:07:51,987 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- === LSTM V6.0 TITAN TRAINING START ===
+2025-12-12 17:07:52,075 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Processing Cluster 0...
+2025-12-12 17:07:52,100 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] ---     [Tuner] Menjalankan 3 trial optimasi...
+2025-12-12 17:07:53,584 [WARNING ] [tensorflow          ] [MainThread] --- From C:\Program Files\Python311\Lib\site-packages\keras\src\backend\common\global_state.py:82: The name tf.reset_default_graph is deprecated. Please use tf.compat.v1.reset_default_graph instead.
+
+2025-12-12 17:07:54,508 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Model LSTM berhasil dikompilasi (Standard MAE). Input: 30x6
+2025-12-12 17:08:08,113 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Model LSTM berhasil dikompilasi (Standard MAE). Input: 30x6
+2025-12-12 17:08:17,895 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Model LSTM berhasil dikompilasi (Standard MAE). Input: 30x6
+2025-12-12 17:08:26,189 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] ---     [Tuner] Parameter Terbaik: {'latent_dim': 128, 'learning_rate': 5e-05, 'dropout_rate': 0.2} (Loss: 0.5288)
+2025-12-12 17:08:26,346 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Model LSTM berhasil dikompilasi (Standard MAE). Input: 30x6
+2025-12-12 17:08:44,584 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- [Vault] Model Cluster 0 berhasil dimuat.
+2025-12-12 17:08:46,486 [INFO    ] [VolcanoAI_CNN       ] [MainThread] --- === MEMULAI CNN TRAINING PIPELINE V5.0 (TITAN) ===
+2025-12-12 17:08:46,486 [INFO    ] [VolcanoAI_CNN       ] [MainThread] --- 
+>>> Training CNN Cluster 0
+2025-12-12 17:08:46,674 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- [Vault] Model Cluster 0 berhasil dimuat.
+2025-12-12 17:08:48,476 [INFO    ] [VolcanoAI_CNN       ] [MainThread] ---     [CNN Tuner] Memulai 2 trial...
+2025-12-12 17:08:48,513 [WARNING ] [tensorflow          ] [MainThread] --- From C:\Program Files\Python311\Lib\site-packages\keras\src\backend\common\global_state.py:82: The name tf.reset_default_graph is deprecated. Please use tf.compat.v1.reset_default_graph instead.
+
+2025-12-12 17:10:39,139 [INFO    ] [VolcanoAI_CNN       ] [MainThread] ---     [CNN Tuner] Terbaik: {'base_filters': 32, 'learning_rate': 0.0005, 'dropout': 0.1} (Loss: 0.3174)
+2025-12-12 17:17:40,032 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- [Vault] Model Cluster 0 berhasil dimuat.
+2025-12-12 17:17:50,787 [INFO    ] [VolcanoAI.NaiveBayesEngine] [MainThread] --- Fitur Terpilih (7): ['Magnitudo', 'Kedalaman (km)', 'isVulkanik', 'isTektonik', 'R3_final', 'PheromoneScore', 'luas_cnn']
+2025-12-12 17:17:50,800 [WARNING ] [VolcanoAI.NaiveBayesEngine] [MainThread] --- Calibrated CV gagal dengan XGBoost (Invalid classes inferred from unique values of `y`.  Expected: [0 1 2], got ['Parah' 'Ringan' 'Sedang']), fallback ke XGBoost biasa.
+2025-12-12 17:17:50,800 [CRITICAL] [PipelineGuard       ] [MainThread] --- CRASH di _run_training_flow: Invalid classes inferred from unique values of `y`.  Expected: [0 1 2], got ['Parah' 'Ringan' 'Sedang']
+2025-12-12 17:17:50,848 [CRITICAL] [VolcanoAiPipeline   ] [MainThread] --- PIPELINE FAILED: Invalid classes inferred from unique values of `y`.  Expected: [0 1 2], got ['Parah' 'Ringan' 'Sedang']
+Traceback (most recent call last):
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\VolcanoAI\engines\naive_bayes_engine.py", line 326, in train
+    self.model.fit(X_processed, y)
+  File "C:\Users\mauli\AppData\Roaming\Python\Python311\site-packages\sklearn\base.py", line 1365, in wrapper
+    return fit_method(estimator, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mauli\AppData\Roaming\Python\Python311\site-packages\sklearn\calibration.py", line 424, in fit
+    self.calibrated_classifiers_ = parallel(
+                                   ^^^^^^^^^
+  File "C:\Users\mauli\AppData\Roaming\Python\Python311\site-packages\sklearn\utils\parallel.py", line 82, in __call__
+    return super().__call__(iterable_with_config_and_warning_filters)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mauli\AppData\Roaming\Python\Python311\site-packages\joblib\parallel.py", line 1986, in __call__
+    return output if self.return_generator else list(output)
+                                                ^^^^^^^^^^^^
+  File "C:\Users\mauli\AppData\Roaming\Python\Python311\site-packages\joblib\parallel.py", line 1914, in _get_sequential_output
+    res = func(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mauli\AppData\Roaming\Python\Python311\site-packages\sklearn\utils\parallel.py", line 147, in __call__
+    return self.function(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mauli\AppData\Roaming\Python\Python311\site-packages\sklearn\calibration.py", line 626, in _fit_classifier_calibrator_pair
+    estimator.fit(X_train, y_train, **fit_params_train)
+  File "C:\Users\mauli\AppData\Roaming\Python\Python311\site-packages\xgboost\core.py", line 774, in inner_f
+    return func(**kwargs)
+           ^^^^^^^^^^^^^^
+  File "C:\Users\mauli\AppData\Roaming\Python\Python311\site-packages\xgboost\sklearn.py", line 1761, in fit
+    raise ValueError(
+ValueError: Invalid classes inferred from unique values of `y`.  Expected: [0 1 2], got ['Parah' 'Ringan' 'Sedang']
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\main.py", line 505, in run
+    self._run_training_flow()
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\main.py", line 100, in wrapper
+    raise e
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\main.py", line 93, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\main.py", line 314, in _run_training_flow
+    self.nb_engine.train(df_processed)
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\VolcanoAI\engines\naive_bayes_engine.py", line 333, in train
+    self.model.fit(X_processed, y)
+  File "C:\Users\mauli\AppData\Roaming\Python\Python311\site-packages\xgboost\core.py", line 774, in inner_f
+    return func(**kwargs)
+           ^^^^^^^^^^^^^^
+  File "C:\Users\mauli\AppData\Roaming\Python\Python311\site-packages\xgboost\sklearn.py", line 1761, in fit
+    raise ValueError(
+ValueError: Invalid classes inferred from unique values of `y`.  Expected: [0 1 2], got ['Parah' 'Ringan' 'Sedang']
+2025-12-12 17:17:50,861 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- System shutdown. Uptime: 677.98s

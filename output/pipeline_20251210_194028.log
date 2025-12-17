@@ -1,0 +1,25 @@
+2025-12-10 19:40:28,662 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251210_194028.log
+2025-12-10 19:40:28,664 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-10 19:40:28,664 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
+2025-12-10 19:40:28,665 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-10 19:40:28,679 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2025-12-10 19:40:28,680 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2025-12-10 19:40:28,681 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING ==========
+2025-12-10 19:40:28,681 [INFO    ] [SystemMonitor       ] [MainThread] --- RAM Usage: 73.2%
+2025-12-10 19:40:28,732 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 2: FEATURE ENGINEERING ==========
+2025-12-10 19:40:28,742 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-10 19:40:28,906 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-10 19:40:28,973 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: kolom kosong total → diisi 0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-10 19:40:29,112 [INFO    ] [VolcanoAI.FeatureEngineer] [MainThread] --- Preprocessor state saved to: output/feature_preprocessor.pkl
+2025-12-10 19:40:29,114 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (1307, 55)
+2025-12-10 19:40:29,115 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-10 19:40:29,232 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-10 19:40:29,258 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: kolom kosong total → diisi 0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-10 19:40:29,315 [INFO    ] [VolcanoAI.FeatureEngineer] [MainThread] --- Preprocessor state saved to: output/feature_preprocessor.pkl
+2025-12-10 19:40:29,315 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (561, 55)
+2025-12-10 19:40:29,325 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 3: MODEL TRAINING ==========
+2025-12-10 19:40:53,368 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Stagnasi terdeteksi → smooth reset pheromone.
+2025-12-10 19:41:04,616 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Stagnasi terdeteksi → smooth reset pheromone.

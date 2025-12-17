@@ -1,0 +1,61 @@
+2025-12-12 08:04:57,895 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251212_080457.log
+2025-12-12 08:04:57,895 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-12 08:04:57,895 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
+2025-12-12 08:04:57,895 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-12 08:04:57,907 [WARNING ] [VolcanoAI.processing.realtime_data_stream] [MainThread] --- File MIROVA tidak ditemukan di path: output/realtime/mirova_log.txt
+2025-12-12 08:04:57,907 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2025-12-12 08:04:57,907 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2025-12-12 08:04:57,907 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING ==========
+2025-12-12 08:04:57,907 [INFO    ] [SystemMonitor       ] [MainThread] --- RAM Usage: 81.6%
+2025-12-12 08:04:57,928 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 2: FEATURE ENGINEERING ==========
+2025-12-12 08:04:57,937 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-12 08:04:58,070 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-12 08:04:58,128 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: Kolom berikut kosong total saat training -> diisi 0.0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-12 08:04:58,687 [INFO    ] [VolcanoAI.processing.feature_engineer] [MainThread] --- Preprocessor state saved to: output\feature_preprocessor.pkl
+2025-12-12 08:04:58,687 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (1307, 55)
+2025-12-12 08:04:58,687 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-12 08:04:58,793 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-12 08:04:58,819 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: Kolom berikut kosong total saat training -> diisi 0.0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-12 08:04:59,373 [INFO    ] [VolcanoAI.processing.feature_engineer] [MainThread] --- Preprocessor state saved to: output\feature_preprocessor.pkl
+2025-12-12 08:04:59,378 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (561, 55)
+2025-12-12 08:04:59,378 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 3: MODEL TRAINING ==========
+2025-12-12 08:04:59,518 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Melanjutkan dari brain state sebelumnya.
+2025-12-12 08:05:10,859 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-48] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-12 08:05:21,511 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-89] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-12 08:05:31,225 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-130] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-12 08:05:40,170 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-171] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-12 08:05:47,138 [WARNING ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Dataframe kosong atau kurang kolom untuk visualisasi.
+2025-12-12 08:05:47,138 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- 
+================================================================================
+2025-12-12 08:05:47,138 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] ---                             === GA ENGINE START ===                             
+2025-12-12 08:05:47,138 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- ================================================================================
+2025-12-12 08:05:47,149 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA Evolution Start → Pop=80, Gen=150
+2025-12-12 08:05:47,158 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- Resuming GA from checkpoint...
+2025-12-12 08:06:06,968 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA Map saved → output\ga_results\ga_path_map.html
+2025-12-12 08:06:12,149 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- Excel exported → output\ga_results\ga_report.xlsx
+2025-12-12 08:06:12,149 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] ---                            === GA ENGINE COMPLETE ===                           
+2025-12-12 08:06:12,149 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- === LSTM V6.0 TITAN TRAINING START ===
+2025-12-12 08:06:12,214 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Processing Cluster 0...
+2025-12-12 08:06:12,258 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] ---     [Tuner] Menjalankan 3 trial optimasi...
+2025-12-12 08:06:13,168 [WARNING ] [tensorflow          ] [MainThread] --- From C:\Program Files\Python311\Lib\site-packages\keras\src\backend\common\global_state.py:82: The name tf.reset_default_graph is deprecated. Please use tf.compat.v1.reset_default_graph instead.
+
+2025-12-12 08:06:13,758 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Model LSTM berhasil dikompilasi. Input: 30x6
+2025-12-12 08:06:26,018 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Model LSTM berhasil dikompilasi. Input: 30x6
+2025-12-12 08:06:39,118 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Model LSTM berhasil dikompilasi. Input: 30x6
+2025-12-12 08:06:47,932 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] ---     [Tuner] Parameter Terbaik: {} (Loss: inf)
+2025-12-12 08:06:48,060 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Model LSTM berhasil dikompilasi. Input: 30x6
+2025-12-12 08:07:02,942 [WARNING ] [tensorflow          ] [MainThread] --- From C:\Program Files\Python311\Lib\site-packages\keras\src\backend\tensorflow\core.py:232: The name tf.placeholder is deprecated. Please use tf.compat.v1.placeholder instead.
+
+2025-12-12 08:12:56,287 [ERROR   ] [VolcanoAI.LstmEngine] [MainThread] --- [Vault] GAGAL memuat model c0: Exception encountered when calling Lambda.call().
+
+[1mWe could not automatically infer the shape of the Lambda's output. Please specify the `output_shape` argument for this Lambda layer.[0m
+
+Arguments received by Lambda.call():
+  • args=('<KerasTensor shape=(None, 1, 1), dtype=float32, sparse=False, ragged=False, name=keras_tensor_81>',)
+  • kwargs={'mask': 'None'}. File mungkin corrupt atau TF version mismatch.
+2025-12-12 08:12:56,293 [INFO    ] [VolcanoAI_CNN       ] [MainThread] --- === MEMULAI CNN TRAINING PIPELINE V5.0 (TITAN) ===
+2025-12-12 08:12:56,294 [INFO    ] [VolcanoAI_CNN       ] [MainThread] --- 
+>>> Training CNN Cluster 0

@@ -1,0 +1,80 @@
+# VolcanoAI/utils/visualization.py (VERSI DIPERBAIKI)
+# -*- coding: utf-8 -*-
+
+import pandas as pd
+import folium
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
+import numpy as np
+import logging
+
+# [PERBAIKAN] Impor config dari root package 'VolcanoAI'
+from VolcanoAI.config import CONFIG 
+
+def generate_event_map(df, output_dir):
+    # (isi fungsi ini tetap sama seperti versi arsitektur final)
+    map_path = os.path.join(output_dir, 'peta_kejadian_dampak.html')
+    df_valid = df.dropna(subset=['Lintang', 'Bujur', 'R_forecast'])
+    if df_valid.empty: logging.warning("Tidak ada data valid untuk membuat peta."); return
+    map_center = [df_valid['Lintang'].mean(), df_valid['Bujur'].mean()]
+    m = folium.Map(location=map_center, zoom_start=8, tiles="CartoDB positron")
+    for idx, row in df_valid.iterrows():
+        radius_vis = row['R_forecast'] * 1000
+        popup_html = f"<b>ID: {idx} | Tgl: {row['Tanggal'].date()}</b><br>Klaster: {row['Cluster']}<br>Bentuk: {row['Bentuk']}"
+        folium.Circle(
+            location=(row['Lintang'], row['Bujur']), radius=radius_vis,
+            color='#d62828', weight=2, fill=True, fill_color='#f77f00', fill_opacity=0.3,
+            tooltip=popup_html, dash_array='5, 5' if row['Bentuk'] == 'Elips' else '1'
+        ).add_to(m)
+    m.save(map_path)
+    logging.info(f"Peta kejadian berhasil disimpan ke: {map_path}")
+
+
+def generate_lstm_plots(df, output_dir, config):
+    # (isi fungsi ini tetap sama seperti versi arsitektur final)
+    plot_dir = os.path.join(output_dir, 'grafik_lstm_per_cluster')
+    os.makedirs(plot_dir, exist_ok=True)
+    for cluster_id in sorted(df['Cluster'].unique()):
+        df_cluster = df[df['Cluster'] == cluster_id].sort_values('Tanggal')
+        if len(df_cluster) < config['MAIN']['min_samples_per_cluster']: continue
+        plt.figure(figsize=(12, 6))
+        plt.plot(df_cluster['Tanggal'], df_cluster['R_true'], 'o-', label='Radius Aktual (R_true)', color='#003049')
+        plt.plot(df_cluster['Tanggal'], df_cluster['R_forecast'], 'x--', label='Radius Prediksi (R_forecast)', color='#d62828')
+        plt.title(f'Kinerja Prediksi LSTM - Klaster {cluster_id}', fontsize=16)
+        plt.ylabel('Radius Terdampak (km)'); plt.legend(); plt.grid(True); plt.tight_layout()
+        filename = f'plot_lstm_klaster_{cluster_id}.png'
+        plt.savefig(os.path.join(plot_dir, filename)); plt.close()
+    logging.info(f"Semua grafik LSTM telah disimpan di folder: {plot_dir}")
+
+
+def generate_metrics_files(metrics, output_dir):
+    # (isi fungsi ini tetap sama seperti versi arsitektur final)
+    metrics_path = os.path.join(output_dir, 'metrik_evaluasi.txt')
+    with open(metrics_path, 'w', encoding='utf-8') as f:
+        f.write("Laporan Evaluasi Naive Bayes (Skema H-1 vs H)\n" + "="*50 + "\n" + str(metrics.get('report', '...')))
+    logging.info(f"Laporan metrik berhasil disimpan ke: {metrics_path}")
+    cm = metrics.get('confusion_matrix')
+    if cm is not None:
+        cm_path = os.path.join(output_dir, 'confusion_matrix.png')
+        plt.figure(figsize=(8, 6)); sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+            xticklabels=['Prediksi Aman', 'Prediksi Terdampak'], yticklabels=['Aktual Aman', 'Aktual Terdampak'])
+        plt.title('Confusion Matrix (Naive Bayes | H-1 vs H)'); plt.savefig(cm_path); plt.close()
+        logging.info(f"Plot confusion matrix berhasil disimpan ke: {cm_path}")
+
+def generate_comprehensive_outputs(df: pd.DataFrame, metrics: dict, config: dict):
+    # (nama fungsi diubah agar sesuai dengan `main.py` terakhir)
+    output_dir = config["OUTPUT"]["directory"]
+    csv_path = os.path.join(output_dir, 'hasil_analisis_lengkap.csv')
+    excel_path = os.path.join(output_dir, 'hasil_analisis_lengkap.xlsx')
+    
+    df_to_save = df.drop(columns=['cnn_predicted_mask'], errors='ignore')
+    df_to_save.to_csv(csv_path, index=False, float_format='%.4f')
+    df_to_save.to_excel(excel_path, index=False)
+    logging.info(f"Tabel data lengkap (semua {len(df_to_save)} baris) berhasil disimpan.")
+    
+    generate_event_map(df, output_dir)
+    generate_lstm_plots(df, output_dir, config)
+    generate_metrics_files(metrics, output_dir)

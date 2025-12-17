@@ -1,0 +1,48 @@
+2025-12-09 09:08:58,760 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251209_090858.log
+2025-12-09 09:08:58,761 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-09 09:08:58,761 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
+2025-12-09 09:08:58,761 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-09 09:08:58,764 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2025-12-09 09:08:58,764 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2025-12-09 09:08:58,764 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING ==========
+2025-12-09 09:08:58,764 [INFO    ] [SystemMonitor       ] [MainThread] --- RAM Usage: 68.2%
+2025-12-09 09:08:58,764 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Memuat data dari cache...
+2025-12-09 09:08:58,796 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 2: FEATURE ENGINEERING ==========
+2025-12-09 09:08:58,805 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-09 09:08:58,919 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-09 09:08:58,997 [WARNING ] [VolcanoAI.FeatureEngineer] [MainThread] --- Kolom berikut kosong total dan diisi 0: ['VRP_Max', 'OLI_total (W)', 'MSI_total (W)']
+2025-12-09 09:08:59,061 [INFO    ] [VolcanoAI.FeatureEngineer] [MainThread] --- Preprocessor state saved to: output/feature_preprocessor.pkl
+2025-12-09 09:08:59,065 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (1307, 53)
+2025-12-09 09:08:59,065 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE INFERENCE: Using existing preprocessor state.
+2025-12-09 09:08:59,128 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (561, 53)
+2025-12-09 09:08:59,138 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 3: MODEL TRAINING ==========
+2025-12-09 09:08:59,138 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Running ACO Engine (Step 1)...
+2025-12-09 09:08:59,154 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Loaded ACO results from cache.
+2025-12-09 09:08:59,154 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Running GA Engine (Step 2)...
+2025-12-09 09:08:59,154 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- 
+================================================================================
+2025-12-09 09:08:59,154 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] ---                             === GA ENGINE START ===                             
+2025-12-09 09:08:59,154 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- ================================================================================
+2025-12-09 09:08:59,154 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA Evolution Start → Pop=80, Gen=150
+2025-12-09 09:08:59,173 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- Resuming GA from checkpoint...
+2025-12-09 09:09:19,487 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA Map saved → output\ga_results\ga_path_map.html
+2025-12-09 09:09:24,310 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- Excel exported → output\ga_results\ga_report.xlsx
+2025-12-09 09:09:24,310 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] ---                            === GA ENGINE COMPLETE ===                           
+2025-12-09 09:09:24,310 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Training LSTM Engine (Step 3)...
+2025-12-09 09:09:24,310 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- === LSTM V6.0 TITAN TRAINING START ===
+2025-12-09 09:09:24,359 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Processing Cluster 0...
+2025-12-09 09:09:24,372 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] ---     [Tuner] Menjalankan 3 trial optimasi...
+2025-12-09 09:09:24,962 [WARNING ] [tensorflow          ] [MainThread] --- From C:\Program Files\Python311\Lib\site-packages\keras\src\backend\common\global_state.py:82: The name tf.reset_default_graph is deprecated. Please use tf.compat.v1.reset_default_graph instead.
+
+2025-12-09 09:10:34,107 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] ---     [Tuner] Parameter Terbaik: {'latent_dim': 64, 'learning_rate': 0.001, 'dropout_rate': 0.2} (Loss: 0.0787)
+2025-12-09 09:11:01,237 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Training CNN Engine (Step 4)...
+2025-12-09 09:11:01,238 [INFO    ] [VolcanoAI_CNN       ] [MainThread] --- === MEMULAI CNN TRAINING PIPELINE V5.0 (TITAN) ===
+2025-12-09 09:11:01,239 [INFO    ] [VolcanoAI_CNN       ] [MainThread] --- 
+>>> Training CNN Cluster 0
+2025-12-09 09:11:03,716 [INFO    ] [VolcanoAI_CNN       ] [MainThread] ---     [CNN Tuner] Memulai 2 trial...
+2025-12-09 09:11:03,776 [WARNING ] [tensorflow          ] [MainThread] --- From C:\Program Files\Python311\Lib\site-packages\keras\src\backend\common\global_state.py:82: The name tf.reset_default_graph is deprecated. Please use tf.compat.v1.reset_default_graph instead.
+
+2025-12-09 09:12:49,280 [INFO    ] [VolcanoAI_CNN       ] [MainThread] ---     [CNN Tuner] Terbaik: {'base_filters': 16, 'learning_rate': 0.0005, 'dropout': 0.1} (Loss: 0.1714)

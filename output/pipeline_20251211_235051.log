@@ -1,0 +1,74 @@
+2025-12-11 23:50:51,222 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251211_235051.log
+2025-12-11 23:50:51,223 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-11 23:50:51,223 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
+2025-12-11 23:50:51,223 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-11 23:50:51,229 [WARNING ] [VolcanoAI.processing.realtime_data_stream] [MainThread] --- File MIROVA tidak ditemukan di path: output/realtime/mirova_log.txt
+2025-12-11 23:50:51,230 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2025-12-11 23:50:51,230 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2025-12-11 23:50:51,230 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING ==========
+2025-12-11 23:50:51,231 [INFO    ] [SystemMonitor       ] [MainThread] --- RAM Usage: 83.5%
+2025-12-11 23:50:51,250 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 2: FEATURE ENGINEERING ==========
+2025-12-11 23:50:51,258 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-11 23:50:51,381 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-11 23:50:51,426 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: Kolom berikut kosong total saat training -> diisi 0.0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-11 23:50:51,960 [INFO    ] [VolcanoAI.processing.feature_engineer] [MainThread] --- Preprocessor state saved to: output\feature_preprocessor.pkl
+2025-12-11 23:50:51,961 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (1307, 55)
+2025-12-11 23:50:51,961 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-11 23:50:52,053 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-11 23:50:52,079 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: Kolom berikut kosong total saat training -> diisi 0.0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-11 23:50:52,616 [INFO    ] [VolcanoAI.processing.feature_engineer] [MainThread] --- Preprocessor state saved to: output\feature_preprocessor.pkl
+2025-12-11 23:50:52,617 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (561, 55)
+2025-12-11 23:50:52,618 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 3: MODEL TRAINING ==========
+2025-12-11 23:50:52,749 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Melanjutkan dari brain state sebelumnya.
+2025-12-11 23:51:03,234 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-48] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-11 23:51:12,328 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-89] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-11 23:51:21,341 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-130] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-11 23:51:30,388 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-171] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-11 23:51:37,331 [WARNING ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Dataframe kosong atau kurang kolom untuk visualisasi.
+2025-12-11 23:51:37,332 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- 
+================================================================================
+2025-12-11 23:51:37,333 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] ---                             === GA ENGINE START ===                             
+2025-12-11 23:51:37,333 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- ================================================================================
+2025-12-11 23:51:37,342 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA Evolution Start → Pop=80, Gen=150
+2025-12-11 23:51:37,350 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- Resuming GA from checkpoint...
+2025-12-11 23:51:56,380 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA Map saved → output\ga_results\ga_path_map.html
+2025-12-11 23:52:01,451 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- Excel exported → output\ga_results\ga_report.xlsx
+2025-12-11 23:52:01,453 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] ---                            === GA ENGINE COMPLETE ===                           
+2025-12-11 23:52:01,454 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- === LSTM V6.0 TITAN TRAINING START ===
+2025-12-11 23:52:01,495 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Processing Cluster 0...
+2025-12-11 23:52:01,510 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] ---     [Tuner] Menjalankan 3 trial optimasi...
+2025-12-11 23:52:02,191 [WARNING ] [tensorflow          ] [MainThread] --- From C:\Program Files\Python311\Lib\site-packages\keras\src\backend\common\global_state.py:82: The name tf.reset_default_graph is deprecated. Please use tf.compat.v1.reset_default_graph instead.
+
+2025-12-11 23:52:02,605 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Model LSTM berhasil dikompilasi. Input: 30x6
+2025-12-11 23:52:06,432 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Model LSTM berhasil dikompilasi. Input: 30x6
+2025-12-11 23:52:09,929 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Model LSTM berhasil dikompilasi. Input: 30x6
+2025-12-11 23:52:12,655 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] ---     [Tuner] Parameter Terbaik: {} (Loss: inf)
+2025-12-11 23:52:12,783 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Model LSTM berhasil dikompilasi. Input: 30x6
+2025-12-11 23:52:15,768 [CRITICAL] [PipelineGuard       ] [MainThread] --- CRASH di _run_training_flow: Dimensions must be equal, but are 0 and 2 for '{{node sub}} = Sub[T=DT_FLOAT](data_2, functional_1_1/probabilistic_output_1/concat)' with input shapes: [?,1,0], [?,1,2].
+2025-12-11 23:52:15,787 [CRITICAL] [VolcanoAiPipeline   ] [MainThread] --- PIPELINE FAILED: Dimensions must be equal, but are 0 and 2 for '{{node sub}} = Sub[T=DT_FLOAT](data_2, functional_1_1/probabilistic_output_1/concat)' with input shapes: [?,1,0], [?,1,2].
+Traceback (most recent call last):
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\main.py", line 459, in run
+    self._run_training_flow()
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\main.py", line 100, in wrapper
+    raise e
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\main.py", line 93, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\main.py", line 302, in _run_training_flow
+    self.lstm_engine.train(df_processed)
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\VolcanoAI\engines\lstm_engine.py", line 90, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\VolcanoAI\engines\lstm_engine.py", line 742, in train
+    h = model.fit([X_enc, X_dec], Y, epochs=self.cfg.epochs, batch_size=self.cfg.batch_size,
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\site-packages\keras\src\utils\traceback_utils.py", line 122, in error_handler
+    raise e.with_traceback(filtered_tb) from None
+  File "C:\Program Files\Python311\Lib\site-packages\keras\src\losses\losses.py", line 1800, in mean_absolute_error
+    return ops.mean(ops.abs(y_true - y_pred), axis=-1)
+                            ~~~~~~~^~~~~~~~
+ValueError: Dimensions must be equal, but are 0 and 2 for '{{node sub}} = Sub[T=DT_FLOAT](data_2, functional_1_1/probabilistic_output_1/concat)' with input shapes: [?,1,0], [?,1,2].
+2025-12-11 23:52:15,791 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- System shutdown. Uptime: 84.56s

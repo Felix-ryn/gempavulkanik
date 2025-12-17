@@ -1,0 +1,76 @@
+2025-12-09 21:00:10,254 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251209_210010.log
+2025-12-09 21:00:10,255 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-09 21:00:10,255 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
+2025-12-09 21:00:10,255 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-09 21:00:10,268 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2025-12-09 21:00:10,268 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2025-12-09 21:00:10,268 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING ==========
+2025-12-09 21:00:10,269 [INFO    ] [SystemMonitor       ] [MainThread] --- RAM Usage: 76.8%
+2025-12-09 21:00:10,280 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Memuat data dari cache...
+2025-12-09 21:00:10,315 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 2: FEATURE ENGINEERING ==========
+2025-12-09 21:00:10,325 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-09 21:00:10,468 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-09 21:00:10,532 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: kolom kosong total → diisi 0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-09 21:00:10,618 [INFO    ] [VolcanoAI.FeatureEngineer] [MainThread] --- Preprocessor state saved to: output/feature_preprocessor.pkl
+2025-12-09 21:00:10,619 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (1307, 57)
+2025-12-09 21:00:10,619 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE INFERENCE: Using existing preprocessor state.
+2025-12-09 21:00:10,662 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: kolom kosong total → diisi 0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-09 21:00:10,691 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (561, 57)
+2025-12-09 21:00:10,700 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 3: MODEL TRAINING ==========
+2025-12-09 21:00:10,701 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Running ACO Engine (Step 1)...
+2025-12-09 21:00:10,733 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Loaded ACO results from cache.
+2025-12-09 21:00:10,734 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Running GA Engine (Step 2)...
+2025-12-09 21:00:10,734 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- 
+================================================================================
+2025-12-09 21:00:10,735 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] ---                             === GA ENGINE START ===                             
+2025-12-09 21:00:10,735 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- ================================================================================
+2025-12-09 21:00:10,745 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA Evolution Start → Pop=80, Gen=150
+2025-12-09 21:00:10,763 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- Resuming GA from checkpoint...
+2025-12-09 21:00:31,048 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA Map saved → output\ga_results\ga_path_map.html
+2025-12-09 21:00:36,394 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- Excel exported → output\ga_results\ga_report.xlsx
+2025-12-09 21:00:36,402 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] ---                            === GA ENGINE COMPLETE ===                           
+2025-12-09 21:00:36,403 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Training LSTM Engine (Step 3)...
+2025-12-09 21:00:36,403 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- === LSTM V6.0 TITAN TRAINING START ===
+2025-12-09 21:00:36,437 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Processing Cluster 0...
+2025-12-09 21:00:36,450 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] ---     [Tuner] Menjalankan 3 trial optimasi...
+2025-12-09 21:00:37,149 [WARNING ] [tensorflow          ] [MainThread] --- From C:\Program Files\Python311\Lib\site-packages\keras\src\backend\common\global_state.py:82: The name tf.reset_default_graph is deprecated. Please use tf.compat.v1.reset_default_graph instead.
+
+2025-12-09 21:01:43,134 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] ---     [Tuner] Parameter Terbaik: {'latent_dim': 256, 'learning_rate': 0.001, 'dropout_rate': 0.3} (Loss: 0.0958)
+2025-12-09 21:03:48,792 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Training CNN Engine (Step 4)...
+2025-12-09 21:03:48,793 [INFO    ] [VolcanoAI_CNN       ] [MainThread] --- === MEMULAI CNN TRAINING PIPELINE V5.0 (TITAN) ===
+2025-12-09 21:03:48,794 [INFO    ] [VolcanoAI_CNN       ] [MainThread] --- 
+>>> Training CNN Cluster 0
+2025-12-09 21:03:52,399 [INFO    ] [VolcanoAI_CNN       ] [MainThread] ---     [CNN Tuner] Memulai 2 trial...
+2025-12-09 21:03:52,452 [WARNING ] [tensorflow          ] [MainThread] --- From C:\Program Files\Python311\Lib\site-packages\keras\src\backend\common\global_state.py:82: The name tf.reset_default_graph is deprecated. Please use tf.compat.v1.reset_default_graph instead.
+
+2025-12-09 21:04:57,267 [INFO    ] [VolcanoAI_CNN       ] [MainThread] ---     [CNN Tuner] Terbaik: {'base_filters': 16, 'learning_rate': 0.001, 'dropout': 0.1} (Loss: 0.1520)
+2025-12-09 21:07:32,760 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Training Naive Bayes Engine (Step 5)...
+2025-12-09 21:07:32,804 [INFO    ] [VolcanoAI.NaiveBayesEngine] [MainThread] --- Fitur Terpilih (7): ['Magnitudo', 'Kedalaman (km)', 'isTektonik', 'R3_final', 'PheromoneScore', 'luas_cnn', 'lstm_prediction']
+2025-12-09 21:07:32,848 [INFO    ] [VolcanoAI.NaiveBayesEngine] [MainThread] --- Training selesai. Model: CalibratedClassifierCV
+2025-12-09 21:07:32,850 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 4: MODEL EVALUATION ==========
+2025-12-09 21:07:32,874 [CRITICAL] [PipelineGuard       ] [MainThread] --- CRASH di _run_evaluation_flow: 'EnvironmentManager' object has no attribute '_build_heuristic_matrix'
+2025-12-09 21:07:32,876 [CRITICAL] [VolcanoAiPipeline   ] [MainThread] --- PIPELINE FAILED: 'EnvironmentManager' object has no attribute '_build_heuristic_matrix'
+Traceback (most recent call last):
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\main.py", line 426, in run
+    df_final, metrics, anomalies = self._run_evaluation_flow()
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\main.py", line 94, in wrapper
+    raise e
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\main.py", line 87, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\main.py", line 342, in _run_evaluation_flow
+    df_eval = aco_temp.run(df_eval)
+              ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\VolcanoAI\engines\aco_engine.py", line 399, in run
+    self.env_manager = EnvironmentManager(df, self.logger)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\VolcanoAI\engines\aco_engine.py", line 103, in __init__
+    self._build_heuristic_matrix()
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EnvironmentManager' object has no attribute '_build_heuristic_matrix'
+2025-12-09 21:07:32,878 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- System shutdown. Uptime: 442.61s

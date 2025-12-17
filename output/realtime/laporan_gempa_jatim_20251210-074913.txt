@@ -1,0 +1,10 @@
+==========================================
+   Laporan Gempa JATIM Terkini (BMKG)
+==========================================
+Waktu Filter: 2025-12-10 07:49:13
+
+1. Lokasi    : 141 km BaratDaya KAB-BLITAR-JATIM
+    Waktu     : 2025-11-24 03:40:21
+    Magnitudo : 5.2
+    Kedalaman : 10.0 km
+

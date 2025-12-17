@@ -1,0 +1,46 @@
+2025-12-09 03:50:34,469 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251209_035034.log
+2025-12-09 03:50:34,469 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-09 03:50:34,469 [INFO    ] [root                ] [MainThread] ---                            VOLCANOAI SYSTEM STARTUP                             
+2025-12-09 03:50:34,469 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-09 03:50:34,484 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2025-12-09 03:50:34,484 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2025-12-09 03:50:34,484 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING (NO MERGER, NO CACHE) ==========
+2025-12-09 03:50:34,484 [INFO    ] [SystemMonitor       ] [MainThread] --- RAM Usage: 77.9%
+2025-12-09 03:50:41,456 [WARNING ] [VolcanoAI.DataLoader] [MainThread] --- [VolcanoSource] Kolom VRP_Date tidak ditemukan. Mengisi dengan NaT.
+2025-12-09 03:50:41,495 [CRITICAL] [PipelineGuard       ] [MainThread] --- CRASH di _step_load_and_split_data: Merge keys contain null values on right side
+2025-12-09 03:50:41,497 [CRITICAL] [VolcanoAiPipeline   ] [MainThread] --- PIPELINE FAILED: Merge keys contain null values on right side
+Traceback (most recent call last):
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\main.py", line 340, in run
+    if not self._step_load_and_split_data(): return
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\main.py", line 91, in wrapper
+    raise e
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\main.py", line 84, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\main.py", line 183, in _step_load_and_split_data
+    df_full = self.data_loader.run()  # always fresh
+              ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\VolcanoAI\processing\data_loader.py", line 220, in run
+    df_merged = self._merge_datasets_temporal(df_eq, df_vol)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\VolcanoAI\processing\data_loader.py", line 264, in _merge_datasets_temporal
+    df = merge_asof(
+         ^^^^^^^^^^^
+  File "C:\Users\mauli\AppData\Roaming\Python\Python311\site-packages\pandas\core\reshape\merge.py", line 708, in merge_asof
+    return op.get_result()
+           ^^^^^^^^^^^^^^^
+  File "C:\Users\mauli\AppData\Roaming\Python\Python311\site-packages\pandas\core\reshape\merge.py", line 1927, in get_result
+    join_index, left_indexer, right_indexer = self._get_join_info()
+                                              ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mauli\AppData\Roaming\Python\Python311\site-packages\pandas\core\reshape\merge.py", line 1152, in _get_join_info
+    (left_indexer, right_indexer) = self._get_join_indexers()
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mauli\AppData\Roaming\Python\Python311\site-packages\pandas\core\reshape\merge.py", line 2240, in _get_join_indexers
+    right_values = self._convert_values_for_libjoin(right_values, "right")
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mauli\AppData\Roaming\Python\Python311\site-packages\pandas\core\reshape\merge.py", line 2182, in _convert_values_for_libjoin
+    raise ValueError(f"Merge keys contain null values on {side} side")
+ValueError: Merge keys contain null values on right side
+2025-12-09 03:50:41,499 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- System shutdown. Uptime: 7.02s

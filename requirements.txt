@@ -1,0 +1,12 @@
+pandas
+openpyxl
+scikit-learn
+tensorflow
+deap
+folium
+matplotlib
+seaborn
+requests
+opencv-python
+pytesseract
+

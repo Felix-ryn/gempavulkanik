@@ -1,0 +1,156 @@
+2025-12-10 07:30:56,669 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251210_073056.log
+2025-12-10 07:30:56,670 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-10 07:30:56,671 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
+2025-12-10 07:30:56,672 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-10 07:30:56,683 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2025-12-10 07:30:56,684 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2025-12-10 07:30:56,684 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING ==========
+2025-12-10 07:30:56,685 [INFO    ] [SystemMonitor       ] [MainThread] --- RAM Usage: 75.1%
+2025-12-10 07:30:56,689 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Memuat data dari cache...
+2025-12-10 07:30:56,722 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 2: FEATURE ENGINEERING ==========
+2025-12-10 07:30:56,733 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-10 07:30:56,894 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-10 07:30:56,945 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: kolom kosong total → diisi 0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-10 07:30:57,015 [INFO    ] [VolcanoAI.FeatureEngineer] [MainThread] --- Preprocessor state saved to: output/feature_preprocessor.pkl
+2025-12-10 07:30:57,016 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (1307, 55)
+2025-12-10 07:30:57,016 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-10 07:30:57,145 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-10 07:30:57,184 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: kolom kosong total → diisi 0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-10 07:30:57,254 [INFO    ] [VolcanoAI.FeatureEngineer] [MainThread] --- Preprocessor state saved to: output/feature_preprocessor.pkl
+2025-12-10 07:30:57,255 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (561, 55)
+2025-12-10 07:30:57,269 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 3: MODEL TRAINING ==========
+2025-12-10 07:30:57,269 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Running ACO Engine (Step 1)...
+2025-12-10 07:31:19,824 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Stagnasi terdeteksi → smooth reset pheromone.
+2025-12-10 07:31:28,368 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Stagnasi terdeteksi → smooth reset pheromone.
+2025-12-10 07:31:37,037 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Stagnasi terdeteksi → smooth reset pheromone.
+2025-12-10 07:31:46,121 [WARNING ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Dataframe kosong atau kurang kolom untuk visualisasi.
+2025-12-10 07:31:46,121 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Running GA Engine (Step 2)...
+2025-12-10 07:31:46,122 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- 
+================================================================================
+2025-12-10 07:31:46,122 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] ---                             === GA ENGINE START ===                             
+2025-12-10 07:31:46,123 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- ================================================================================
+2025-12-10 07:31:46,132 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA Evolution Start → Pop=80, Gen=150
+2025-12-10 07:31:46,151 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- Resuming GA from checkpoint...
+2025-12-10 07:32:05,645 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA Map saved → output\ga_results\ga_path_map.html
+2025-12-10 07:32:10,921 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- Excel exported → output\ga_results\ga_report.xlsx
+2025-12-10 07:32:10,924 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] ---                            === GA ENGINE COMPLETE ===                           
+2025-12-10 07:32:10,927 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Training LSTM Engine (Step 3)...
+2025-12-10 07:32:10,928 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- === LSTM V6.0 TITAN TRAINING START ===
+2025-12-10 07:32:10,973 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Processing Cluster 0...
+2025-12-10 07:32:10,987 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] ---     [Tuner] Menjalankan 3 trial optimasi...
+2025-12-10 07:32:11,962 [WARNING ] [tensorflow          ] [MainThread] --- From C:\Program Files\Python311\Lib\site-packages\keras\src\backend\common\global_state.py:82: The name tf.reset_default_graph is deprecated. Please use tf.compat.v1.reset_default_graph instead.
+
+2025-12-10 07:33:05,409 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] ---     [Tuner] Parameter Terbaik: {'latent_dim': 128, 'learning_rate': 0.0001, 'dropout_rate': 0.1} (Loss: 0.0993)
+2025-12-10 07:33:44,929 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Training CNN Engine (Step 4)...
+2025-12-10 07:33:44,930 [INFO    ] [VolcanoAI_CNN       ] [MainThread] --- === MEMULAI CNN TRAINING PIPELINE V5.0 (TITAN) ===
+2025-12-10 07:33:44,931 [INFO    ] [VolcanoAI_CNN       ] [MainThread] --- 
+>>> Training CNN Cluster 0
+2025-12-10 07:33:47,714 [INFO    ] [VolcanoAI_CNN       ] [MainThread] ---     [CNN Tuner] Memulai 2 trial...
+2025-12-10 07:33:47,761 [WARNING ] [tensorflow          ] [MainThread] --- From C:\Program Files\Python311\Lib\site-packages\keras\src\backend\common\global_state.py:82: The name tf.reset_default_graph is deprecated. Please use tf.compat.v1.reset_default_graph instead.
+
+2025-12-10 07:35:08,185 [INFO    ] [VolcanoAI_CNN       ] [MainThread] ---     [CNN Tuner] Terbaik: {'base_filters': 16, 'learning_rate': 0.0005, 'dropout': 0.2} (Loss: 0.1932)
+2025-12-10 07:38:24,439 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Training Naive Bayes Engine (Step 5)...
+2025-12-10 07:38:24,475 [INFO    ] [VolcanoAI.NaiveBayesEngine] [MainThread] --- Fitur Terpilih (7): ['Magnitudo', 'Kedalaman (km)', 'isTektonik', 'R3_final', 'PheromoneScore', 'luas_cnn', 'lstm_prediction']
+2025-12-10 07:38:24,516 [INFO    ] [VolcanoAI.NaiveBayesEngine] [MainThread] --- Training selesai. Model: CalibratedClassifierCV
+2025-12-10 07:38:24,518 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 4: MODEL EVALUATION ==========
+2025-12-10 07:38:24,519 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Running ACO Engine for Evaluation...
+2025-12-10 07:38:38,207 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Stagnasi terdeteksi → smooth reset pheromone.
+2025-12-10 07:38:45,066 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Stagnasi terdeteksi → smooth reset pheromone.
+2025-12-10 07:38:52,657 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Stagnasi terdeteksi → smooth reset pheromone.
+2025-12-10 07:39:02,206 [WARNING ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Dataframe kosong atau kurang kolom untuk visualisasi.
+2025-12-10 07:39:08,897 [INFO    ] [VolcanoAI.NaiveBayesEngine] [MainThread] --- 
+=== Laporan Klasifikasi ===
+              precision    recall  f1-score   support
+
+      Ringan       0.94      0.84      0.89       109
+      Sedang       0.78      0.85      0.81       211
+       Parah       0.89      0.86      0.87       241
+
+    accuracy                           0.85       561
+   macro avg       0.87      0.85      0.86       561
+weighted avg       0.86      0.85      0.85       561
+
+2025-12-10 07:39:09,655 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- Generating Dual Dashboard HTML...
+2025-12-10 07:39:10,731 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- Dashboard Updated: output\VolcanoAI_Analysis_STATIC.html
+2025-12-10 07:39:10,733 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- Dashboard Updated: output\VolcanoAI_Monitor_LIVE.html
+2025-12-10 07:39:10,733 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- ✅ Dual Dashboard Updated. Files: LIVE, STATIC.
+2025-12-10 07:39:10,734 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 5: LIVE MONITORING ==========
+2025-12-10 07:39:10,734 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- System is now ACTIVE. Watching for BMKG updates...
+2025-12-10 07:39:10,735 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Loading 1307 rows to buffer.
+2025-12-10 07:39:10,769 [INFO    ] [BMKG_Sensor         ] [MainThread] --- Menghubungi Server BMKG (Mencari Gempa Jatim)...
+2025-12-10 07:39:10,892 [INFO    ] [BMKG_Sensor         ] [MainThread] --- Ditemukan 1 gempa baru di area Jawa Timur.
+2025-12-10 07:39:10,895 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 🚨 DETEKSI GEMPA BARU: 1 kejadian.
+2025-12-10 07:39:10,899 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE INFERENCE: Using existing preprocessor state.
+2025-12-10 07:39:10,918 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Inference classified 1 unknown events.
+2025-12-10 07:39:10,964 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (91, 55)
+2025-12-10 07:39:11,041 [INFO    ] [VolcanoAI.NaiveBayesEngine] [MainThread] --- 
+=== Laporan Klasifikasi ===
+              precision    recall  f1-score   support
+
+      Ringan       0.00      0.00      0.00         0
+      Sedang       0.00      0.00      0.00         0
+       Parah       1.00      1.00      1.00         1
+
+    accuracy                           1.00         1
+   macro avg       0.33      0.33      0.33         1
+weighted avg       1.00      1.00      1.00         1
+
+2025-12-10 07:39:11,634 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Updating Dashboard Data (output\hasil_akhir_analisis.xlsx)...
+2025-12-10 07:39:11,697 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- Generating Dual Dashboard HTML...
+2025-12-10 07:39:12,019 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- Dashboard Updated: output\VolcanoAI_Analysis_STATIC.html
+2025-12-10 07:39:12,021 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- Dashboard Updated: output\VolcanoAI_Monitor_LIVE.html
+2025-12-10 07:39:12,021 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- ✅ Dual Dashboard Updated. Files: LIVE, STATIC.
+2025-12-10 07:39:12,021 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- ✅ Cycle Complete.
+2025-12-10 07:44:12,023 [INFO    ] [BMKG_Sensor         ] [MainThread] --- Menghubungi Server BMKG (Mencari Gempa Jatim)...
+2025-12-10 07:44:12,149 [INFO    ] [BMKG_Sensor         ] [MainThread] --- Ditemukan 1 gempa baru di area Jawa Timur.
+2025-12-10 07:44:12,151 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 🚨 DETEKSI GEMPA BARU: 1 kejadian.
+2025-12-10 07:44:12,158 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE INFERENCE: Using existing preprocessor state.
+2025-12-10 07:44:12,188 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Inference classified 2 unknown events.
+2025-12-10 07:44:12,256 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (91, 64)
+2025-12-10 07:44:12,356 [INFO    ] [VolcanoAI.NaiveBayesEngine] [MainThread] --- 
+=== Laporan Klasifikasi ===
+              precision    recall  f1-score   support
+
+      Ringan       0.00      0.00      0.00         0
+      Sedang       0.00      0.00      0.00         0
+       Parah       1.00      1.00      1.00         1
+
+    accuracy                           1.00         1
+   macro avg       0.33      0.33      0.33         1
+weighted avg       1.00      1.00      1.00         1
+
+2025-12-10 07:44:13,094 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Updating Dashboard Data (output\hasil_akhir_analisis.xlsx)...
+2025-12-10 07:44:13,158 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- Generating Dual Dashboard HTML...
+2025-12-10 07:44:13,466 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- Dashboard Updated: output\VolcanoAI_Analysis_STATIC.html
+2025-12-10 07:44:13,468 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- Dashboard Updated: output\VolcanoAI_Monitor_LIVE.html
+2025-12-10 07:44:13,469 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- ✅ Dual Dashboard Updated. Files: LIVE, STATIC.
+2025-12-10 07:44:13,469 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- ✅ Cycle Complete.
+2025-12-10 07:49:13,471 [INFO    ] [BMKG_Sensor         ] [MainThread] --- Menghubungi Server BMKG (Mencari Gempa Jatim)...
+2025-12-10 07:49:13,583 [INFO    ] [BMKG_Sensor         ] [MainThread] --- Ditemukan 1 gempa baru di area Jawa Timur.
+2025-12-10 07:49:13,586 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 🚨 DETEKSI GEMPA BARU: 1 kejadian.
+2025-12-10 07:49:13,591 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE INFERENCE: Using existing preprocessor state.
+2025-12-10 07:49:13,615 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Inference classified 2 unknown events.
+2025-12-10 07:49:13,708 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (91, 64)
+2025-12-10 07:49:13,820 [INFO    ] [VolcanoAI.NaiveBayesEngine] [MainThread] --- 
+=== Laporan Klasifikasi ===
+              precision    recall  f1-score   support
+
+      Ringan       0.00      0.00      0.00         0
+      Sedang       0.00      0.00      0.00         0
+       Parah       1.00      1.00      1.00         1
+
+    accuracy                           1.00         1
+   macro avg       0.33      0.33      0.33         1
+weighted avg       1.00      1.00      1.00         1
+
+2025-12-10 07:49:14,820 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Updating Dashboard Data (output\hasil_akhir_analisis.xlsx)...
+2025-12-10 07:49:14,895 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- Generating Dual Dashboard HTML...
+2025-12-10 07:49:15,560 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- Dashboard Updated: output\VolcanoAI_Analysis_STATIC.html
+2025-12-10 07:49:15,562 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- Dashboard Updated: output\VolcanoAI_Monitor_LIVE.html
+2025-12-10 07:49:15,563 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- ✅ Dual Dashboard Updated. Files: LIVE, STATIC.
+2025-12-10 07:49:15,563 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- ✅ Cycle Complete.

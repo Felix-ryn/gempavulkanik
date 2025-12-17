@@ -1,0 +1,47 @@
+2025-12-08 06:13:00,388 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251208_061300.log
+2025-12-08 06:13:00,389 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-08 06:13:00,389 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
+2025-12-08 06:13:00,390 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-08 06:13:00,399 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2025-12-08 06:13:00,399 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2025-12-08 06:13:00,399 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING ==========
+2025-12-08 06:13:00,401 [INFO    ] [SystemMonitor       ] [MainThread] --- RAM Usage: 62.4%
+2025-12-08 06:13:00,401 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Menjalankan Data Loader dari sumber mentah...
+2025-12-08 06:13:07,113 [WARNING ] [VolcanoAI.DataLoader] [MainThread] --- [VolcanoSource] Kolom VRP_Date tidak ditemukan. Mengisi dengan NaT.
+2025-12-08 06:13:07,162 [CRITICAL] [PipelineGuard       ] [MainThread] --- CRASH di _step_load_and_split_data: Merge keys contain null values on right side
+2025-12-08 06:13:07,182 [CRITICAL] [VolcanoAiPipeline   ] [MainThread] --- PIPELINE FAILED: Merge keys contain null values on right side
+Traceback (most recent call last):
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\main.py", line 415, in run
+    if not self._step_load_and_split_data():
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\main.py", line 94, in wrapper
+    raise e
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\main.py", line 87, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\main.py", line 198, in _step_load_and_split_data
+    df_full = self.data_loader.run()
+              ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\VolcanoAI\processing\data_loader.py", line 220, in run
+    df_merged = self._merge_datasets_temporal(df_eq, df_vol)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Soft-project\Soft-project\TA\Earthquake_Volcano\VolcanoAI\processing\data_loader.py", line 264, in _merge_datasets_temporal
+    df = merge_asof(
+         ^^^^^^^^^^^
+  File "C:\Users\mauli\AppData\Roaming\Python\Python311\site-packages\pandas\core\reshape\merge.py", line 708, in merge_asof
+    return op.get_result()
+           ^^^^^^^^^^^^^^^
+  File "C:\Users\mauli\AppData\Roaming\Python\Python311\site-packages\pandas\core\reshape\merge.py", line 1927, in get_result
+    join_index, left_indexer, right_indexer = self._get_join_info()
+                                              ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mauli\AppData\Roaming\Python\Python311\site-packages\pandas\core\reshape\merge.py", line 1152, in _get_join_info
+    (left_indexer, right_indexer) = self._get_join_indexers()
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mauli\AppData\Roaming\Python\Python311\site-packages\pandas\core\reshape\merge.py", line 2240, in _get_join_indexers
+    right_values = self._convert_values_for_libjoin(right_values, "right")
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\mauli\AppData\Roaming\Python\Python311\site-packages\pandas\core\reshape\merge.py", line 2182, in _convert_values_for_libjoin
+    raise ValueError(f"Merge keys contain null values on {side} side")
+ValueError: Merge keys contain null values on right side
+2025-12-08 06:13:07,183 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- System shutdown. Uptime: 6.78s

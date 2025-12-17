@@ -1,0 +1,122 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VolcanoAI - Dashboard Analisis Statis</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+
+        /* Styling khusus untuk layer */
+        .ga-path-line {
+            stroke-dasharray: 5, 10;
+        }
+        /* Garis putus-putus untuk prediksi */
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // 1. Inisialisasi Peta Dasar
+        var map = L.map('map').setView([-7.8, 113.0], 9); // Fokus Jawa Timur
+
+        // Pilihan Base Map (Mode Terang/Gelap)
+        var lightLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '© OpenStreetMap, © CARTO'
+        }).addTo(map); // Default
+
+        var darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '© OpenStreetMap, © CARTO'
+        });
+
+
+        // =================================================================
+        // 2. DEFINISI LAYER DATA (Nantinya data ini diisi dari Python)
+        // =================================================================
+
+        // --- Layer A: Data Historis (Titik Pusat) ---
+        // Data ini nantinya dari hasil cluster atau data mentah
+        var historicalPoints = L.layerGroup([
+            L.circleMarker([-7.9, 112.5], { color: 'blue', radius: 5 }).bindPopup("Gempa Historis A"),
+            L.circleMarker([-8.1, 113.2], { color: 'blue', radius: 5 }).bindPopup("Gempa Historis B"),
+            L.circleMarker([-7.7, 113.5], { color: 'blue', radius: 5 }).bindPopup("Gempa Historis C")
+        ]);
+
+        // --- Layer B: Area Dampak ACO (Lingkaran Merah) ---
+        // Radius dan warna berdasarkan Pheromone Score
+        var acoImpactLayer = L.layerGroup([
+            L.circle([-7.9, 112.5], { radius: 15000, color: 'red', fillOpacity: 0.3 }).bindPopup("Area Risiko ACO Tinggi"),
+            L.circle([-8.1, 113.2], { radius: 10000, color: 'orange', fillOpacity: 0.3 }).bindPopup("Area Risiko ACO Sedang"),
+            L.circle([-7.7, 113.5], { radius: 8000, color: 'yellow', fillOpacity: 0.3 }).bindPopup("Area Risiko ACO Rendah")
+        ]);
+
+        // --- Layer C: Keterhubungan GA (Garis Path - The Snake) ---
+        // Menunjukkan bagaimana GA menghubungkan history.
+        // Opacity/tebal garis bisa menunjukkan probabilitas (seberapa sering jalur ini muncul di populasi GA).
+        var gaConnectivityLayer = L.layerGroup([
+            // Garis tebal = probabilitas tinggi
+            L.polyline([[-7.9, 112.5], [-8.1, 113.2]], { color: 'blue', weight: 4, opacity: 0.7 }).bindPopup("Jalur GA Utama (Sering Muncul)"),
+            // Garis tipis = alternatif
+            L.polyline([[-8.1, 113.2], [-7.7, 113.5]], { color: 'cyan', weight: 2, opacity: 0.5 }).bindPopup("Jalur GA Alternatif")
+        ]);
+
+        // --- Layer D: Prediksi GA Berikutnya (Garis Putus & Area) ---
+        // Menunjukkan: "Dari titik terakhir (misal C), kemana kemungkinan selanjutnya?"
+        var gaPredictionLayer = L.layerGroup([
+            // Garis putus-putus ke area prediksi
+            L.polyline([[-7.7, 113.5], [-7.5, 113.8]], { color: 'magenta', weight: 3, className: 'ga-path-line' }),
+            // Estimasi area di titik prediksi (gabungan konsep ACO di titik prediksi GA)
+            L.circle([-7.5, 113.8], { radius: 12000, color: 'magenta', fillOpacity: 0.2 }).bindPopup("Prediksi Area Kejadian Berikutnya oleh GA")
+        ]);
+
+
+        // =================================================================
+        // 3. MEMBUAT PANEL KONFIGURASI (LAYER CONTROL)
+        // =================================================================
+
+        var baseMaps = {
+            "Mode Terang": lightLayer,
+            "Mode Gelap (Chaos)": darkLayer
+        };
+
+        // Ini adalah menu yang Anda minta untuk Dashboard Statis
+        var overlayMaps = {
+            "📍 Data Historis (Titik)": historicalPoints,
+            "🔴 Area Risiko (ACO)": acoImpactLayer,
+            "🔵 Keterhubungan Jalur (GA Connectivity)": gaConnectivityLayer,
+            "🔮 Prediksi Area Berikutnya (GA Prediction)": gaPredictionLayer
+        };
+
+        // Tambahkan kontrol ke peta.
+        // Secara default, kita nyalakan ACO dan GA Connectivity.
+        map.addLayer(acoImpactLayer);
+        map.addLayer(gaConnectivityLayer);
+
+        L.control.layers(baseMaps, overlayMaps, { collapsed: false, position: 'topright' }).addTo(map);
+
+        // Tambahkan Legenda/Judul (Opsional)
+        var titleControl = L.control({ position: 'topleft' });
+        titleControl.onAdd = function (map) {
+            var div = L.DomUtil.create('div', 'info legend');
+            div.innerHTML = '<h4 style="background: white; padding: 10px; border-radius: 5px; box-shadow: 0 0 5px rgba(0,0,0,0.2);">Konfigurasi Tampilan Statis</h4>';
+            return div;
+        };
+        titleControl.addTo(map);
+
+    </script>
+</body>
+</html>
