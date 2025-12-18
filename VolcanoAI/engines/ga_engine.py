@@ -83,7 +83,7 @@ class GeoMathCore:
 
     @staticmethod
     def calculate_bearing(lat1, lon1, lat2, lon2):
-        """Bearing (sudut) dari titik 1 → titik 2 dalam derajat 0-360."""
+        """Bearing (sudut) dari titik 1 → titik 2 dalam derajat 0-360 (geodesic)."""
         lat1_rad = math.radians(lat1)
         lat2_rad = math.radians(lat2)
         diff_lon = math.radians(lon2 - lon1)
@@ -93,11 +93,11 @@ class GeoMathCore:
              math.sin(lat1_rad) * math.cos(lat2_rad) * math.cos(diff_lon))
 
         bearing = math.degrees(math.atan2(x, y))
-        return (bearing + 360) % 360
+        return (bearing + 360.0) % 360.0
 
     @classmethod
     def haversine(cls, lat1, lon1, lat2, lon2):
-        """Jarak permukaan bumi (km) antar dua koordinat."""
+        """Jarak permukaan bumi (km) antar dua koordinat (great-circle)."""
         lat1_rad = math.radians(lat1)
         lon1_rad = math.radians(lon1)
         lat2_rad = math.radians(lat2)
@@ -111,6 +111,33 @@ class GeoMathCore:
 
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
         return cls.R_EARTH_KM * c
+
+    @classmethod
+    def destination_point(cls, lat1, lon1, bearing_deg, distance_km):
+        """
+        Hitung titik tujuan (lat2, lon2) dari lat1,lon1, bearing (deg) dan distance (km).
+        Rumus spherial: lat2 = asin(sin(lat1)*cos(d/R) + cos(lat1)*sin(d/R)*cos(brng))
+        """
+        if distance_km == 0:
+            return float(lat1), float(lon1)
+
+        brng = math.radians(bearing_deg)
+        d_div_r = float(distance_km) / cls.R_EARTH_KM
+
+        lat1_r = math.radians(lat1)
+        lon1_r = math.radians(lon1)
+
+        lat2_r = math.asin(math.sin(lat1_r) * math.cos(d_div_r) +
+                           math.cos(lat1_r) * math.sin(d_div_r) * math.cos(brng))
+
+        lon2_r = lon1_r + math.atan2(math.sin(brng) * math.sin(d_div_r) * math.cos(lat1_r),
+                                     math.cos(d_div_r) - math.sin(lat1_r) * math.sin(lat2_r))
+
+        lat2 = math.degrees(lat2_r)
+        lon2 = math.degrees(lon2_r)
+        # Normalize lon to -180..180
+        lon2 = (lon2 + 180) % 360 - 180
+        return float(lat2), float(lon2)
 
 
 # =====================================
@@ -285,7 +312,11 @@ class PhysicsFitnessEngine:
     # -------------------------------------------------------------
     # 🔥 PREDIKSI NEXT EVENT (berdasarkan 3 titik terakhir)
     # -------------------------------------------------------------
-    def predict_next_event(self, df_path: pd.DataFrame) -> Dict[str, float]:
+    def predict_next_event(
+        self,
+        df_path: pd.DataFrame,
+        n_seg: Optional[int] = 5
+    ) -> Dict[str, float]:
 
         """
         Menghasilkan prediksi vektor pergerakan berdasarkan segmen terakhir dari df_path (best path).
@@ -298,81 +329,117 @@ class PhysicsFitnessEngine:
             return {}
 
         # default gunakan segmen terakhir (n = 5 atau lebih kecil jika data sedikit)
-        n_seg = min(5, len(df_path))
+        if n_seg is None:
+            n_seg = min(5, len(df_path))
+        else:
+            n_seg = min(max(2, int(n_seg)), len(df_path))
+
         df_seg = df_path.iloc[-n_seg:].reset_index(drop=True)
 
         return self.compute_vector_from_segment(df_seg)
 
     def compute_vector_from_segment(self, df_seg: pd.DataFrame) -> Dict[str, float]:
         """
-        Helper: hitung rata-rata delta (dlat, dlon) pada segmen, skala berdasarkan magnitude & risk,
-        kembalikan prediksi titik berikutnya plus metadata (bearing, distance, direction, confidence).
+        Hitung bearing rata-rata (circular mean) dan distance rata-rata (weighted),
+        lalu proyeksikan titik prediksi menggunakan geodesic destination_point.
+        Output berisi: pred_lat, pred_lon, bearing_degree, bearing_std_deg,
+        distance_km, distance_std_km, unit_vector_km (dx, dy), angular_concentration_R, confidence, ...
         """
         # safety
         if df_seg is None or len(df_seg) < 2:
             return {}
 
-        # koleksi nilai
-        lats = df_seg['EQ_Lintang'].values.astype(float)
-        lons = df_seg['EQ_Bujur'].values.astype(float)
-        mags = df_seg['Magnitudo'].values.astype(float) if 'Magnitudo' in df_seg.columns else np.ones(len(df_seg))
-        risks = df_seg['PheromoneScore'].values.astype(float) if 'PheromoneScore' in df_seg.columns else np.ones(len(df_seg)) * 0.1
+        lats = df_seg['EQ_Lintang'].astype(float).values
+        lons = df_seg['EQ_Bujur'].astype(float).values
+        mags = df_seg['Magnitudo'].astype(float).values if 'Magnitudo' in df_seg.columns else np.ones(len(df_seg))
+        risks = df_seg['PheromoneScore'].astype(float).values if 'PheromoneScore' in df_seg.columns else np.ones(len(df_seg)) * 0.1
 
-        # hitung delta antar pasangan berurutan
-        dlat_list = np.diff(lats)
-        dlon_list = np.diff(lons)
+        # compute bearings & distances for each consecutive pair
+        bearings = []
+        distances = []
+        weights = []
+        for i in range(len(lats) - 1):
+            lat_a, lon_a = lats[i], lons[i]
+            lat_b, lon_b = lats[i + 1], lons[i + 1]
+            dkm = GeoMathCore.haversine(lat_a, lon_a, lat_b, lon_b)
+            bdeg = GeoMathCore.calculate_bearing(lat_a, lon_a, lat_b, lon_b)
+            # weight by mean magnitude * mean risk for the segment
+            w = ((mags[i] + mags[i + 1]) / 2.0) * ((risks[i] + risks[i + 1]) / 2.0) + 1e-9
+            distances.append(float(dkm))
+            bearings.append(float(bdeg))
+            weights.append(float(w))
 
-        # buat bobot berdasarkan (mag * risk) rata2 antar pasangan
-        w_pairs = []
-        for i in range(len(dlat_list)):
-            w = (mags[i] + mags[i+1]) / 2.0 * (risks[i] + risks[i+1]) / 2.0
-            w_pairs.append(w + 1e-6)
-        w_pairs = np.array(w_pairs, dtype=float)
-        if np.sum(w_pairs) == 0:
-            w_pairs = np.ones_like(w_pairs)
+        distances = np.array(distances, dtype=float)
+        weights = np.array(weights, dtype=float)
+        # normalize weights
+        weights = weights / (np.sum(weights) + 1e-12)
 
-        # rata-rata berbobot
-        avg_dlat = float(np.average(dlat_list, weights=w_pairs))
-        avg_dlon = float(np.average(dlon_list, weights=w_pairs))
+        # --- Circular mean for bearings ---
+        # convert deg->rad
+        thetas = np.radians(np.array(bearings))
+        # weighted vector sum
+        x = np.sum(weights * np.cos(thetas))
+        y = np.sum(weights * np.sin(thetas))
+        if x == 0 and y == 0:
+            mean_theta = 0.0
+        else:
+            mean_theta = math.atan2(y, x)  # rad
+        mean_bearing_deg = (math.degrees(mean_theta) + 360.0) % 360.0
 
-        last_lat = float(lats[-1])
-        last_lon = float(lons[-1])
-        last_mag = float(mags[-1])
-        last_risk = float(risks[-1])
+        # angular concentration R (0..1), R = sqrt(x^2 + y^2)
+        R = math.sqrt(x * x + y * y)
+        # circular std (radians): sqrt(-2 * ln(R)) ; guard R to (1e-6, 1]
+        Rc = min(max(R, 1e-12), 1.0)
+        try:
+            ang_std_rad = math.sqrt(-2.0 * math.log(Rc)) if Rc < 1.0 else 0.0
+        except Exception:
+            ang_std_rad = 0.0
+        ang_std_deg = math.degrees(ang_std_rad)
 
-        # skala gerakan: kombinasi magnitudo & risk (konfigurabel via bobot di constructor jika perlu)
+        # --- Weighted average distance (km) ---
+        mean_distance_km = float(np.sum(distances * weights)) if len(distances) > 0 else 0.0
+        dist_std_km = float(np.sqrt(np.sum(weights * (distances - mean_distance_km) ** 2))) if len(distances) > 0 else 0.0
+
+        # scaling factor (influences how far we project next point)
+        last_mag = float(mags[-1]) if len(mags) > 0 else 1.0
+        last_risk = float(risks[-1]) if len(risks) > 0 else 0.1
         scale = 0.5 + (last_mag / 10.0) + float(last_risk)
 
-        # prediksi titik berikutnya (add scaled avg delta)
-        pred_lat = last_lat + avg_dlat * scale
-        pred_lon = last_lon + avg_dlon * scale
+        # predicted distance = mean_distance_km * scale
+        pred_distance_km = float(mean_distance_km * scale)
 
-        # hitung bearing & distance dari last -> pred
-        distance_km = GeoMathCore.haversine(last_lat, last_lon, pred_lat, pred_lon)
-        bearing_deg = GeoMathCore.calculate_bearing(last_lat, last_lon, pred_lat, pred_lon)
+        # convert mean_theta to degrees and compute destination (pred_lat, pred_lon)
+        pred_lat, pred_lon = GeoMathCore.destination_point(float(lats[-1]), float(lons[-1]), mean_bearing_deg, pred_distance_km)
 
-        # compute vector raw (first-last simple)
-        vector_lat = pred_lat - last_lat
-        vector_lon = pred_lon - last_lon
+        # compute km components of unit vector for clarity
+        bearing_rad = mean_theta
+        dx_east_km = pred_distance_km * math.sin(bearing_rad)   # east component
+        dy_north_km = pred_distance_km * math.cos(bearing_rad)  # north component
 
-        # confidence sederhana (dapat disesuaikan)
-        confidence = self.compute_confidence(df_seg)
+        # compute a refined confidence: combine risk-based metric + angular concentration R
+        conf_risk = self.compute_confidence(df_seg)  # existing risk-based confidence 0..1
+        # combine with angular concentration R (higher R => more coherent direction)
+        combined_conf = conf_risk * (0.5 + 0.5 * R)  # scale R into contribution
+        combined_conf = max(0.0, min(combined_conf, 1.0))
 
-        # arah kompas (N, NE, E, ...)
-        direction = self.bearing_to_compass(bearing_deg)
-
+        # return enriched dict
         return {
             "pred_lat": float(pred_lat),
             "pred_lon": float(pred_lon),
-            "base_lat": float(last_lat),
-            "base_lon": float(last_lon),
+            "base_lat": float(lats[-1]),
+            "base_lon": float(lons[-1]),
             "movement_scale": float(scale),
-            "bearing_degree": float(bearing_deg),
-            "distance_km": float(distance_km),
-            "vector_lat": float(vector_lat),
-            "vector_lon": float(vector_lon),
-            "movement_direction": direction,
-            "confidence": float(confidence)
+            "bearing_degree": float(mean_bearing_deg),
+            "bearing_rad": float(bearing_rad),
+            "bearing_std_deg": float(ang_std_deg),
+            "angular_concentration_R": float(R),
+            "distance_km": float(pred_distance_km),
+            "distance_mean_km": float(mean_distance_km),
+            "distance_std_km": float(dist_std_km),
+            "vector_lat": float(dy_north_km),   # north km
+            "vector_lon": float(dx_east_km),    # east km
+            "movement_direction": self.bearing_to_compass(mean_bearing_deg),
+            "confidence": float(combined_conf)
         }
 
     @staticmethod
@@ -869,13 +936,20 @@ class GaEngine:
         df_opt = clean_df.iloc[best_idx].reset_index(drop=True)
 
         # 5. Prediction module (menghasilkan struktur lengkap)
-        pred = fit_engine.predict_next_event(df_opt)
+        pred = fit_engine.predict_next_event(
+                df_opt,
+                n_seg=getattr(self.cfg, "ga_segment_window", 5)
+            )
 
         # Save GA vector JSON for downstream LSTM / pipeline
         try:
             vector_out_path = os.path.join(self.output_dir, "ga_vector.json")
+            pred_out = pred.copy()
+            pred_out["_generated_at"] = datetime.now().isoformat()
+            pred_out["_n_segment"] = getattr(self.cfg, "ga_segment_window", 5)
+
             with open(vector_out_path, "w") as vf:
-                json.dump(pred, vf, indent=2, default=float)
+                json.dump(pred_out, vf, indent=2, default=float)
             logger.info(f"GA vector JSON saved → {vector_out_path}")
         except Exception as e:
             logger.error(f"Failed to save GA vector JSON: {e}")

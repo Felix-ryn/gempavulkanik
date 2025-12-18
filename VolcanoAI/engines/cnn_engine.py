@@ -89,12 +89,19 @@ class SpatialDataGenerator:
 
     # [NEW/PINDAHKAN]: Metode untuk membuat target mask
     def create_target_mask(self, row: pd.Series) -> np.ndarray:
+        """
+        Always return a mask array shape (grid_size, grid_size) dtype float32.
+        If AreaTerdampak_km2 missing or <=0, return zeros mask.
+        """
         target_col = 'AreaTerdampak_km2'
+        gs = self.grid_size
         if target_col in row and pd.notna(row[target_col]) and float(row[target_col]) > 0:
             area = float(row[target_col])
             radius_km = np.sqrt(area / np.pi)
             mask = self._create_gaussian_heatmap(radius_km)
-            return mask.reshape(self.grid_size, self.grid_size, 1).astype(np.float32)
+            return mask.reshape(gs, gs, 1).astype(np.float32)
+        # fallback: return zeros mask (keamanan shape)
+        return np.zeros((gs, gs, 1), dtype=np.float32)
 
     # [NEW/PINDAHKAN]: Metode untuk membuat heatmap (private helper)
     def _create_gaussian_heatmap(self, radius_km: float) -> np.ndarray:
@@ -111,14 +118,31 @@ class SpatialDataGenerator:
 
 class CnnDataGenerator(Sequence):
     def __init__(self, spatial_data, temporal_data, targets, config):
-        self.spatial = spatial_data
-        self.temporal = temporal_data
+        """
+        targets: either None OR tuple (mask_array, vec_array)
+            - mask_array shape (N, H, W, 1)
+            - vec_array shape (N, 3) -> [sin(angle_rad), cos(angle_rad), distance_km]
+        temporal_data: numpy array shaped (N, temporal_dim) (e.g. LSTM hidden states)
+        """
+        self.spatial = np.asarray(spatial_data)
+        self.temporal = np.asarray(temporal_data)
         self.targets = targets
         self.cfg = config.__dict__ if not isinstance(config, dict) else config
         self.batch_size = int(self.cfg.get("batch_size", 8))
         self.shuffle = bool(self.cfg.get("shuffle", True))
         self.augment = bool(self.cfg.get("use_augmentation", True)) and (self.targets is not None)
         self.indexes = np.arange(len(self.spatial))
+        # if targets provided as tuple, unpack
+        if self.targets is not None and isinstance(self.targets, (list, tuple)) and len(self.targets) == 2:
+            self.mask_targets = np.asarray(self.targets[0])
+            self.vec_targets = np.asarray(self.targets[1])
+        elif self.targets is None:
+            self.mask_targets = None
+            self.vec_targets = None
+        else:
+            # backward compat: single-array target assumed mask
+            self.mask_targets = np.asarray(self.targets)
+            self.vec_targets = None
 
     def __len__(self):
         return int(np.ceil(len(self.indexes) / self.batch_size))
@@ -127,46 +151,85 @@ class CnnDataGenerator(Sequence):
         if self.shuffle:
             np.random.shuffle(self.indexes)
 
-    def _augment(self, img, mask):
+    def _augment(self, img, mask, vec):
+        """
+        Apply horizontal/vertical flips and rotation.
+        If vec provided (sin,cos,dist), update vec accordingly for rotation.
+        """
+        rot_angle = 0
         if np.random.rand() > 0.5:
             img = np.fliplr(img)
             mask = np.fliplr(mask)
+            if vec is not None:
+                # flipping horizontally: angle -> 180 - angle
+                angle_rad = np.arctan2(vec[0], vec[1])  # vec stored as sin,cos
+                angle_deg = (np.degrees(angle_rad) + 360) % 360
+                angle_deg = (180.0 - angle_deg) % 360
+                rad = np.radians(angle_deg)
+                vec[0] = np.sin(rad); vec[1] = np.cos(rad)
         if np.random.rand() > 0.5:
             img = np.flipud(img)
             mask = np.flipud(mask)
+            if vec is not None:
+                # flipping vertically: angle -> -angle
+                angle_rad = np.arctan2(vec[0], vec[1])
+                angle_deg = (np.degrees(angle_rad) + 360) % 360
+                angle_deg = (-angle_deg) % 360
+                rad = np.radians(angle_deg)
+                vec[0] = np.sin(rad); vec[1] = np.cos(rad)
         if np.random.rand() > 0.5:
-            angle = np.random.randint(-25, 25)
-            img = rotate(img, angle, reshape=False, order=1)
-            mask = rotate(mask, angle, reshape=False, order=1)
-        return img, mask
+            rot_angle = np.random.randint(-25, 25)
+            img = rotate(img, rot_angle, reshape=False, order=1)
+            mask = rotate(mask, rot_angle, reshape=False, order=1)
+            if vec is not None:
+                # rotate vector angle by rot_angle
+                angle_rad = np.arctan2(vec[0], vec[1])
+                angle_deg = (np.degrees(angle_rad) + 360) % 360
+                angle_deg = (angle_deg + rot_angle) % 360
+                rad = np.radians(angle_deg)
+                vec[0] = np.sin(rad); vec[1] = np.cos(rad)
+        return img, mask, vec
 
     def __getitem__(self, idx):
         inds = self.indexes[idx * self.batch_size : (idx + 1) * self.batch_size]
         
         batch_spatial = self.spatial[inds]
-        batch_temporal = self.temporal[inds]
+        batch_temporal = self.temporal[inds] if len(self.temporal) > 0 else np.zeros((len(inds), 1))
         
         inputs = {
             'spatial_input': batch_spatial,
             'temporal_input': batch_temporal
         }
 
-        if self.targets is None:
+        if self.mask_targets is None:
             return inputs
 
-        batch_y = self.targets[inds]
+        batch_y_mask = self.mask_targets[inds]
+        batch_y_vec = self.vec_targets[inds] if self.vec_targets is not None else None
         
         if self.augment:
             aug_spatial = []
-            aug_y = []
+            aug_mask = []
+            aug_vec = []
             for i in range(len(batch_spatial)):
-                s, y = self._augment(batch_spatial[i], batch_y[i])
-                aug_spatial.append(s)
-                aug_y.append(y)
+                s = batch_spatial[i].copy()
+                m = batch_y_mask[i].copy()
+                v = batch_y_vec[i].copy() if batch_y_vec is not None else None
+                s2, m2, v2 = self._augment(s, m, v)
+                aug_spatial.append(s2)
+                aug_mask.append(m2)
+                if v2 is not None:
+                    aug_vec.append(v2)
             inputs['spatial_input'] = np.array(aug_spatial)
-            batch_y = np.array(aug_y)
+            batch_y_mask = np.array(aug_mask)
+            if batch_y_vec is not None:
+                batch_y_vec = np.array(aug_vec)
 
-        return inputs, batch_y
+        # return (inputs, [mask, vec]) to match multi-output model
+        if batch_y_vec is not None:
+            return inputs, [batch_y_mask, batch_y_vec]
+        else:
+            return inputs, batch_y_mask
 
 # =============================================================================
 # SECTION 2: HYBRID ARCHITECTURE FACTORY
@@ -188,104 +251,75 @@ class UnetFactory:
 
     def build_model(self, temporal_dim: int, params: Dict[str, Any] = None) -> Model:
         """
-        Membangun Spatiotemporal U-Net:
-        - Input 1 (Spatial): Gambar grid (H, W, C)
-        - Input 2 (Temporal): Vektor data cuaca/sensor (1D)
-        - Output: Binary Mask (Segmentasi Dampak)
+        Build multi-head UNet:
+         - output[0] = segmentation mask (H,W,1) with sigmoid
+         - output[1] = vector head (sin(angle), cos(angle), distance_km) as regression
+        Loss = w_seg * hybrid_dice_bce_loss + w_vec * mse(vector)
         """
-        # Asumsi: Keras Layers, Model, dan Optimizer sudah diimpor di bagian atas modul.
-        # Asumsi: CnnMathKernel diimpor atau tersedia di scope modul.
-    
-        # Setup Parameter
         p = params if params else {}
         base_filters = p.get('base_filters', 16)
         dropout = p.get('dropout', 0.1)
         lr = p.get('learning_rate', 0.001)
+        w_seg = p.get('weight_seg', 1.0)
+        w_vec = p.get('weight_vec', 1.0)
 
-        # Menghapus import Keras layers (asumsi sudah diimpor secara global)
-        # from keras.layers import (Input, Conv2D, MaxPooling2D, Conv2DTranspose,  
-        #                          Dense, Reshape, Concatenate, Activation)
-        # from keras.models import Model
-        # from keras.optimizers import Adam
-    
-        # Keras Layers harus diakses secara langsung jika diimpor di atas.
-    
-        # ---------------------------
-        # 1. SPATIAL ENCODER (U-NET DOWNSTREAM)
-        # ---------------------------
-        # Asumsi self.input_channels tersedia di class scope.
         spatial_in = Input(shape=(self.grid_size, self.grid_size, self.input_channels), name='spatial_input')
-    
-        # Level 1
+        # encoder...
         c1 = self._conv_block(spatial_in, base_filters, 'enc1', dropout)
         p1 = MaxPooling2D((2, 2))(c1)
-    
-        # Level 2
         c2 = self._conv_block(p1, base_filters*2, 'enc2', dropout)
         p2 = MaxPooling2D((2, 2))(c2)
-    
-        # Level 3
         c3 = self._conv_block(p2, base_filters*4, 'enc3', dropout)
         p3 = MaxPooling2D((2, 2))(c3)
-    
-        # Bottleneck Spatial
         bn = self._conv_block(p3, base_filters*8, 'bottleneck', dropout)
 
-        # ---------------------------
-        # 2. TEMPORAL FEATURE FUSION (INJECTION)
-        # ---------------------------
         temporal_in = Input(shape=(temporal_dim,), name='temporal_input')
-    
-        # Menghitung dimensi bottleneck 
         target_h = self.grid_size // 8
         target_w = self.grid_size // 8
-    
-        # Transformasi vektor 1D ke dimensi Spatial Bottleneck
         t = Dense(target_h * target_w * base_filters, activation='relu')(temporal_in)
         t = Reshape((target_h, target_w, base_filters))(t)
         t = Conv2D(base_filters*8, (1, 1), activation='relu', padding='same')(t)
-    
-        # Gabungkan Spatial Features + Temporal Features di bottleneck
+
         bn_fused = Concatenate(name='temporal_spatial_fusion')([bn, t])
-    
-        # [FIX]: Ensure consistency with dropout parameter
         bn_final = self._conv_block(bn_fused, base_filters*8, 'fusion_block', dropout)
 
-        # ---------------------------
-        # 3. SPATIAL DECODER (UPSAMPLING) - Skip Connections
-        # ---------------------------
-        # Level 3 Up
+        # decoder
         u1 = Conv2DTranspose(base_filters*4, (2, 2), strides=(2, 2), padding='same')(bn_final)
-        u1 = Concatenate()([u1, c3]) # Skip connection
+        u1 = Concatenate()([u1, c3])
         c4 = self._conv_block(u1, base_filters*4, 'dec1', dropout)
 
-        # Level 2 Up
         u2 = Conv2DTranspose(base_filters*2, (2, 2), strides=(2, 2), padding='same')(c4)
-        u2 = Concatenate()([u2, c2]) # Skip connection
+        u2 = Concatenate()([u2, c2])
         c5 = self._conv_block(u2, base_filters*2, 'dec2', dropout)
 
-        # Level 1 Up
         u3 = Conv2DTranspose(base_filters, (2, 2), strides=(2, 2), padding='same')(c5)
-        u3 = Concatenate()([u3, c1]) # Skip connection
+        u3 = Concatenate()([u3, c1])
         c6 = self._conv_block(u3, base_filters, 'dec3', dropout)
 
-        # ---------------------------
-        # 4. OUTPUT HEAD
-        # ---------------------------
-        # Sigmoid untuk output biner (Mask 0 atau 1)
-        output = Conv2D(1, (1, 1), activation='sigmoid', name='output_mask')(c6)
+        # segmentation head
+        mask_out = Conv2D(1, (1, 1), activation='sigmoid', name='output_mask')(c6)
 
-        # Compile Model
-        model = Model(inputs=[spatial_in, temporal_in], outputs=output)
-    
-        # [FIX]: Menggunakan loss dan metrics yang disediakan di CnnMathKernel
+        # vector head: global pooling -> dense -> [sin, cos, distance]
+        gp = K.mean(bn_final, axis=[1,2])  # global average pooling of bottleneck fused (avoid extra import)
+        v = Dense(128, activation='relu')(gp)
+        v = Dropout(dropout)(v)
+        # outputs: sin(angle), cos(angle), distance_km
+        vec_out = Dense(3, activation='linear', name='output_vector')(v)
+
+        model = Model(inputs=[spatial_in, temporal_in], outputs=[mask_out, vec_out])
+
+        # custom multi-loss function
+        def multi_loss(y_true, y_pred):
+            # y_true and y_pred for segmentation handled by Keras; here we create wrapper below
+            return None
+
+        # compile: segmentation uses hybrid_dice_bce_loss, vector uses mse
         model.compile(
-            optimizer=Adam(learning_rate=lr), 
-            # Asumsi CnnMathKernel dan metodenya dapat diakses di scope ini
-            loss=CnnMathKernel.hybrid_dice_bce_loss,
-            metrics=[CnnMathKernel.dice_coefficient, 'accuracy']
+            optimizer=Adam(learning_rate=lr),
+            loss={'output_mask': CnnMathKernel.hybrid_dice_bce_loss, 'output_vector': 'mse'},
+            loss_weights={'output_mask': w_seg, 'output_vector': w_vec},
+            metrics={'output_mask': CnnMathKernel.dice_coefficient}
         )
-    
         return model
 
 # =============================================================================
@@ -385,6 +419,17 @@ class CnnVisualizer:
 class CnnEngine:
     def __init__(self, config: Any):
         self.cfg = config.__dict__ if not isinstance(config, dict) else config
+
+        # =====================
+        # DEFAULT CONFIG SAFETY 
+        # =====================
+        self.cfg.setdefault('grid_size', 64)
+        self.cfg.setdefault('input_channels', 3)
+        self.cfg.setdefault('batch_size', 8)
+        self.cfg.setdefault('use_augmentation', True)
+        self.cfg.setdefault('epochs', 20)
+        self.cfg.setdefault('domain_km', 200.0)
+
         self.model_dir = Path(self.cfg.get("model_dir", "output/cnn/models"))
         self.visual_dir = Path(self.cfg.get("output_dir", "output/cnn")) / "visuals"
         self.model_dir.mkdir(parents=True, exist_ok=True)
@@ -394,7 +439,7 @@ class CnnEngine:
         self.unet_factory = UnetFactory(self.cfg)
         self.tuner = CnnTuner(self.unet_factory)
         self.visualizer = CnnVisualizer(self.visual_dir)
-        self.models = {} 
+        self.models = {}
 
     def _extract_lstm_features(self, df_cluster: pd.DataFrame, lstm_engine, cid: int) -> Optional[Tuple[np.ndarray, pd.Index]]:
         try:
@@ -461,36 +506,86 @@ class CnnEngine:
                 continue
             lstm_feats, valid_idx = res
             
-            df_aligned = df_c.loc[valid_idx]
-            spatial_data = np.array([self.spatial_gen.create_input_mask(r) for _, r in df_aligned.iterrows()])
-            target_data = np.array([self.spatial_gen.create_target_mask(r) for _, r in df_aligned.iterrows()])
+            df_aligned = df_aligned.sort_values("Acquired_Date").reset_index(drop=True)
+
+            spatial_list, mask_list, vec_list = [], [], []
+
+            for i in range(len(df_aligned) - 1):  # ?? sampai N-1
+                r_now = df_aligned.iloc[i]
+                r_next = df_aligned.iloc[i + 1]
+
+                # spatial input (current state)
+                spatial_list.append(self.spatial_gen.create_input_mask(r_now))
+                mask_list.append(self.spatial_gen.create_target_mask(r_now))
+
+                # vector target = GA NEXT EVENT
+                angle = r_next.get('ga_angle_deg', np.nan)
+                dist  = r_next.get('ga_distance_km', np.nan)
+
+                if pd.isna(angle) or pd.isna(dist):
+                    vec_list.append([0.0, 1.0, 0.0])
+                else:
+                    rad = np.radians(float(angle))
+                    vec_list.append([np.sin(rad), np.cos(rad), float(dist)])
             
-            if len(spatial_data) < 5: continue
+            lstm_feats = lstm_feats[:-1]
+
+            spatial_data = np.array(spatial_list)
+            target_masks = np.array(mask_list)
+            target_vecs = np.array(vec_list)
+
+            # optionally filter out rows where mask is all zeros and also vector is zero?
+            # but keep as-is for now
+
+            if len(spatial_data) < 5: 
+                logger.warning(f"Skip c{cid}: too few samples after alignment.")
+                continue
 
             split = int(0.8 * len(spatial_data))
-            gen_train = CnnDataGenerator(spatial_data[:split], lstm_feats[:split], target_data[:split], self.cfg)
-            gen_val = CnnDataGenerator(spatial_data[split:], lstm_feats[split:], target_data[split:], self.cfg)
+
+            gen_train = CnnDataGenerator(
+                spatial_data[:split],
+                lstm_feats[:split],
+                (target_masks[:split], target_vecs[:split]),
+                self.cfg
+            )
+
+            gen_val = CnnDataGenerator(
+                spatial_data[split:],
+                lstm_feats[split:],
+                (target_masks[split:], target_vecs[split:]),
+                self.cfg
+            )
             
-            best_params = self.tuner.search(gen_train, gen_val, lstm_feats.shape[-1])
-            model = self.unet_factory.build_model(lstm_feats.shape[-1], best_params)
-            
-            ckpt_path = self.model_dir / f"cnn_model_c{cid}.keras"
+            # =========================
+            # BUILD + TRAIN CNN
+            # =========================
+            temporal_dim = lstm_feats.shape[1]
+
+            params = self.tuner.search(gen_train, gen_val, temporal_dim)
+            model = self.unet_factory.build_model(temporal_dim, params)
+
             callbacks = [
                 EarlyStopping(patience=5, restore_best_weights=True),
-                ModelCheckpoint(str(ckpt_path), save_best_only=True, verbose=0)
+                ModelCheckpoint(
+                    filepath=self.model_dir / f"cnn_model_c{cid}.keras",
+                    save_best_only=True
+                )
             ]
-            
-            model.fit(gen_train, validation_data=gen_val, epochs=int(self.cfg.get('epochs', 20)), callbacks=callbacks, verbose=1)
+
+            model.fit(
+                gen_train,
+                validation_data=gen_val,
+                epochs=self.cfg['epochs'],
+                callbacks=callbacks,
+                verbose=1
+            )
+
+            # =========================
+            # REGISTER MODEL
+            # =========================
             self.models[cid] = model
             success_count += 1
-            
-            try:
-                val_sample = gen_val[0]
-                pred = model.predict(val_sample[0], verbose=0)
-                self.visualizer.save_sample_prediction(cid, 0, val_sample[0]['spatial_input'][0], val_sample[1][0], pred[0])
-            except: pass
-
-        return success_count > 0
 
     def predict(self, df_predict: pd.DataFrame, lstm_engine) -> pd.DataFrame:
         df_out = df_predict.copy()
@@ -521,27 +616,62 @@ class CnnEngine:
             
             # Predict
             gen = CnnDataGenerator(spatial_data, lstm_feats, None, self.cfg)
-            preds = model.predict(gen, verbose=0)
-            
-            # [FEATURE BARU] Save Dual Visualization untuk baris terakhir (Realtime Context)
-            try:
-                last_idx_in_batch = -1 # Ambil prediksi paling akhir dari batch ini
-                last_img = spatial_data[last_idx_in_batch]
-                last_pred = preds[last_idx_in_batch]
-                
-                # Ambil timestamp asli
-                timestamp = str(df_aligned.iloc[last_idx_in_batch]['Acquired_Date'])
-                
-                self.visualizer.save_dual_inference_view(cid, last_idx_in_batch, last_img, last_pred, timestamp)
-            except Exception as e:
-                pass # Jangan biarkan error visualisasi menghentikan pipeline
+            preds_out = model.predict(gen, verbose=0)
+            if isinstance(preds_out, list) or (isinstance(preds_out, tuple) and len(preds_out) == 2):
+                preds_mask = preds_out[0]
+                preds_vec = preds_out[1]
+            else:
+                # fallback: single output (legacy) -> treat as mask
+                preds_mask = preds_out
+                preds_vec = np.zeros((preds_mask.shape[0], 3))
 
-            # Hitung Luas
+            # Visualize last sample (dual)
+            try:
+                last_idx_in_batch = -1
+                last_img = spatial_data[last_idx_in_batch]
+                last_pred_mask = preds_mask[last_idx_in_batch]
+                self.visualizer.save_dual_inference_view(cid, last_idx_in_batch, last_img, last_pred_mask, str(df_aligned.iloc[last_idx_in_batch]['Acquired_Date']))
+            except Exception:
+                pass
+
+            # Hitung Luas dari masks
             km2_px = self.spatial_gen.km_per_pixel ** 2
-            areas = np.sum(preds > 0.5, axis=(1, 2, 3)) * km2_px
-            
-            # Map Back
+            areas = np.sum(preds_mask > 0.5, axis=(1, 2, 3)) * km2_px
+
+            # Convert vec predictions: sin,cos,dist -> angle_deg, dist
+            sin_vals = preds_vec[:, 0]
+            cos_vals = preds_vec[:, 1]
+            dist_vals = preds_vec[:, 2]
+            angles_rad = np.arctan2(sin_vals, cos_vals)
+            angles_deg = (np.degrees(angles_rad) + 360) % 360
+
+            # Map back to df_out
             min_len = min(len(valid_idx), len(areas))
-            df_out.loc[valid_idx[:min_len], 'luas_cnn'] = areas[:min_len]
+            idxs_to_write = list(valid_idx[:min_len])
+            df_out.loc[idxs_to_write, 'luas_cnn'] = areas[:min_len]
+            df_out.loc[idxs_to_write, 'cnn_angle_deg'] = angles_deg[:min_len]
+            df_out.loc[idxs_to_write, 'cnn_distance_km'] = dist_vals[:min_len]
             
-        return df_out
+        try:
+            out_dir = Path(self.cfg.get("output_dir", "output/cnn")) / "results"
+            out_dir.mkdir(parents=True, exist_ok=True)
+
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            out_path = out_dir / f"cnn_predictions_{ts}.csv"
+
+            export_cols = [
+                'cluster_id',
+                'Acquired_Date',
+                'luas_cnn',
+                'cnn_angle_deg',
+                'cnn_distance_km'
+            ]
+            export_cols = [c for c in export_cols if c in df_out.columns]
+
+            df_out[export_cols].to_csv(out_path, index=False)
+            logger.info(f"[CNN] Prediction CSV saved: {out_path}")
+
+        except Exception as e:
+            logger.warning(f"[CNN] Gagal export CSV: {e}")
+
+        return df_out 

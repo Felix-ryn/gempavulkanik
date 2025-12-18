@@ -1,0 +1,51 @@
+2025-12-18 20:59:21,760 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251218_205921.log
+2025-12-18 20:59:21,762 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-18 20:59:21,764 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
+2025-12-18 20:59:21,767 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-18 20:59:21,805 [WARNING ] [VolcanoAI.processing.realtime_data_stream] [MainThread] --- File MIROVA tidak ditemukan di path: output/realtime/mirova_log.txt
+2025-12-18 20:59:21,807 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2025-12-18 20:59:21,808 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2025-12-18 20:59:21,810 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING ==========
+2025-12-18 20:59:21,851 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 2: FEATURE ENGINEERING ==========
+2025-12-18 20:59:21,854 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-18 20:59:22,262 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-18 20:59:22,458 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: Kolom berikut kosong total saat training -> diisi 0.0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-18 20:59:23,393 [INFO    ] [VolcanoAI.processing.feature_engineer] [MainThread] --- Preprocessor state saved to: output\feature_preprocessor.pkl
+2025-12-18 20:59:23,395 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (1307, 55)
+2025-12-18 20:59:23,396 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-18 20:59:23,683 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-18 20:59:23,752 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: Kolom berikut kosong total saat training -> diisi 0.0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-18 20:59:24,741 [INFO    ] [VolcanoAI.processing.feature_engineer] [MainThread] --- Preprocessor state saved to: output\feature_preprocessor.pkl
+2025-12-18 20:59:24,743 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (561, 55)
+2025-12-18 20:59:24,747 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 3: MODEL TRAINING ==========
+2025-12-18 21:00:39,161 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-127] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-18 21:00:53,353 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-168] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-18 21:01:09,525 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- Visual ACO tersimpan: C:\Users\laygenda surya putra\Documents\JOKI\gempavulkanik\output\aco_results/aco_impact_zones.html
+2025-12-18 21:01:09,566 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Output GA tersimpan → C:\Users\laygenda surya putra\Documents\JOKI\gempavulkanik\output\aco_results\aco_to_ga.json
+2025-12-18 21:01:09,568 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Impact Center: {'center_lat': -8.037300898221421, 'center_lon': 113.3004001827452, 'lat_column_used': 'Lintang', 'lon_column_used': 'Bujur'} | Impact Area (km²): 209.15633871391194
+2025-12-18 21:01:09,570 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- 
+================================================================================
+2025-12-18 21:01:09,574 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] ---                             === GA ENGINE START ===                             
+2025-12-18 21:01:09,579 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- ================================================================================
+2025-12-18 21:01:09,621 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA Evolution Start → Pop=80, Gen=150
+2025-12-18 21:01:09,664 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- Resuming GA from checkpoint...
+2025-12-18 21:01:09,708 [CRITICAL] [PipelineGuard       ] [MainThread] --- CRASH di _run_training_flow: local variable 'n_seg' referenced before assignment
+2025-12-18 21:01:09,725 [CRITICAL] [VolcanoAiPipeline   ] [MainThread] --- PIPELINE FAILED: local variable 'n_seg' referenced before assignment
+Traceback (most recent call last):
+  File "C:\Users\laygenda surya putra\Documents\JOKI\gempavulkanik\main.py", line 505, in run
+    self._run_training_flow()
+  File "C:\Users\laygenda surya putra\Documents\JOKI\gempavulkanik\main.py", line 100, in wrapper
+    raise e
+  File "C:\Users\laygenda surya putra\Documents\JOKI\gempavulkanik\main.py", line 93, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\laygenda surya putra\Documents\JOKI\gempavulkanik\main.py", line 298, in _run_training_flow
+    best_path, graphs_result = self.ga_engine.run(df_processed)
+  File "C:\Users\laygenda surya putra\Documents\JOKI\gempavulkanik\VolcanoAI\engines\ga_engine.py", line 934, in run
+    pred = fit_engine.predict_next_event(df_opt)
+  File "C:\Users\laygenda surya putra\Documents\JOKI\gempavulkanik\VolcanoAI\engines\ga_engine.py", line 328, in predict_next_event
+    if n_seg is None:
+UnboundLocalError: local variable 'n_seg' referenced before assignment
+2025-12-18 21:01:09,728 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- System shutdown. Uptime: 107.92s

@@ -1,13 +1,20 @@
 {
-  "pred_lat": -8.083978006034535,
-  "pred_lon": 114.76560141795996,
+  "pred_lat": -8.202071587747994,
+  "pred_lon": 114.7474677216735,
   "base_lat": -8.030960328293043,
   "base_lon": 114.2929523775949,
-  "movement_scale": 0.8602732555927944,
-  "bearing_degree": 96.49655452372684,
-  "distance_km": 52.37028072715667,
-  "vector_lat": -0.05301767774149191,
-  "vector_lon": 0.47264904036505584,
+  "movement_scale": 0.767296799657497,
+  "bearing_degree": 110.85273540323402,
+  "bearing_rad": 1.9347452176285176,
+  "bearing_std_deg": 47.76900482049325,
+  "angular_concentration_R": 0.7064167860713463,
+  "distance_km": 53.52921247132691,
+  "distance_mean_km": 69.76337252445347,
+  "distance_std_km": 39.330378545677725,
+  "vector_lat": -19.054645563811263,
+  "vector_lon": 50.02296542827092,
   "movement_direction": "E",
-  "confidence": 0.21133838229771187
+  "confidence": 0.14639614105942225,
+  "_generated_at": "2025-12-18T22:19:29.590368",
+  "_n_segment": 5
 }

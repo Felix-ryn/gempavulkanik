@@ -691,6 +691,119 @@ class LstmEngine:
             feats = [c for c in df_proc.columns if c in self.cfg.features]
             self.drift_mon.update_baseline(df_proc, feats)
 
+        def integrate_ga_prediction(self, pred: Dict[str, Any], cid: Optional[int] = None, attach_to: str = "nearest"):
+            """
+            Integrasi output GA (pred dict) ke buffer LSTM.
+            - pred: dict seperti {'pred_lat', 'pred_lon', 'bearing_degree', 'distance_km', 'confidence', ...}
+            - cid: jika known cluster_id, gunakan mapping langsung; jika None, akan dicari row terdekat di buffer
+            - attach_to: "nearest" | "append_row"
+            Efek: menambah kolom GA ke baris yang relevan di self.buffer.buffer_df
+            """
+            try:
+                if not pred or ('pred_lat' not in pred or 'pred_lon' not in pred):
+                    logger.warning("[LSTM] integrate_ga_prediction: pred kosong atau tidak punya lat/lon.")
+                    return None
+
+                buf = self.buffer.get_context()
+                if buf is None or buf.empty:
+                    logger.warning("[LSTM] Buffer kosong, tidak ada tempat integrasi GA; opsi append_row dipertimbangkan.")
+                    if attach_to == "append_row":
+                        # buat pseudo-row minimal
+                        row = {
+                            'Acquired_Date': pd.Timestamp.now(),
+                            'EQ_Lintang': pred.get('pred_lat'),
+                            'EQ_Bujur': pred.get('pred_lon'),
+                            'Nama': 'GA_PRED',
+                        }
+                        # tambahkan GA kolom
+                        row.update({
+                            'ga_pred_lat': pred.get('pred_lat'),
+                            'ga_pred_lon': pred.get('pred_lon'),
+                            'ga_bearing': pred.get('bearing_degree'),
+                            'ga_distance_km': pred.get('distance_km'),
+                            'ga_confidence': pred.get('confidence'),
+                        })
+                        self.buffer.update(pd.DataFrame([row]))
+                        return True
+                    return None
+
+                # jika cluster id diberikan -> filter buffer per cluster
+                if cid is not None and 'cluster_id' in buf.columns:
+                    sub = buf[buf['cluster_id'] == cid]
+                    if sub.empty:
+                        candidates = buf
+                    else:
+                        candidates = sub
+                else:
+                    candidates = buf
+
+                # hitung index terdekat (haversine) ke pred point
+                lat_p = float(pred.get('pred_lat'))
+                lon_p = float(pred.get('pred_lon'))
+
+                # vectorized haversine
+                coords = candidates[['EQ_Lintang', 'EQ_Bujur']].dropna()
+                if coords.empty:
+                    # fallback append
+                    if attach_to == "append_row":
+                        row = {'Acquired_Date': pd.Timestamp.now(), 'EQ_Lintang': lat_p, 'EQ_Bujur': lon_p, 'Nama': 'GA_PRED'}
+                        row.update({
+                            'ga_pred_lat': lat_p,
+                            'ga_pred_lon': lon_p,
+                            'ga_bearing': pred.get('bearing_degree'),
+                            'ga_distance_km': pred.get('distance_km'),
+                            'ga_confidence': pred.get('confidence'),
+                        })
+                        self.buffer.update(pd.DataFrame([row]))
+                        return True
+                    return None
+
+                # compute distances
+                def _h(lat1, lon1, lat2_arr, lon2_arr):
+                    return np.array([GeoClusterer(0,1).model.metric if False else
+                                     GeoMathCore.haversine(lat1, lon1, rlat, rlon)
+                                     for rlat, rlon in zip(lat2_arr, lon2_arr)])
+
+                # faster vector compute
+                lat_arr = coords['EQ_Lintang'].astype(float).values
+                lon_arr = coords['EQ_Bujur'].astype(float).values
+                # compute distances vectorized using GeoMathCore.haversine in loop (numpy vectorization with listcomp)
+                dists = np.array([GeoMathCore.haversine(lat_p, lon_p, la, lo) for la, lo in zip(lat_arr, lon_arr)])
+                nearest_idx_local = coords.index[np.argmin(dists)]
+
+                # update buffer row with GA fields
+                self.buffer.buffer_df.loc[nearest_idx_local, 'ga_pred_lat'] = lat_p
+                self.buffer.buffer_df.loc[nearest_idx_local, 'ga_pred_lon'] = lon_p
+                self.buffer.buffer_df.loc[nearest_idx_local, 'ga_bearing'] = pred.get('bearing_degree')
+                self.buffer.buffer_df.loc[nearest_idx_local, 'ga_distance_km'] = pred.get('distance_km')
+                self.buffer.buffer_df.loc[nearest_idx_local, 'ga_confidence'] = pred.get('confidence')
+
+                logger.info(f"[LSTM] GA pred integrated to buffer index {nearest_idx_local} (cid={cid})")
+                return nearest_idx_local
+
+            except Exception as e:
+                logger.error(f"[LSTM] integrate_ga_prediction failed: {e}")
+                return None
+        def load_ga_json_and_integrate(self, ga_json_path: str, cid: Optional[int] = None):
+            """
+            Load GA vector JSON file and integrate into buffer.
+            Returns True/False
+            """
+            try:
+                if not os.path.exists(ga_json_path):
+                    logger.warning(f"[LSTM] GA json not found: {ga_json_path}")
+                    return False
+                with open(ga_json_path, 'r') as f:
+                    pred = json.load(f)
+                # if GA saved extra fields like pred_lat/pred_lon in nested structure, adapt
+                if isinstance(pred, dict) and 'pred_lat' in pred:
+                    return bool(self.integrate_ga_prediction(pred, cid=cid))
+                logger.warning("[LSTM] GA JSON doesn't contain 'pred_lat'/'pred_lon'")
+                return False
+            except Exception as e:
+                logger.error(f"[LSTM] load_ga_json_and_integrate failed: {e}")
+                return False
+
     def get_buffer(self) -> pd.DataFrame:
         """Mengembalikan data buffer historis dari InferenceBuffer."""
         return self.buffer.get_context()
@@ -723,8 +836,11 @@ class LstmEngine:
             df_c = df_proc[df_proc['cluster_id'] == cid].sort_values('Acquired_Date')
             
             # Filter fitur
-            feats = [c for c in df_c.columns if c in self.cfg.features or c == self.cfg.target_feature]
-            feats = list(set(feats))
+            ga_cols = [c for c in df_c.columns if c.startswith('ga_') or c in
+                       ('ga_pred_lat', 'ga_pred_lon', 'ga_bearing', 'ga_distance_km', 'ga_confidence')]
+            feats = [c for c in df_c.columns if (c in self.cfg.features or c == self.cfg.target_feature)]
+            # union with ga cols
+            feats = list(set(feats + ga_cols))
             
             # --- 1. ROBUST DATA CLEANING ---
             data_to_process = df_c[feats].copy()
@@ -863,14 +979,26 @@ class LstmEngine:
             # Feature check
             feats = getattr(scaler, 'feature_names_in_', None)
             if feats is None:
-                # fallback to cfg.features if scaler doesn't have feature_names_in_
                 feats = list(self.cfg.features)
+
+            # ensure GA cols present in df_c are included
+            ga_cols = [c for c in df_c.columns if c.startswith('ga_') or c in
+                       ('ga_pred_lat', 'ga_pred_lon', 'ga_bearing', 'ga_distance_km', 'ga_confidence')]
+            for g in ga_cols:
+                if g not in feats:
+                    feats.append(g)
+
             if not all(f in df_c.columns for f in feats):
                 logger.warning(f"[LSTM] Missing features for cluster {cid}. Required: {feats}")
                 continue
 
             # Transform & Tensor
-            data_mtx = scaler.transform(df_c[feats].fillna(0))
+            expected_feats = list(feats)
+            for ef in expected_feats:
+                if ef not in df_c.columns:
+                    df_c[ef] = 0.0
+
+            data_mtx = scaler.transform(df_c[expected_feats].fillna(0))
             tfactory = TensorFactory(list(feats), self.cfg.target_feature, self.cfg.input_seq_len, self.cfg.target_seq_len)
             X_enc = tfactory.construct_inference_tensor(data_mtx)
 
@@ -946,21 +1074,54 @@ class LstmEngine:
 
 
 
-    def extract_hidden_states(self, X_input, cid):
-        # Optimized for CNN integration
-        if cid in self.models_cache:
-            model, _ = self.models_cache[cid]
-        else:
-            model, _ = self.vault.load_cluster_state(cid)
-            
-        if not model: return None
-        try:
-            enc = model.get_layer('encoder_bi_lstm')
-            sub_model = Model(inputs=model.inputs[0], outputs=enc.output)
-            outs = sub_model.predict(X_input, verbose=0)
-            # outs[1]=f_h, outs[3]=b_h
-            return np.concatenate([outs[1], outs[3]], axis=-1)
-        except: return None
+        def extract_hidden_states(self, X_input, cid):
+            # Robust extractor for encoder states for CNN
+            try:
+                if cid in self.models_cache:
+                    model, _ = self.models_cache[cid]
+                else:
+                    model, _ = self.vault.load_cluster_state(cid)
+
+                if not model:
+                    return None
+
+                # try to get named layer
+                try:
+                    enc = model.get_layer('encoder_bi_lstm')
+                except Exception:
+                    # fallback: find first Bidirectional layer
+                    from keras.layers import Bidirectional
+                    enc = None
+                    for l in model.layers:
+                        if isinstance(l, Bidirectional):
+                            enc = l
+                            break
+                    if enc is None:
+                        return None
+
+                # Build sub-model to extract states; many Keras versions differ on outputs
+                # We'll attempt to call enc.cell or use sub-model and then infer outputs shape
+                sub_model = Model(inputs=model.inputs[0], outputs=enc.output)
+                outs = sub_model.predict(X_input, verbose=0)
+
+                # enc.output may be a sequence (seq_out) or tuple; try to find hidden states from original model
+                # Fallback strategy: call model.predict and use intermediary states via function if available
+                # Typical bidirectional LSTM with return_state returns [seq_out, fh, fc, bh, bc]
+                if isinstance(outs, list) or isinstance(outs, tuple):
+                    # try get h states at position 1 and 3
+                    if len(outs) >= 4:
+                        fh = outs[1]
+                        bh = outs[3]
+                        return np.concatenate([fh, bh], axis=-1)
+                # If enc.output returned only sequence (n_samples, timesteps, features)
+                # we can't extract states directly -> fallback to pooling
+                # Use GlobalAveragePooling over timesteps as a proxy
+                if outs.ndim == 3:
+                    return np.mean(outs, axis=1)
+                return None
+            except Exception as e:
+                logger.warning(f"[LSTM] extract_hidden_states failed for c{cid}: {e}")
+                return None
 
     def process_live_stream(self, df_new):
         if df_new.empty: return pd.DataFrame(), pd.DataFrame()
@@ -1069,7 +1230,24 @@ class LstmEngine:
             logger.error(f"[LSTM] Gagal menyimpan CSV LSTM: {e}")
             return {}
 
+        ga_cols = [c for c in df.columns if c.startswith('ga_') or c in (
+            'ga_pred_lat',
+            'ga_pred_lon',
+            'ga_bearing',
+            'ga_distance_km',
+            'ga_confidence'
+        )]
 
+        if ga_cols:
+            ga_summary_path = os.path.join(out_root, f"lstm_ga_summary_{ts}.csv")
+            (
+                df[ga_cols]
+                .dropna(how='all')
+                .drop_duplicates()
+                .to_csv(ga_summary_path, index=False)
+            )
+
+            logger.info(f"[LSTM] GA summary saved: {ga_summary_path}")
 
     def predict_realtime(self, *args):
         return pd.DataFrame(), pd.DataFrame()
