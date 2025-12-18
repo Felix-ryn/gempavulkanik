@@ -287,40 +287,119 @@ class PhysicsFitnessEngine:
     # -------------------------------------------------------------
     def predict_next_event(self, df_path: pd.DataFrame) -> Dict[str, float]:
 
-        if len(df_path) < 3:
+        """
+        Menghasilkan prediksi vektor pergerakan berdasarkan segmen terakhir dari df_path (best path).
+        mengembalikan dict berisi berisi pred_lat/pred_lon, bearing_degree, distance_km,
+        movement_direction, vector_lat/vector_lon, movement_scale, confidence, base_lat/base_lon.
+        """
+
+        # pastikan df_path minimal 2 baris
+        if df_path is None or len(df_path) < 2:
             return {}
 
-        last = df_path.iloc[-1]
-        prev = df_path.iloc[-2]
-        prev2 = df_path.iloc[-3]
+        # default gunakan segmen terakhir (n = 5 atau lebih kecil jika data sedikit)
+        n_seg = min(5, len(df_path))
+        df_seg = df_path.iloc[-n_seg:].reset_index(drop=True)
 
-        # Vector perubahan
-        dlat1 = prev['EQ_Lintang'] - prev2['EQ_Lintang']
-        dlon1 = prev['EQ_Bujur'] - prev2['EQ_Bujur']
+        return self.compute_vector_from_segment(df_seg)
 
-        dlat2 = last['EQ_Lintang'] - prev['EQ_Lintang']
-        dlon2 = last['EQ_Bujur'] - prev['EQ_Bujur']
+    def compute_vector_from_segment(self, df_seg: pd.DataFrame) -> Dict[str, float]:
+        """
+        Helper: hitung rata-rata delta (dlat, dlon) pada segmen, skala berdasarkan magnitude & risk,
+        kembalikan prediksi titik berikutnya plus metadata (bearing, distance, direction, confidence).
+        """
+        # safety
+        if df_seg is None or len(df_seg) < 2:
+            return {}
 
-        # Rata-rata vektor
-        dlat = (dlat1 + dlat2) / 2
-        dlon = (dlon1 + dlon2) / 2
+        # koleksi nilai
+        lats = df_seg['EQ_Lintang'].values.astype(float)
+        lons = df_seg['EQ_Bujur'].values.astype(float)
+        mags = df_seg['Magnitudo'].values.astype(float) if 'Magnitudo' in df_seg.columns else np.ones(len(df_seg))
+        risks = df_seg['PheromoneScore'].values.astype(float) if 'PheromoneScore' in df_seg.columns else np.ones(len(df_seg)) * 0.1
 
-        # Skala gerakan berbasis magnitudo & risk
-        scale = 0.5 + (last['Magnitudo'] / 10) + (last['PheromoneScore'])
-        dlat *= scale
-        dlon *= scale
+        # hitung delta antar pasangan berurutan
+        dlat_list = np.diff(lats)
+        dlon_list = np.diff(lons)
 
-        predicted_lat = last['EQ_Lintang'] + dlat
-        predicted_lon = last['EQ_Bujur'] + dlon
+        # buat bobot berdasarkan (mag * risk) rata2 antar pasangan
+        w_pairs = []
+        for i in range(len(dlat_list)):
+            w = (mags[i] + mags[i+1]) / 2.0 * (risks[i] + risks[i+1]) / 2.0
+            w_pairs.append(w + 1e-6)
+        w_pairs = np.array(w_pairs, dtype=float)
+        if np.sum(w_pairs) == 0:
+            w_pairs = np.ones_like(w_pairs)
+
+        # rata-rata berbobot
+        avg_dlat = float(np.average(dlat_list, weights=w_pairs))
+        avg_dlon = float(np.average(dlon_list, weights=w_pairs))
+
+        last_lat = float(lats[-1])
+        last_lon = float(lons[-1])
+        last_mag = float(mags[-1])
+        last_risk = float(risks[-1])
+
+        # skala gerakan: kombinasi magnitudo & risk (konfigurabel via bobot di constructor jika perlu)
+        scale = 0.5 + (last_mag / 10.0) + float(last_risk)
+
+        # prediksi titik berikutnya (add scaled avg delta)
+        pred_lat = last_lat + avg_dlat * scale
+        pred_lon = last_lon + avg_dlon * scale
+
+        # hitung bearing & distance dari last -> pred
+        distance_km = GeoMathCore.haversine(last_lat, last_lon, pred_lat, pred_lon)
+        bearing_deg = GeoMathCore.calculate_bearing(last_lat, last_lon, pred_lat, pred_lon)
+
+        # compute vector raw (first-last simple)
+        vector_lat = pred_lat - last_lat
+        vector_lon = pred_lon - last_lon
+
+        # confidence sederhana (dapat disesuaikan)
+        confidence = self.compute_confidence(df_seg)
+
+        # arah kompas (N, NE, E, ...)
+        direction = self.bearing_to_compass(bearing_deg)
 
         return {
-            "pred_lat": float(predicted_lat),
-            "pred_lon": float(predicted_lon),
-            "base_lat": float(last['EQ_Lintang']),
-            "base_lon": float(last['EQ_Bujur']),
-            "movement_scale": float(scale)
+            "pred_lat": float(pred_lat),
+            "pred_lon": float(pred_lon),
+            "base_lat": float(last_lat),
+            "base_lon": float(last_lon),
+            "movement_scale": float(scale),
+            "bearing_degree": float(bearing_deg),
+            "distance_km": float(distance_km),
+            "vector_lat": float(vector_lat),
+            "vector_lon": float(vector_lon),
+            "movement_direction": direction,
+            "confidence": float(confidence)
         }
 
+    @staticmethod
+    def bearing_to_compass(bearing: float) -> str:
+        """
+        Konversi 0-360 derajat ke 8 arah kompas.
+        """
+        dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
+        ix = int((bearing + 22.5) // 45) % 8
+        return dirs[ix]
+
+
+    def compute_confidence(self, df_seg: pd.DataFrame) -> float:
+        """
+        Hitung confidence sederhana: berdasarkan mean risk dan std risk.
+        Output 0..1 (naive).
+        """
+        try:
+            risks = df_seg['PheromoneScore'].astype(float).values
+            mean_r = float(np.mean(risks))
+            std_r = float(np.std(risks))
+            # formula — lebih kecil std dan lebih besar mean => confidence tinggi
+            conf = (mean_r / (std_r + 1e-6)) / 5.0
+            conf = max(0.0, min(conf, 1.0))
+            return conf
+        except Exception:
+            return 0.0
 
 # ============================================
 # BLOCK 2/3 — Evolutionary Controller + Checkpoint
@@ -500,8 +579,13 @@ class EvolutionaryController:
 
             # Save every 10 generations
             if gen % 10 == 0:
-                self.checkpoint_mgr.save_state(pop, gen, logbook)
-                logger.info(f"Gen {gen}: Current Best = {best_so_far:.2f}")
+                fname = f"ga_state_gen_{gen}.pkl"
+                self.checkpoint_mgr.save_state(
+                    pop,
+                    gen,
+                    logbook,
+                    filename=fname
+                )
 
         # Save final state
         self.checkpoint_mgr.save_state(pop, n_gen, logbook, filename="final_ga.pkl")
@@ -663,10 +747,18 @@ class MultiLayerVisualizer:
 
             pred_lat, pred_lon = self.clamp_to_east_java(raw_lat, raw_lon)
 
+            # include bearing & confidence where available
+            bearing_text = f"{pred_info.get('bearing_degree'):.1f}°" if pred_info.get('bearing_degree') is not None else "-"
+            distance_text = f"{pred_info.get('distance_km'):.2f} km" if pred_info.get('distance_km') is not None else "-"
+            conf_text = f"{pred_info.get('confidence'):.3f}" if pred_info.get('confidence') is not None else "-"
+
             popup_pred = f"""
             <b>Predicted Next Event</b><br>
             Lat: {pred_lat:.4f}<br>
             Lon: {pred_lon:.4f}<br>
+            Bearing: {bearing_text}<br>
+            Distance: {distance_text}<br>
+            Confidence: {conf_text}<br>
             Scale: {pred_info.get('movement_scale', 0):.3f}
             """
 
@@ -735,6 +827,13 @@ class GaEngine:
         self.output_dir = getattr(config, "output_dir", "output/ga_results")
         os.makedirs(self.output_dir, exist_ok=True)
 
+        # MAPS directory (UNTUK FOLIUM MAP)
+        self.maps_dir = os.path.join(self.output_dir, "maps")
+        os.makedirs(self.maps_dir, exist_ok=True)
+
+        # Path FINAL map
+        self.map_path = os.path.join(self.maps_dir, "ga_path_map.html")
+
         self.sanitizer = DataSanitizer()
         self.checkpoint_mgr = CheckpointSystem(self.output_dir)
         self.visualizer = MultiLayerVisualizer(self.output_dir)
@@ -769,10 +868,19 @@ class GaEngine:
         # 4. Best Path DF
         df_opt = clean_df.iloc[best_idx].reset_index(drop=True)
 
-        # 5. Prediction module
+        # 5. Prediction module (menghasilkan struktur lengkap)
         pred = fit_engine.predict_next_event(df_opt)
 
-        # 6. Visualization
+        # Save GA vector JSON for downstream LSTM / pipeline
+        try:
+            vector_out_path = os.path.join(self.output_dir, "ga_vector.json")
+            with open(vector_out_path, "w") as vf:
+                json.dump(pred, vf, indent=2, default=float)
+            logger.info(f"GA vector JSON saved → {vector_out_path}")
+        except Exception as e:
+            logger.error(f"Failed to save GA vector JSON: {e}")
+
+        # 6. Visualization (pass pred_info)
         self.visualizer.generate_map(
             best_idx,
             clean_df,
@@ -780,13 +888,17 @@ class GaEngine:
             self.map_path
         )
 
-        # 7. Export Excel + meta
+         # 7. Export Excel + meta (tambahkan fields baru)
         meta = {
             "Timestamp": datetime.now().isoformat(),
             "Best_Cost": float(log_df["min"].iloc[-1]) if not log_df.empty else None,
             "Node_Count": int(len(clean_df)),
             "PredictedLat": pred.get("pred_lat", None),
             "PredictedLon": pred.get("pred_lon", None),
+            "PredictedBearing": pred.get("bearing_degree", None),
+            "PredictedDistanceKM": pred.get("distance_km", None),
+            "PredictedDirection": pred.get("movement_direction", None),
+            "PredictedConfidence": pred.get("confidence", None),
             "MovementScale": pred.get("movement_scale", None),
         }
         self.exporter.export(clean_df, df_opt, meta)

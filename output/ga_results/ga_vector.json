@@ -1,0 +1,13 @@
+{
+  "pred_lat": -8.07881166546207,
+  "pred_lon": 114.70395226240454,
+  "base_lat": -8.030960328293043,
+  "base_lon": 114.2929523775949,
+  "movement_scale": 0.7241,
+  "bearing_degree": 96.73519322909755,
+  "distance_km": 45.56204339663173,
+  "vector_lat": -0.047851337169026564,
+  "vector_lon": 0.410999884809641,
+  "movement_direction": "E",
+  "confidence": 0.16245377739517036
+}
