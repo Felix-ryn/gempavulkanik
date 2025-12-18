@@ -481,26 +481,27 @@ class ArtifactVault:
     def load_cluster_state(self, cid):
         m_path = self.model_dir / f"lstm_model_c{cid}.keras"
         s_path = self.model_dir / f"scaler_c{cid}.joblib"
-        if not m_path.exists(): 
+        if not m_path.exists():
             return None, None
-            
+
         try:
             import absl.logging
-            absl.logging.set_verbosity(absl.logging.ERROR) 
+            absl.logging.set_verbosity(absl.logging.ERROR)
 
             # Define custom objects for loading model
-            cust = {'gaussian_nll': MathKernel.gaussian_nll, 
-                    'uncertainty_metric': MathKernel.uncertainty_metric,
-                    # Tambahkan mean_absolute_error_mu ke custom objects saat load
-                    'mean_absolute_error_mu': MathKernel.mean_absolute_error_mu} 
-                    
-            # [FIX KRITIS]: Tambahkan safe_mode=False untuk mengizinkan loading Lambda layer
-            model = load_model(m_path, custom_objects=cust, compile=False, safe_mode=False) 
+            cust = {
+                'gaussian_nll': MathKernel.gaussian_nll,
+                'uncertainty_metric': MathKernel.uncertainty_metric,
+                'mean_absolute_error_mu': MathKernel.mean_absolute_error_mu
+            }
+
+            # Safe loading: compile=False (jika versi TF lama/baru, opsi safe_mode mungkin tidak ada)
+            model = load_model(m_path, custom_objects=cust, compile=False)
             scaler = load(s_path)
-            
+
             logger.info(f"[Vault] Model Cluster {cid} berhasil dimuat.")
             return model, scaler
-        except Exception as e: 
+        except Exception as e:
             logger.error(f"[Vault] GAGAL memuat model c{cid}: {e}. File mungkin corrupt atau TF version mismatch.")
             return None, None
 
@@ -824,90 +825,126 @@ class LstmEngine:
 
     @execution_telemetry
     def predict_on_static(self, df_test):
-        if df_test is None or df_test.empty: return df_test, pd.DataFrame()
-        
+        if df_test is None or df_test.empty:
+            return df_test, pd.DataFrame()
+
         # Prepare Cleanly
         df_proc = self.processor.prepare(df_test)
         df_out = df_proc.copy()
-        
+
         # Init Columns
         df_out['lstm_prediction'] = np.nan
         df_out['prediction_sigma'] = np.nan
         df_out['prediction_error'] = np.nan
         df_out['anomaly_score'] = 0.0
-        
+
         anomalies = []
-        if 'cluster_id' not in df_out.columns: df_out['cluster_id'] = -1
-        
+        if 'cluster_id' not in df_out.columns:
+            df_out['cluster_id'] = -1
+
         for cid in self.vault.list_clusters():
             mask = df_out['cluster_id'] == cid
-            if not mask.any(): continue
-            
+            if not mask.any():
+                continue
+
             df_c = df_out.loc[mask].sort_values('Acquired_Date')
-            
+
             # Cache Lookup
             if cid in self.models_cache:
                 model, scaler = self.models_cache[cid]
             else:
                 model, scaler = self.vault.load_cluster_state(cid)
-                if model: self.models_cache[cid] = (model, scaler)
-                
-            if not model: continue
-            
+                if model:
+                    self.models_cache[cid] = (model, scaler)
+
+            if not model:
+                continue
+
             # Feature check
-            feats = getattr(scaler, 'feature_names_in_', self.cfg.features)
-            if not all(f in df_c.columns for f in feats): continue
-            
+            feats = getattr(scaler, 'feature_names_in_', None)
+            if feats is None:
+                # fallback to cfg.features if scaler doesn't have feature_names_in_
+                feats = list(self.cfg.features)
+            if not all(f in df_c.columns for f in feats):
+                logger.warning(f"[LSTM] Missing features for cluster {cid}. Required: {feats}")
+                continue
+
             # Transform & Tensor
             data_mtx = scaler.transform(df_c[feats].fillna(0))
             tfactory = TensorFactory(list(feats), self.cfg.target_feature, self.cfg.input_seq_len, self.cfg.target_seq_len)
             X_enc = tfactory.construct_inference_tensor(data_mtx)
-            
-            if len(X_enc) == 0: continue
-            
+
+            if len(X_enc) == 0:
+                continue
+
             # Predict
             X_dec_dummy = np.zeros((len(X_enc), self.cfg.target_seq_len, len(feats)))
             preds = model.predict([X_enc, X_dec_dummy], verbose=0)
-            
-            # mu, sigma = preds[..., 0].flatten(), preds[..., 1].flatten()
-            
-            mu = preds.flatten() # Akses semua output (hanya 1 kolom)
-            sigma = np.zeros_like(mu)
 
-            # Inverse
-            dummy = np.zeros((len(mu), len(feats)))
-            dummy[:, tfactory.target_idx] = mu
-            res_mu = scaler.inverse_transform(dummy)[:, tfactory.target_idx]
-            
-            # Scale Sigma approx
-            res_sigma = sigma * scaler.scale_[tfactory.target_idx]
-            
-            # Map Back
-            idx_start = self.cfg.input_seq_len
-            valid_idx = df_c.index[idx_start:]
+            # preds shape: (n_samples, pred_len, 1) OR (n_samples, pred_len)
+            preds = np.squeeze(preds)
+            if preds.ndim == 2:
+                # pilih horizon pertama sebagai prediksi "next event"
+                mu_seq = preds[:, 0]
+            else:
+                mu_seq = preds  # shape (n_samples,)
+
+            # sigma not available in current architecture -> zeros
+            sigma_seq = np.zeros_like(mu_seq)
+
+            # Inverse transform: rebuild dummy matrix for scaler inverse
+            dummy = np.zeros((len(mu_seq), len(feats)))
+            dummy[:, tfactory.target_idx] = mu_seq
+            try:
+                res_mu = scaler.inverse_transform(dummy)[:, tfactory.target_idx]
+            except Exception:
+                # fallback jika scaler tipe tertentu tidak mendukung inverse untuk array shape
+                res_mu = mu_seq.copy()
+
+            res_sigma = sigma_seq * (getattr(scaler, 'scale_', np.ones(len(feats)))[tfactory.target_idx] if hasattr(scaler, 'scale_') else 1.0)
+
+            # Map Back -> each mu_seq corresponds to prediction time starting at index = seq_len
+            start_idx = self.cfg.input_seq_len
+            valid_idx = df_c.index[start_idx : start_idx + len(res_mu)]
             min_l = min(len(valid_idx), len(res_mu))
-            final_idx = valid_idx[:min_l]
-            
+            final_idx = list(valid_idx[:min_l])
+
+            if len(final_idx) == 0:
+                continue
+
             df_out.loc[final_idx, 'lstm_prediction'] = res_mu[:min_l]
             df_out.loc[final_idx, 'prediction_sigma'] = res_sigma[:min_l]
-            
+
             # Error & Anomaly (Z-Score Logic)
-            actual = df_c.loc[final_idx, self.cfg.target_feature]
+            actual = df_c.loc[final_idx, self.cfg.target_feature].values
             err = np.abs(res_mu[:min_l] - actual)
             df_out.loc[final_idx, 'prediction_error'] = err
-            
-            # Z-Score Anomaly: Error / Sigma
+
+            # Z-Score Anomaly: Error / Sigma (safe)
             z_score = err / (res_sigma[:min_l] + 1e-6)
             df_out.loc[final_idx, 'anomaly_score'] = z_score
-            
-            is_anom = z_score > 2.5 # 2.5 Sigma threshold
+
+            is_anom = z_score > 2.5  # 2.5 Sigma threshold
             if is_anom.any():
-                anomalies.append(df_out.loc[final_idx[is_anom]])
-                
-            self.viz_manager.plot_probabilistic_forecast(actual.values, res_mu[:min_l], res_sigma[:min_l], cid)
-            
+                anomalies.append(df_out.loc[final_idx][is_anom])
+
+            # Visualize (silently warn jika gagal)
+            try:
+                self.viz_manager.plot_probabilistic_forecast(actual, res_mu[:min_l], res_sigma[:min_l], cid)
+            except Exception as e:
+                logger.warning(f"[Viz] plotting failed c{cid}: {e}")
+
         final_anoms = pd.concat(anomalies) if anomalies else pd.DataFrame()
+
+        # --- SAVE CSV OUTPUT (two-year + 15-day + anomalies) ---
+        try:
+            self._save_lstm_records(df_out, final_anoms)
+        except Exception as e:
+            logger.warning(f"[LSTM] Failed to save LSTM records: {e}")
+
         return df_out, final_anoms
+
+
 
     def extract_hidden_states(self, X_input, cid):
         # Optimized for CNN integration
@@ -944,8 +981,60 @@ class LstmEngine:
             final_anom = anom[anom['Acquired_Date'].isin(new_ts)]
         else:
             final_anom = pd.DataFrame()
-            
+        
+        # Simpan record terbaru & anomalies ke CSV agar downstream (CNN / NB) bisa konsumsi
+        try:
+            self._save_lstm_records(ctx, final_anom)
+        except Exception as e:
+            logger.warning(f"[LSTM] Failed auto-save during live stream: {e}")
+
         return final_pred, final_anom
+
+    def _save_lstm_records(self, df_full: pd.DataFrame, anomalies: pd.DataFrame):
+        """
+        Simpan file CSV:
+         - master file: semua record 2 tahun terakhir
+         - new_recent.csv: 15 hari terakhir
+         - anomalies.csv: hasil deteksi anomaly
+        Path: <cfg.output_dir>/lstm_records_*.csv
+        """
+        out_root = getattr(self.cfg, 'output_dir', 'output/lstm_results')
+        os.makedirs(out_root, exist_ok=True)
+
+        # Pastikan Acquired_Date datetime
+        df = df_full.copy()
+        if 'Acquired_Date' in df.columns:
+            df['Acquired_Date'] = pd.to_datetime(df['Acquired_Date'], errors='coerce')
+
+        now = pd.Timestamp.now()
+        two_years_ago = now - pd.Timedelta(days=365 * 2)
+        recent_15d = now - pd.Timedelta(days=15)
+
+        # master 2-year
+        df_2y = df[df['Acquired_Date'] >= two_years_ago].copy()
+        # recent 15 days
+        df_recent = df[df['Acquired_Date'] >= recent_15d].copy()
+
+        ts = now.strftime("%Y%m%d_%H%M%S")
+        master_path = os.path.join(out_root, f"lstm_records_2y_{ts}.csv")
+        recent_path = os.path.join(out_root, f"lstm_recent_15d_{ts}.csv")
+        anom_path = os.path.join(out_root, f"lstm_anomalies_{ts}.csv")
+
+        try:
+            df_2y.to_csv(master_path, index=False)
+            df_recent.to_csv(recent_path, index=False)
+            if anomalies is not None and not anomalies.empty:
+                anomalies.to_csv(anom_path, index=False)
+            else:
+                # create empty anomalies file for traceability
+                pd.DataFrame().to_csv(anom_path, index=False)
+
+            logger.info(f"[LSTM] Saved records: master={master_path}, recent={recent_path}, anomalies={anom_path}")
+            return {"master": master_path, "recent": recent_path, "anomalies": anom_path}
+        except Exception as e:
+            logger.error(f"[LSTM] Failed to write CSV records: {e}")
+            return {}
+
 
     def predict_realtime(self, *args):
         return pd.DataFrame(), pd.DataFrame()
