@@ -994,46 +994,81 @@ class LstmEngine:
         """
         Simpan file CSV:
          - master file: semua record 2 tahun terakhir
-         - new_recent.csv: 15 hari terakhir
-         - anomalies.csv: hasil deteksi anomaly
-        Path: <cfg.output_dir>/lstm_records_*.csv
+         - recent file: 15 hari terakhir
+         - anomalies file: hasil deteksi anomaly
+
+        Timestamp diambil dari TANGGAL DATA TERBARU (Acquired_Date),
+        dan file akan DITIMPA jika timestamp sama.
         """
+
         out_root = getattr(self.cfg, 'output_dir', 'output/lstm_results')
         os.makedirs(out_root, exist_ok=True)
 
-        # Pastikan Acquired_Date datetime
         df = df_full.copy()
-        if 'Acquired_Date' in df.columns:
-            df['Acquired_Date'] = pd.to_datetime(df['Acquired_Date'], errors='coerce')
 
-        now = pd.Timestamp.now()
-        two_years_ago = now - pd.Timedelta(days=365 * 2)
-        recent_15d = now - pd.Timedelta(days=15)
+        # ===============================
+        # 1️⃣ Pastikan kolom waktu valid
+        # ===============================
+        if 'Acquired_Date' not in df.columns:
+            logger.error("[LSTM] Acquired_Date tidak ditemukan, batal simpan CSV.")
+            return {}
 
-        # master 2-year
+        df['Acquired_Date'] = pd.to_datetime(df['Acquired_Date'], errors='coerce')
+        df = df.dropna(subset=['Acquired_Date'])
+
+        if df.empty:
+            logger.warning("[LSTM] Data kosong setelah parsing tanggal.")
+            return {}
+
+        # ===============================
+        # 2️⃣ Ambil timestamp dari DATA TERBARU
+        # ===============================
+        latest_date = df['Acquired_Date'].max()
+        ts = latest_date.strftime("%Y%m%d")
+
+        # ===============================
+        # 3️⃣ Filter rentang waktu
+        # ===============================
+        two_years_ago = latest_date - pd.Timedelta(days=365 * 2)
+        recent_15d = latest_date - pd.Timedelta(days=15)
+
         df_2y = df[df['Acquired_Date'] >= two_years_ago].copy()
-        # recent 15 days
         df_recent = df[df['Acquired_Date'] >= recent_15d].copy()
 
-        ts = now.strftime("%Y%m%d_%H%M%S")
+        # ===============================
+        # 4️⃣ PATH FILE (DITIMPA)
+        # ===============================
         master_path = os.path.join(out_root, f"lstm_records_2y_{ts}.csv")
         recent_path = os.path.join(out_root, f"lstm_recent_15d_{ts}.csv")
-        anom_path = os.path.join(out_root, f"lstm_anomalies_{ts}.csv")
+        anom_path   = os.path.join(out_root, f"lstm_anomalies_{ts}.csv")
 
+        # ===============================
+        # 5️⃣ SIMPAN CSV
+        # ===============================
         try:
             df_2y.to_csv(master_path, index=False)
             df_recent.to_csv(recent_path, index=False)
+
             if anomalies is not None and not anomalies.empty:
                 anomalies.to_csv(anom_path, index=False)
             else:
-                # create empty anomalies file for traceability
                 pd.DataFrame().to_csv(anom_path, index=False)
 
-            logger.info(f"[LSTM] Saved records: master={master_path}, recent={recent_path}, anomalies={anom_path}")
-            return {"master": master_path, "recent": recent_path, "anomalies": anom_path}
+            logger.info(
+                f"[LSTM] Saved CSV (overwrite-safe): "
+                f"master={master_path}, recent={recent_path}, anomalies={anom_path}"
+            )
+
+            return {
+                "master": master_path,
+                "recent": recent_path,
+                "anomalies": anom_path
+            }
+
         except Exception as e:
-            logger.error(f"[LSTM] Failed to write CSV records: {e}")
+            logger.error(f"[LSTM] Gagal menyimpan CSV LSTM: {e}")
             return {}
+
 
 
     def predict_realtime(self, *args):
