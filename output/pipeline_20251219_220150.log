@@ -1,0 +1,47 @@
+2025-12-19 22:01:50,822 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251219_220150.log
+2025-12-19 22:01:50,823 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-19 22:01:50,824 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
+2025-12-19 22:01:50,825 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-19 22:01:50,899 [INFO    ] [RealtimeSensorManager] [MainThread] --- [MIROVA] Menggunakan log terbaru: output/realtime\mirova_log_20251003-094000.txt
+2025-12-19 22:01:50,899 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2025-12-19 22:01:50,901 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2025-12-19 22:01:50,903 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING ==========
+2025-12-19 22:01:51,257 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 2: FEATURE ENGINEERING ==========
+2025-12-19 22:01:51,289 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-19 22:01:52,102 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-19 22:01:52,552 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: Kolom berikut kosong total saat training -> diisi 0.0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-19 22:01:54,255 [INFO    ] [VolcanoAI.processing.feature_engineer] [MainThread] --- Preprocessor state saved to: output\feature_preprocessor.pkl
+2025-12-19 22:01:54,255 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (1307, 55)
+2025-12-19 22:01:54,257 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-19 22:01:54,610 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-19 22:01:54,713 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: Kolom berikut kosong total saat training -> diisi 0.0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-19 22:01:56,222 [INFO    ] [VolcanoAI.processing.feature_engineer] [MainThread] --- Preprocessor state saved to: output\feature_preprocessor.pkl
+2025-12-19 22:01:56,225 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (561, 55)
+2025-12-19 22:01:56,286 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 3: MODEL TRAINING ==========
+2025-12-19 22:02:08,167 [INFO    ] [werkzeug            ] [Thread-890 (process_request_thread)] --- 127.0.0.1 - - [19/Dec/2025 22:02:08] "GET / HTTP/1.1" 200 -
+2025-12-19 22:02:08,264 [INFO    ] [werkzeug            ] [Thread-892 (process_request_thread)] --- 127.0.0.1 - - [19/Dec/2025 22:02:08] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-19 22:02:08,287 [INFO    ] [werkzeug            ] [Thread-891 (process_request_thread)] --- 127.0.0.1 - - [19/Dec/2025 22:02:08] "GET / HTTP/1.1" 200 -
+2025-12-19 22:02:08,290 [INFO    ] [werkzeug            ] [Thread-893 (process_request_thread)] --- 127.0.0.1 - - [19/Dec/2025 22:02:08] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-19 22:02:19,714 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-63] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-19 22:02:33,615 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-104] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-19 22:02:53,886 [INFO    ] [werkzeug            ] [Thread-894 (process_request_thread)] --- 127.0.0.1 - - [19/Dec/2025 22:02:53] "GET / HTTP/1.1" 200 -
+2025-12-19 22:02:54,093 [INFO    ] [werkzeug            ] [Thread-896 (process_request_thread)] --- 127.0.0.1 - - [19/Dec/2025 22:02:54] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-19 22:02:54,161 [INFO    ] [werkzeug            ] [Thread-897 (process_request_thread)] --- 127.0.0.1 - - [19/Dec/2025 22:02:54] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-19 22:02:54,317 [INFO    ] [werkzeug            ] [Thread-895 (process_request_thread)] --- 127.0.0.1 - - [19/Dec/2025 22:02:54] "GET / HTTP/1.1" 200 -
+2025-12-19 22:03:55,190 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- Visual ACO tersimpan: C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\output\aco_results/aco_impact_zones.html
+2025-12-19 22:03:55,212 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Output GA tersimpan → C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\output\aco_results\aco_to_ga.json
+2025-12-19 22:03:55,216 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Impact Center: {'center_lat': -8.03630345705805, 'center_lon': 113.35573460057743, 'lat_column_used': 'Lintang', 'lon_column_used': 'Bujur'} | Impact Area (km²): 201.83811010180466
+2025-12-19 22:03:55,220 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- 
+================================================================================
+2025-12-19 22:03:55,224 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] ---                             === GA ENGINE START ===                             
+2025-12-19 22:03:55,227 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- ================================================================================
+2025-12-19 22:03:55,316 [INFO    ] [werkzeug            ] [Thread-898 (process_request_thread)] --- 127.0.0.1 - - [19/Dec/2025 22:03:55] "GET / HTTP/1.1" 200 -
+2025-12-19 22:03:55,381 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA Evolution Start → Pop=80, Gen=150
+2025-12-19 22:03:55,465 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- Resuming GA from checkpoint...
+2025-12-19 22:03:55,552 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA vector JSON saved → output\ga_results\ga_vector.json
+2025-12-19 22:03:55,892 [INFO    ] [werkzeug            ] [Thread-901 (process_request_thread)] --- 127.0.0.1 - - [19/Dec/2025 22:03:55] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-19 22:03:56,543 [INFO    ] [werkzeug            ] [Thread-899 (process_request_thread)] --- 127.0.0.1 - - [19/Dec/2025 22:03:56] "GET / HTTP/1.1" 200 -
+2025-12-19 22:03:57,097 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- System shutdown. Uptime: 126.20s

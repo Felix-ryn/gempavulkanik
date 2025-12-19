@@ -909,6 +909,45 @@ class GaEngine:
         self.map_path = os.path.join(self.output_dir, "ga_path_map.html")
         self.log_path = os.path.join(self.output_dir, "ga_log.csv")
 
+    def _write_back_to_aco_json(self, pred: Dict[str, Any]):
+        """
+        Menulis hasil prediksi GA ke aco_to_ga.json
+        agar dashboard bisa membaca next_event
+        """
+
+        aco_json_path = os.path.join(
+            os.path.dirname(self.output_dir),
+            "aco_results",
+            "aco_to_ga.json"
+        )
+
+        if not os.path.exists(aco_json_path):
+            logger.warning(f"[GA] aco_to_ga.json tidak ditemukan → {aco_json_path}")
+            return
+
+        try:
+            with open(aco_json_path, "r") as f:
+                data = json.load(f)
+
+            # 🔥 INI FORMAT YANG DIBACA DASHBOARD
+            data["next_event"] = {
+                "lat": float(pred.get("pred_lat", 0)),
+                "lon": float(pred.get("pred_lon", 0)),
+                "direction_deg": float(pred.get("bearing_degree", 0)),
+                "distance_km": float(pred.get("distance_km", 0)),
+                "confidence": float(pred.get("confidence", 0)),
+            }
+
+            data["_ga_generated_at"] = datetime.now().isoformat()
+
+            with open(aco_json_path, "w") as f:
+                json.dump(data, f, indent=2)
+
+            logger.info("[GA] next_event berhasil ditulis ke aco_to_ga.json")
+
+        except Exception as e:
+            logger.error(f"[GA] Gagal menulis next_event: {e}")
+
     def run(self, df_train: pd.DataFrame) -> Tuple[List[int], Dict[str, Any]]:
         logger.info("\n" + "=" * 80)
         logger.info("=== GA ENGINE START ===".center(80))
@@ -940,6 +979,8 @@ class GaEngine:
                 df_opt,
                 n_seg=getattr(self.cfg, "ga_segment_window", 5)
             )
+        if isinstance(pred, dict) and pred:
+            self._write_back_to_aco_json(pred)
 
         # Save GA vector JSON for downstream LSTM / pipeline
         try:

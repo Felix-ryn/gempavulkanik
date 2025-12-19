@@ -1,4 +1,4 @@
-# VolcanoAI/engines/cnn_engine.py
+﻿# VolcanoAI/engines/cnn_engine.py
 # -- coding: utf-8 --
 
 import os
@@ -681,7 +681,41 @@ class CnnEngine:
             
         return df_out 
 
-        def evaluate_predictions(
+    # =========================================================
+    # CNN → EXPORT SIMPLE MAP (LAT/LON POINT)
+    # =========================================================
+    def export_cnn_prediction_map(self, json_path):
+        import json, folium
+        from pathlib import Path
+
+        with open(json_path) as f:
+            j = json.load(f)
+
+        ne = j.get("next_event", {})
+        lat, lon = ne.get("lat"), ne.get("lon")
+
+        if lat is None or lon is None:
+            logger.warning("[CNN MAP] lat/lon kosong")
+            return None
+
+        m = folium.Map(location=[lat, lon], zoom_start=9)
+
+        folium.Marker(
+            [lat, lon],
+            popup="CNN Prediction",
+            icon=folium.Icon(color="purple", icon="info-sign")
+        ).add_to(m)
+
+        out = Path(json_path).parent
+        map_path = out / "cnn_prediction_map.html"
+        m.save(map_path)
+
+        logger.info(f"[CNN MAP] Saved → {map_path}")
+        return map_path
+
+
+
+    def evaluate_predictions(
             self,
             df_out: pd.DataFrame,
             thresholds: Dict[str, float]

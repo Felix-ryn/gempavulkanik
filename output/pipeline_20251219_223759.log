@@ -1,0 +1,32 @@
+2025-12-19 22:37:59,977 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251219_223759.log
+2025-12-19 22:37:59,979 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-19 22:37:59,979 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
+2025-12-19 22:37:59,982 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-19 22:37:59,988 [INFO    ] [root                ] [MainThread] --- [Dashboard] Starting Flask server in background thread (monitoring enabled)...
+2025-12-19 22:38:00,012 [INFO    ] [RealtimeSensorManager] [MainThread] --- [MIROVA] Menggunakan log terbaru: output/realtime\mirova_log_20251003-094000.txt
+2025-12-19 22:38:00,014 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2025-12-19 22:38:00,015 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2025-12-19 22:38:00,017 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING ==========
+2025-12-19 22:38:00,144 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 2: FEATURE ENGINEERING ==========
+2025-12-19 22:38:00,174 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-19 22:38:00,583 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-19 22:38:00,708 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: Kolom berikut kosong total saat training -> diisi 0.0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-19 22:38:01,321 [INFO    ] [werkzeug            ] [Thread-1 (_run)] --- [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-12-19 22:38:01,324 [INFO    ] [werkzeug            ] [Thread-1 (_run)] --- [33mPress CTRL+C to quit[0m
+2025-12-19 22:38:01,914 [INFO    ] [VolcanoAI.processing.feature_engineer] [MainThread] --- Preprocessor state saved to: output\feature_preprocessor.pkl
+2025-12-19 22:38:01,915 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (1307, 55)
+2025-12-19 22:38:01,920 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-19 22:38:02,458 [INFO    ] [werkzeug            ] [Thread-206 (process_request_thread)] --- 127.0.0.1 - - [19/Dec/2025 22:38:02] "GET / HTTP/1.1" 200 -
+2025-12-19 22:38:02,545 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-19 22:38:02,733 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: Kolom berikut kosong total saat training -> diisi 0.0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-19 22:38:03,134 [INFO    ] [werkzeug            ] [Thread-247 (process_request_thread)] --- 127.0.0.1 - - [19/Dec/2025 22:38:03] "GET / HTTP/1.1" 200 -
+2025-12-19 22:38:03,749 [INFO    ] [werkzeug            ] [Thread-208 (process_request_thread)] --- 127.0.0.1 - - [19/Dec/2025 22:38:03] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-19 22:38:03,836 [INFO    ] [werkzeug            ] [Thread-207 (process_request_thread)] --- 127.0.0.1 - - [19/Dec/2025 22:38:03] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-19 22:38:04,894 [INFO    ] [VolcanoAI.processing.feature_engineer] [MainThread] --- Preprocessor state saved to: output\feature_preprocessor.pkl
+2025-12-19 22:38:04,897 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (561, 55)
+2025-12-19 22:38:04,946 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 3: MODEL TRAINING ==========
+2025-12-19 22:38:22,170 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- System shutdown. Uptime: 22.16s

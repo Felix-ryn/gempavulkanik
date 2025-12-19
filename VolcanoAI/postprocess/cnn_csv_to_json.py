@@ -40,33 +40,61 @@ def run(csv_path: str = None, out_json: str = None, force: bool = False) -> bool
         # Safety: pastikan folder ada
         out_json.parent.mkdir(parents=True, exist_ok=True)
 
+        # ===============================
+        # 1. CSV tidak ditemukan
+        # ===============================
         if not csv_path.exists():
             logger.warning(f"CSV not found: {csv_path}")
+
             # tulis status JSON minimal agar UI tidak kosong
             payload = {
                 "timestamp": datetime.utcnow().isoformat(),
                 "next_event": None,
                 "status": "csv_missing"
             }
-            out_json.write_text(json.dumps(payload, indent=2))
+
+            out_json.write_text(
+                json.dumps(payload, indent=2, ensure_ascii=False),
+                encoding="utf-8"
+            )
             return False
 
+
+        # ===============================
+        # 2. Baca CSV
+        # ===============================
         df = pd.read_csv(csv_path)
+
         if "Acquired_Date" in df.columns:
-            df["Acquired_Date"] = pd.to_datetime(df["Acquired_Date"], errors="coerce")
+            df["Acquired_Date"] = pd.to_datetime(
+                df["Acquired_Date"],
+                errors="coerce"
+            )
 
         df = df.sort_values("Acquired_Date") if "Acquired_Date" in df.columns else df
 
+
+        # ===============================
+        # 3. Data belum cukup
+        # ===============================
         if len(df) < 2 and not force:
-            logger.warning("Data CNN belum cukup (<2 rows). Writing status JSON instead of next_event.")
+            logger.warning(
+                "Data CNN belum cukup (<2 rows). Writing status JSON instead of next_event."
+            )
+
             payload = {
                 "timestamp": datetime.utcnow().isoformat(),
                 "next_event": None,
                 "status": "not_enough_data",
                 "rows": len(df)
             }
-            out_json.write_text(json.dumps(payload, indent=2))
+
+            out_json.write_text(
+                json.dumps(payload, indent=2, ensure_ascii=False),
+                encoding="utf-8"
+            )
             return False
+
 
         # Ambil dua baris terakhir
         last = df.iloc[-1]
@@ -114,7 +142,7 @@ def run(csv_path: str = None, out_json: str = None, force: bool = False) -> bool
         }
 
         with open(out_json, "w", encoding="utf-8") as f:
-            json.dump(output, f, indent=2)
+            json.dump(output, f, indent=2, ensure_ascii=False)
 
         logger.info(f"✅ CNN JSON written: {out_json}")
         return True

@@ -708,14 +708,12 @@ class LstmEngine:
                 if buf is None or buf.empty:
                     logger.warning("[LSTM] Buffer kosong, tidak ada tempat integrasi GA; opsi append_row dipertimbangkan.")
                     if attach_to == "append_row":
-                        # buat pseudo-row minimal
                         row = {
                             'Acquired_Date': pd.Timestamp.now(),
                             'EQ_Lintang': pred.get('pred_lat'),
                             'EQ_Bujur': pred.get('pred_lon'),
                             'Nama': 'GA_PRED',
                         }
-                        # tambahkan GA kolom
                         row.update({
                             'ga_pred_lat': pred.get('pred_lat'),
                             'ga_pred_lon': pred.get('pred_lon'),
@@ -795,7 +793,6 @@ class LstmEngine:
                     return False
                 with open(ga_json_path, 'r') as f:
                     pred = json.load(f)
-                # if GA saved extra fields like pred_lat/pred_lon in nested structure, adapt
                 if isinstance(pred, dict) and 'pred_lat' in pred:
                     return bool(self.integrate_ga_prediction(pred, cid=cid))
                 logger.warning("[LSTM] GA JSON doesn't contain 'pred_lat'/'pred_lon'")

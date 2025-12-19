@@ -551,12 +551,16 @@ class DynamicAcoEngine:
         """
         Export hasil ACO sebagai input GA
         """
+        # Hitung area terdampak
+        area_info = self._compute_impact_area(df)
+
         ga_input = {
             "center_lat": center_info["center_lat"],
             "center_lon": center_info["center_lon"],
             "risk_mean": float(df['Risk_Index'].mean()),
             "risk_max": float(df['Risk_Index'].max()),
-            "n_events": int(len(df))
+            "n_events": int(len(df)),
+            "impact_area_km2": area_info["impact_area_km2"]  # <<< PENAMBAHAN
         }
 
         output_dir = os.path.dirname(self.output_paths['aco_state_file'])
@@ -568,6 +572,7 @@ class DynamicAcoEngine:
         self.logger.info(f"[ACO] Output GA tersimpan → {ga_path}")
 
         return ga_input
+
     # ----------------------------------
     def run(self, df: pd.DataFrame):
         if df is None or df.empty:

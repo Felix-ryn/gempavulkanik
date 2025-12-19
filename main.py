@@ -61,7 +61,7 @@ try:
     from VolcanoAI.processing.feature_engineer import FeatureEngineer, FeaturePreprocessor
     
     # Realtime manager baru (BMKG + Mirova + Injection Excel)
-    from VolcanoAI.processing.realtime_data_stream import RealtimeSensorManager
+    from VolcanoAI.processing.realtime_sensor_manager import RealtimeSensorManager
     from VolcanoAI.processing.realtime_buffer_manager import RealtimeBufferManager
 
     from VolcanoAI.engines.aco_engine import DynamicAcoEngine
@@ -69,7 +69,7 @@ try:
     from VolcanoAI.engines.lstm_engine import LstmEngine
     from VolcanoAI.engines.cnn_engine import CnnEngine
     from VolcanoAI.engines.naive_bayes_engine import NaiveBayesEngine
-    
+    from VolcanoAI.engines.cnn_map_generator import CNNMapGenerator
     from VolcanoAI.reporting.comprehensive_reporter import ComprehensiveReporter, GraphVisualizer 
 
     SYSTEM_READY = True
@@ -206,7 +206,7 @@ class VolcanoAiPipeline:
         # Realtime Sensor Manager (BMKG + MIROVA + Injection Excel)
         # Sesuaikan path log MIROVA kalau perlu
         self.sensor_manager = RealtimeSensorManager(
-            mirova_log_path="output/realtime/mirova_log.txt"
+            mirova_log_path="output/realtime/"
         )
 
     def _init_paths(self):
@@ -338,21 +338,35 @@ class VolcanoAiPipeline:
         export_cols = [c for c in export_cols if c in df_processed.columns]
 
         # ===============================
-        # 1️⃣ FILE TERKINI (UNTUK HTML)
+        # 1️⃣ FILE TERKINI (UNTUK TML)
         # ===============================
         latest_path = out_dir / "cnn_predictions_latest.csv"
         df_processed[export_cols].to_csv(latest_path, index=False)
 
         self.logger.info(f"✅ CNN latest overwritten: {latest_path}")
 
-        # setelah menulis latest_path
+        # ===============================
+        # 3️⃣ GENERATE CNN MAP (FOLIUM)
+        # ===============================
         try:
-            from VolcanoAI.postprocess.cnn_csv_to_json import run as cnn_postprocess_run
-            cnn_postprocess_run(csv_path=str(latest_path), out_json=str(Path(self.config.OUTPUT.directory) / "cnn_results" / "cnn_predictions_latest.json"))
-            self.logger.info("✅ CNN JSON updated for client")
-        except Exception as e:
-            self.logger.error(f"❌ CNN postprocess failed: {e}")
+            cnn_json_path = Path(self.config.OUTPUT.directory) / "cnn_results" / "cnn_predictions_latest.json"
+            cnn_output_dir = Path(self.config.OUTPUT.directory) / "cnn_results"
 
+            if cnn_json_path.exists():
+                cnn_map_gen = CNNMapGenerator(output_dir=cnn_output_dir)
+                map_path = cnn_map_gen.generate(json_path=cnn_json_path)
+
+                if map_path:
+                    self.logger.info(f"🗺️ CNN map generated: {map_path}")
+                else:
+                    self.logger.warning("CNN map not generated (next_event missing)")
+            else:
+                self.logger.warning(f"CNN JSON not found: {cnn_json_path}")
+
+        except Exception as e:
+            self.logger.exception(f"Failed to generate CNN map: {e}")
+
+        
         # ===============================
         # 2️⃣ FILE ARSIP (HISTORI)
         # ===============================
@@ -756,6 +770,271 @@ def main():
     pipeline = VolcanoAiPipeline(CONFIG)
     pipeline.run()
 
+# === START: Flask dashboard integration (paste di akhir main.py) ===
+import threading
+import webbrowser
+from pathlib import Path
+from flask import Flask, send_from_directory, Response
+from jinja2 import Template
 
+# konfigurasi default
+FLASK_HOST = "127.0.0.1"
+FLASK_PORT = 5000
+# lokasi template file kamu (sudah kamu sebutkan)
+TEMPLATE_PATH = Path("VolcanoAI/reporting/templates/monitor_live_template.html")
+PROJECT_ROOT = Path.cwd()
+
+def _file_url_for(path: Path) -> str:
+    """
+    Convert file-system path to URL served by /files/... route.
+    keeps path relative to project root.
+    """
+    try:
+        rel = path.resolve().relative_to(PROJECT_ROOT.resolve())
+    except Exception:
+        rel = path
+    return f"/files/{rel.as_posix()}"
+
+def build_dashboard_context(output_dir: Path) -> dict:
+    """
+    Baca file-file output dan isi context dict untuk menggantikan placeholder template.
+    Gunakan safe defaults bila file tidak ada.
+    """
+    ctx = {
+        "TIMESTAMP": datetime.now().isoformat(sep=' '),
+        "ACO_IMPACT_CENTER": "N/A",
+        "ACO_IMPACT_AREA": "N/A",
+        "ACO_MAP": "#",
+        "GA_MAP": "#",
+        "GA_PRED_LAT": "N/A",
+        "GA_PRED_LON": "N/A",
+        "GA_BEARING": "N/A",
+        "GA_DISTANCE": "N/A",
+        "GA_CONFIDENCE": "N/A",
+        "LATEST_ROW_HTML": "<em>No data yet</em>",
+        "LSTM_MASTER_CSV": "#",
+        "LSTM_MASTER_FILENAME": "N/A",
+        "LSTM_RECENT_CSV": "#",
+        "LSTM_RECENT_FILENAME": "N/A",
+        "LSTM_ANOMALIES_CSV": "#",
+        "LSTM_ANOMALIES_FILENAME": "N/A",
+        "CNN_PRED_CSV": "#",
+        "CNN_PRED_JSON": "#",
+        "CNN_IMAGE_LIST_HTML": "",
+        "NB_METRICS_HTML": "<em>Not available</em>",
+        "NB_CONFUSION_PNG": "#",
+        "NB_ROC_PNG": "#",
+        "NB_REPORT_STR": "N/A"
+    }
+
+    out = output_dir
+
+    # ACO json
+    aco_json = out / "aco_results" / "aco_to_ga.json"
+    if aco_json.exists():
+        try:
+            j = json.loads(aco_json.read_text(encoding="utf-8"))
+            lat = j.get("center_lat")
+            lon = j.get("center_lon")
+            if lat is not None and lon is not None:
+                ctx["ACO_IMPACT_CENTER"] = f"{lat}, {lon}"
+            ctx["ACO_IMPACT_AREA"] = j.get("impact_area_km2", ctx["ACO_IMPACT_AREA"])
+            aco_map_file = out / "aco_results" / "aco_impact_zones.html"
+            if aco_map_file.exists():
+                ctx["ACO_MAP"] = _file_url_for(aco_map_file)
+        except Exception:
+            pass
+
+    # GA map (path json produced earlier)
+    ga_map = out / "ga_results" / "ga_path_map.html"
+    if ga_map.exists():
+        ctx["GA_MAP"] = _file_url_for(ga_map)
+
+    # try to read GA predicted fields (if aco_to_ga.json contains next_event)
+    try:
+        if aco_json.exists():
+            j = json.loads(aco_json.read_text(encoding="utf-8"))
+            nxt = j.get("next_event") or {}
+            ctx["GA_PRED_LAT"] = nxt.get("lat", ctx["GA_PRED_LAT"])
+            ctx["GA_PRED_LON"] = nxt.get("lon", ctx["GA_PRED_LON"])
+            ctx["GA_BEARING"] = nxt.get("direction_deg", ctx["GA_BEARING"])
+            ctx["GA_DISTANCE"] = nxt.get("distance_km", ctx["GA_DISTANCE"])
+            ctx["GA_CONFIDENCE"] = nxt.get("confidence", ctx["GA_CONFIDENCE"])
+    except Exception:
+        pass
+
+    # LSTM CSVs
+    lstm_dir = out / "lstm_results"
+    if lstm_dir.exists():
+        for f in ["lstm_records_2y_20241230.csv", "master.csv"]:
+            p = lstm_dir / f
+            if p.exists():
+                ctx["LSTM_MASTER_CSV"] = _file_url_for(p)
+                ctx["LSTM_MASTER_FILENAME"] = p.name
+                break
+        for f in ["lstm_recent_15d_20241230.csv", "recent.csv"]:
+            p = lstm_dir / f
+            if p.exists():
+                ctx["LSTM_RECENT_CSV"] = _file_url_for(p)
+                ctx["LSTM_RECENT_FILENAME"] = p.name
+                break
+        for f in ["lstm_anomalies_20241230.csv", "anomalies.csv"]:
+            p = lstm_dir / f
+            if p.exists():
+                ctx["LSTM_ANOMALIES_CSV"] = _file_url_for(p)
+                ctx["LSTM_ANOMALIES_FILENAME"] = p.name
+                break
+
+    # CNN predictions latest CSV / JSON and latest row for LATEST_ROW_HTML
+    cnn_latest = out / "cnn_results" / "results" / "cnn_predictions_latest.csv"
+    if cnn_latest.exists():
+        ctx["CNN_PRED_CSV"] = _file_url_for(cnn_latest)
+        try:
+            df = pd.read_csv(cnn_latest, parse_dates=["Acquired_Date"])
+            if not df.empty:
+                last = df.tail(1)
+                # render a small HTML table with last row
+                ctx["LATEST_ROW_HTML"] = last.to_html(index=False, classes="table", border=0)
+        except Exception:
+            pass
+
+    cnn_json = out / "cnn_results" / "cnn_predictions_latest.json"
+    if cnn_json.exists():
+        ctx["CNN_PRED_JSON"] = _file_url_for(cnn_json)
+    
+    cnn_img = out / "cnn_results" / "cnn_prediction_map.png"
+
+    if cnn_img.exists():
+        ctx["CNN_IMAGE_LIST_HTML"] = f"""
+            <img src="{_file_url_for(cnn_img)}"
+                 class="plot"
+                 alt="CNN Prediction Map">
+        """
+    else:
+        ctx["CNN_IMAGE_LIST_HTML"] = "<p class='muted'></p>"
+
+    # CNN MAP (HTML)
+    cnn_map = out / "cnn_results" / "cnn_prediction_map.html"
+    if cnn_map.exists():
+        ctx["CNN_MAP"] = _file_url_for(cnn_map)
+    else:
+        ctx["CNN_MAP"] = "#"
+
+    # NaiveBayes outputs (images)
+    nb_dir = out / "naive_bayes"
+    if nb_dir.exists():
+        p1 = nb_dir / "confusion_matrix.png"
+        p2 = nb_dir / "roc_curves.png"
+        if p1.exists():
+            ctx["NB_CONFUSION_PNG"] = _file_url_for(p1)
+        if p2.exists():
+            ctx["NB_ROC_PNG"] = _file_url_for(p2)
+
+    # If reporter generated textual metrics in a JSON, try reading it (optional)
+    metrics_json = out / "report_metrics.json"
+    if metrics_json.exists():
+        try:
+            mj = json.loads(metrics_json.read_text(encoding="utf-8"))
+            # simple conversion to small HTML table
+            rows = ["<table>"]
+            for k, v in mj.items():
+                rows.append(f"<tr><th style='text-align:left;padding:6px'>{k}</th><td style='padding:6px'>{v}</td></tr>")
+            rows.append("</table>")
+            ctx["NB_METRICS_HTML"] = "\n".join(rows)
+        except Exception:
+            pass
+
+    return ctx
+
+# Flask app and routes
+def create_flask_app(output_dir: Path, template_path: Path) -> Flask:
+    app = Flask(__name__)
+
+    @app.route("/")
+    def index():
+        ctx = build_dashboard_context(output_dir=output_dir)
+        # load template file as raw HTML with placeholders
+        if template_path.exists():
+            tpl_text = template_path.read_text(encoding="utf-8")
+            tmpl = Template(tpl_text)
+            rendered = tmpl.render(**ctx)
+            return Response(rendered, mimetype="text/html")
+        else:
+            return "<h3>Template not found</h3><p>Check TEMPLATE_PATH setting.</p>", 404
+
+    @app.route("/files/<path:filename>")
+    def serve_file(filename):
+        # Serve files from project root to allow iframe loading of output HTML/CSV/PNG
+        safe_path = Path(filename)
+        # disallow path traversal outside project root
+        full = (PROJECT_ROOT / safe_path).resolve()
+        try:
+            full.relative_to(PROJECT_ROOT.resolve())
+        except Exception:
+            return "Forbidden", 403
+        if not full.exists():
+            return "Not found", 404
+        return send_from_directory(PROJECT_ROOT, safe_path.as_posix(), conditional=True)
+
+    return app
+
+def start_flask_in_thread(app: Flask, host="127.0.0.1", port=5000, open_browser=True):
+    def _run():
+        # disable debug + reloader for thread-safety
+        if open_browser:
+            try:
+                webbrowser.open_new_tab(f"http://{host}:{port}")
+            except Exception:
+                pass
+        app.run(host=host, port=port, debug=False, use_reloader=False)
+
+    th = threading.Thread(target=_run, daemon=True)
+    th.start()
+    return th
+
+# Modify main() behavior: start flask either before pipeline (when enable_monitoring) or after
+def main_with_dashboard():
+    parser = create_arg_parser()
+    args = parser.parse_args()
+
+    if not SYSTEM_READY:
+        print("System tidak siap. Ada modul yang hilang.")
+        return
+
+    os.makedirs(CONFIG.OUTPUT.directory, exist_ok=True)
+    setup_logging(CONFIG.OUTPUT.directory)
+
+    logging.info("=" * 80)
+    logging.info("  VOLCANOAI SYSTEM STARTUP  ".center(80))
+    logging.info("=" * 80)
+
+    configure_pipeline_from_args(args, CONFIG)
+
+    # Create Flask app (server will serve files from project root)
+    app = create_flask_app(output_dir=Path(CONFIG.OUTPUT.directory), template_path=TEMPLATE_PATH)
+
+    # If monitoring loop will run (blocking), start Flask in background first
+    enable_monitoring = getattr(CONFIG.REALTIME, "enable_monitoring", False)
+    if enable_monitoring:
+        logging.info("[Dashboard] Starting Flask server in background thread (monitoring enabled)...")
+        start_flask_in_thread(app, host=FLASK_HOST, port=FLASK_PORT, open_browser=True)
+
+    pipeline = VolcanoAiPipeline(CONFIG)
+    pipeline.run()
+
+    # If monitoring not enabled, start Flask AFTER pipeline finishes
+    if not enable_monitoring:
+        logging.info("[Dashboard] Pipeline finished — launching Flask server (dashboard)...")
+        start_flask_in_thread(app, host=FLASK_HOST, port=FLASK_PORT, open_browser=True)
+        # Keep main thread alive to keep server running
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            logging.info("[Dashboard] KeyboardInterrupt — exiting.")
+
+# Replace the original main with main_with_dashboard when running as script
+# (so existing behavior is preserved but with dashboard)
 if __name__ == "__main__":
-    main()
+    main_with_dashboard()
+# === END: Flask dashboard integration ===

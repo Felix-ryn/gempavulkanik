@@ -1,0 +1,15 @@
+2025-12-20 00:04:01,658 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251220_000401.log
+2025-12-20 00:04:01,658 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-20 00:04:01,658 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
+2025-12-20 00:04:01,658 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-20 00:04:01,698 [INFO    ] [RealtimeSensorManager] [MainThread] --- [MIROVA] Menggunakan log terbaru: output/realtime\mirova_log_20251003-094000.txt
+2025-12-20 00:04:01,698 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2025-12-20 00:04:01,698 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2025-12-20 00:04:01,698 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING ==========
+2025-12-20 00:04:01,985 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 2: FEATURE ENGINEERING ==========
+2025-12-20 00:04:02,005 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-20 00:04:02,354 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-20 00:04:02,682 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: Kolom berikut kosong total saat training -> diisi 0.0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-20 00:04:03,367 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- System shutdown. Uptime: 1.67s
