@@ -1,6 +1,7 @@
 ﻿# VolcanoAI/reporting/comprehensive_reporter.py
 # -- coding: utf-8 --
 
+import datetime
 import os
 import logging
 import base64
@@ -17,7 +18,6 @@ import networkx as nx
 from folium import plugins
 from folium import LayerControl, FeatureGroup, Marker, Icon, Circle
 from branca.colormap import LinearColormap
-from datetime import datetime
 from io import BytesIO
 from typing import Dict, Any, List, Optional
 
@@ -39,7 +39,6 @@ class GraphVisualizer:
         os.makedirs(self.output_dir, exist_ok=True)
     
     def export_graphs_to_maps(self, G_macro: nx.Graph, micro_graphs: Dict[str, nx.Graph]) -> Dict[str, str]:
-        # Logika export graph GA (jika dipanggil)
         out = {}
         if not G_macro: return out
         try:
@@ -53,7 +52,7 @@ class GraphVisualizer:
             macro_map.save(macro_path)
             out["macro_map"] = macro_path
         except Exception as e:
-            self.logger.warning(f"Gagal export graph map: {e}")
+            logger.warning(f"Gagal export graph map: {e}")
         return out
 
 
@@ -252,9 +251,13 @@ class ComprehensiveReporter(MapGenerator):
         
         self.GraphVisualizer = GraphVisualizer 
 
+        self.logger = logger          # gunakan module-level logger
+        self.metrics = {} 
+
     def run(self, df_final: pd.DataFrame, metrics: dict, anomalies_df: pd.DataFrame):
         logger.info("Generating Dual Dashboard HTML...")
-        
+        self.metrics = metrics
+
         # 1. Load Data Pendukung
         df_aco_all = self.assets.get_data("aco_csv")
         df_ga_all = self.assets.get_data("ga_path_csv")
@@ -285,58 +288,71 @@ class ComprehensiveReporter(MapGenerator):
     # ------------------------------------------------------------------
     from pathlib import Path
 
-    def _build_and_save_dashboard(
-        self, file_path: str, map_html: str,
-        latest_row: pd.Series, img_trend_b64: str, is_live: bool
-    ):
-        # ==============================
-        # 1. BUILD KONTEN REPORTER SAJA
-        # ==============================
-        status = latest_row.get('impact_level', 'Unknown') if not latest_row.empty else "No Data"
-        mag_val = f"{latest_row.get('Magnitudo', 0):.1f}" if not latest_row.empty else "-"
-        cnn_val = f"{latest_row.get('luas_cnn', 0):.2f} km²" if not latest_row.empty else "-"
-        risk_score = f"{latest_row.get('PheromoneScore', 0):.3f}" if not latest_row.empty else "-"
-        img_roc = self.assets.get_image_b64("nb_roc")
+def _safe_read_text(path: Path, logger=None) -> str:
+    encodings = ["utf-8", "cp1252", "latin-1"]
+    for enc in encodings:
+        try:
+            return path.read_text(encoding=enc)
+        except UnicodeDecodeError:
+            if logger:
+                logger.warning(f"Gagal decode {path} dengan {enc}, mencoba lain...")
+        except Exception as e:
+            if logger:
+                logger.warning(f"Error baca {path} dengan {enc}: {e}")
+    raw = path.read_bytes()
+    return raw.decode("utf-8", errors="replace")
 
-        report_html = f"""
-        <div class="reporter-block">
-          <h2>🌋 VolcanoAI Live Summary</h2>
-          <p><b>Status:</b> {status}</p>
-          <p><b>Magnitudo:</b> {mag_val}</p>
-          <p><b>Prediksi Area CNN:</b> {cnn_val}</p>
-          <p><b>Risk Score:</b> {risk_score}</p>
 
-          <div style="margin-top:20px;">
-            {map_html}
-          </div>
 
-          <img src="data:image/png;base64,{img_trend_b64}" style="width:100%;max-height:250px">
-          <img src="data:image/png;base64,{img_roc}" style="width:100%;max-height:250px">
-        </div>
-        """
+    def _build_and_save_dashboard(self, dashboard_path, html_map, latest_row, img_trend, is_live=False):
+        dashboard_path = Path(dashboard_path)
 
-        # ==============================
-        # 2. LOAD TEMPLATE CLIENT
-        # ==============================
-        template_path = (
-            Path(__file__).parent /
-            "templates" /
-            "monitor_live_template.html"
-        )
+        if is_live:
+            template_path = Path(__file__).parent / "templates" / "monitor_live_template.html"
+        else:
+            template_path = Path(__file__).parent / "static_dashboard_template.html"
 
-        template_html = template_path.read_text(encoding="utf-8")
+        if not template_path.exists():
+            self.logger.error(f"Template tidak ditemukan: {template_path}")
+            return
 
-        # ==============================
-        # 3. INJEKSI (TIDAK OVERWRITE)
-        # ==============================
-        final_html = template_html.replace(
-            "{{REPORT_CONTENT}}",
-            report_html
-        )
+        template_html = _safe_read_text(template_path, logger=self.logger)
 
-        # ==============================
-        # 4. SAVE FINAL HTML
-        # ==============================
-        Path(file_path).write_text(final_html, encoding="utf-8")
+        def getm(key, default="-"):
+            v = self.metrics.get(key)
+            if v is None:
+                return default
+            if isinstance(v, (list, tuple)):
+                return ", ".join(map(str, v))
+            return str(v)
 
-        logger.info(f"Dashboard Updated (SAFE): {file_path}")
+        data = {
+            "TIMESTAMP": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "ACO_IMPACT_CENTER": getm("aco_center"),
+            "ACO_IMPACT_AREA": getm("aco_area"),
+            "ACO_MAP": html_map or getm("aco_map", ""),
+            "GA_MAP": getm("ga_map", ""),
+            "GA_PRED_LAT": getm("ga_lat"),
+            "GA_PRED_LON": getm("ga_lon"),
+            "GA_BEARING": getm("ga_angle"),
+            "GA_DISTANCE": getm("ga_distance"),
+            "GA_CONFIDENCE": getm("ga_confidence"),
+            "LATEST_ROW_HTML": (
+                latest_row.to_frame().T.to_html(index=False)
+                if not latest_row.empty else "<i>-</i>"
+            ),
+            "LSTM_MASTER_CSV": getm("lstm_master_csv", ""),
+            "LSTM_RECENT_CSV": getm("lstm_recent_csv", ""),
+            "LSTM_ANOMALIES_CSV": getm("lstm_anomalies_csv", ""),
+            "CNN_PRED_CSV": getm("cnn_pred_csv", ""),
+            "CNN_PRED_JSON": getm("cnn_pred_json", ""),
+            "NB_REPORT_STR": getm("nb_report", "")
+        }
+
+        for k, v in data.items():
+            template_html = template_html.replace(f"{{{{{k}}}}}", str(v))
+
+        dashboard_path.parent.mkdir(parents=True, exist_ok=True)
+        dashboard_path.write_text(template_html, encoding="utf-8")
+
+        self.logger.info(f"Dashboard berhasil dibuat: {dashboard_path}")

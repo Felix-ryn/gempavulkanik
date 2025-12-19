@@ -387,6 +387,8 @@ class VolcanoAiPipeline:
         df_eval, anomalies = lstm.predict_on_static(df_eval)
         df_eval = cnn.predict(df_eval, lstm)
         df_final, metrics = nb.evaluate(df_eval)
+        self.state_mgr.update_stage("Evaluation", "Success")
+        return df_final, metrics, anomalies
 
         self.state_mgr.update_stage("Evaluation", "Success")
         return df_final, metrics, anomalies
@@ -604,10 +606,87 @@ class VolcanoAiPipeline:
             if self.config.PIPELINE.run_model_training:
                 self._run_training_flow()
 
-            if self.config.PIPELINE.run_model_evaluation:
+            if getattr(self.config.PIPELINE, "run_model_evaluation", True):
                 df_final, metrics, anomalies = self._run_evaluation_flow()
-                if self.config.PIPELINE.run_reporting:
-                    self.reporter.run(df_final, metrics, anomalies)
+            else:
+                df_final, metrics, anomalies = None, {}, None
+
+
+            # 🔥 BARU REPORTING
+            if self.config.PIPELINE.run_reporting and df_final is not None:
+                from pathlib import Path
+                outdir = Path(self.config.OUTPUT.directory)
+
+                normalized = {}
+
+                aco_json = outdir / "aco_results" / "aco_to_ga.json"
+                if aco_json.exists():
+                    try:
+                        j = json.loads(aco_json.read_text(encoding="utf-8"))
+                        lat = j.get("center_lat")
+                        lon = j.get("center_lon")
+                        if lat is not None and lon is not None:
+                            normalized["aco_center"] = f"{lat}, {lon}"
+                        normalized["aco_area"] = j.get("impact_area_km2")
+                        normalized["aco_map"] = str(outdir / "aco_results" / "aco_impact_zones.html")
+                    except Exception:
+                        pass
+
+                    # 2) GA map
+                    ga_map = outdir / "ga_results" / "ga_path_map.html"
+                    if ga_map.exists():
+                        normalized["ga_map"] = str(ga_map)
+
+                    # 3) LSTM CSV files (look for common filenames)
+                    lstm_dir = outdir / "lstm_results"
+                    if lstm_dir.exists():
+                        for f in ["lstm_records_2y_20241230.csv", "master.csv"]:
+                            p = lstm_dir / f
+                            if p.exists():
+                                normalized["lstm_master_csv"] = str(p)
+                                break
+                        for f in ["lstm_recent_15d_20241230.csv", "recent.csv"]:
+                            p = lstm_dir / f
+                            if p.exists():
+                                normalized["lstm_recent_csv"] = str(p)
+                                break
+                        for f in ["lstm_anomalies_20241230.csv", "anomalies.csv"]:
+                            p = lstm_dir / f
+                            if p.exists():
+                                normalized["lstm_anomalies_csv"] = str(p)
+                                break
+
+                    # 4) CNN outputs
+                    cnn_latest = outdir / "cnn_results" / "results" / "cnn_predictions_latest.csv"
+                    if cnn_latest.exists():
+                        normalized["cnn_pred_csv"] = str(cnn_latest)
+                    cnn_json = outdir / "cnn_results" / "cnn_predictions_latest.json"
+                    if cnn_json.exists():
+                        normalized["cnn_pred_json"] = str(cnn_json)
+
+                    # 5) NaiveBayes plots
+                    nb_dir = outdir / "naive_bayes"
+                    if nb_dir.exists():
+                        p1 = nb_dir / "confusion_matrix.png"
+                        p2 = nb_dir / "roc_curves.png"
+                        if p1.exists(): normalized["nb_confusion_png"] = str(p1)
+                        if p2.exists(): normalized["nb_roc_png"] = str(p2)
+
+                    # 6) combine: normalized keys override only when not present in original metrics
+                    final_metrics = {}
+                    if isinstance(metrics, dict):
+                        final_metrics.update(metrics)
+                    # set defaults where missing
+                    for k, v in normalized.items():
+                        final_metrics.setdefault(k, v)
+
+                    # optional: log keys for debug
+                    self.logger.info(f"Reporter metrics keys being passed: {list(final_metrics.keys())}")
+
+                    # 7) run reporter
+                    self.reporter.run(df_final, final_metrics, anomalies)
+
+
 
             # NEW: Realtime inference pipeline (opsional, tergantung config)
             if hasattr(self.config.REALTIME, "enable_realtime_inference") and \

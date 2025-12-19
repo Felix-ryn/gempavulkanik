@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="id">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>VolcanoAI � Live Monitor</title>
+    <style>
+        body {
+            font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+            margin: 0;
+            padding: 0;
+            background: #f6f8fa;
+            color: #111;
+        }
+
+        header {
+            background: #0b3b5b;
+            color: #fff;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+            header h1 {
+                margin: 0;
+                font-size: 18px;
+            }
+
+        .container {
+            padding: 18px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 420px;
+            gap: 16px;
+            align-items: start;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 10px;
+            padding: 12px;
+            box-shadow: 0 6px 18px rgba(20,20,20,0.06);
+        }
+
+        .small-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+
+        iframe.map-frame {
+            width: 100%;
+            height: 420px;
+            border: 0;
+            border-radius: 8px;
+        }
+
+        .stat {
+            font-size: 14px;
+            margin-bottom: 6px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+            table th, table td {
+                text-align: left;
+                padding: 6px 8px;
+                border-bottom: 1px solid #eee;
+            }
+
+        .muted {
+            color: #666;
+            font-size: 13px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+            background: #eef6ff;
+            color: #0b66c3;
+        }
+
+        img.plot {
+            width: 100%;
+            height: auto;
+            border-radius: 6px;
+        }
+
+        footer {
+            padding: 10px 24px;
+            color: #666;
+            font-size: 13px;
+            text-align: center;
+        }
+
+        .hr {
+            height: 1px;
+            background: #eee;
+            margin: 12px 0;
+            border-radius: 2px;
+        }
+
+        .alert {
+            background: #fff7e6;
+            border-left: 4px solid #ffb020;
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>VolcanoAI � Monitor Live</h1>
+        <div class="muted">
+            <span id="ts">{{TIMESTAMP}}</span>
+            <span style="margin-left:12px" class="badge">Mode: Live (semi-hybrid)</span>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- ROW 1: MAPS + Key info -->
+        <div class="grid">
+            <div class="card">
+                <h3 style="margin-top:0">Peta Prediksi & Zona Dampak</h3>
+                <p class="muted">ACO (zona dampak) & GA (jalur & prediksi) � klik popup untuk detail.</p>
+
+                <div style="margin:10px 0" class="small-grid">
+                    <div class="card" style="padding:8px;">
+                        <div class="stat"><strong>ACO Impact Center</strong></div>
+                        <div class="muted">{{ACO_IMPACT_CENTER}}</div>
+                        <div class="hr"></div>
+                        <div class="stat"><strong>Impact Area (km�)</strong></div>
+                        <div class="muted">{{ACO_IMPACT_AREA}}</div>
+                    </div>
+
+                    <div class="card" style="padding:8px;">
+                        <div class="stat"><strong>GA Prediksi</strong></div>
+                        <div class="muted">Lat: {{GA_PRED_LAT}} � Lon: {{GA_PRED_LON}}</div>
+                        <div class="muted">Bearing: {{GA_BEARING}} � Jarak: {{GA_DISTANCE}}</div>
+                        <div class="hr"></div>
+                        <div class="stat"><strong>Confidence</strong> <span class="muted">({{GA_CONFIDENCE}})</span></div>
+                    </div>
+                </div>
+
+                <div style="margin-top:10px;">
+                    <h4 style="margin:6px 0">ACO Visual (zona)</h4>
+                    <!-- placeholder untuk ACO folium HTML -->
+                    <iframe id="aco_map" class="map-frame" src="{{ACO_MAP}}" title="ACO Map"></iframe>
+
+                    <h4 style="margin:12px 0">GA Path & Next-event</h4>
+                    <!-- placeholder untuk GA folium HTML -->
+                    <iframe id="ga_map" class="map-frame" src="{{GA_MAP}}" title="GA Map"></iframe>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-top:0">Ringkasan Terbaru</h3>
+
+                <div class="alert">
+                    <strong>Catatan:</strong> Sistem ini berjalan semi-hybrid � data vulkanik input manual dapat memicu update otomatis.
+                </div>
+
+                <h4 style="margin:10px 0 6px 0">Event Terakhir (Baris)</h4>
+                <!-- reporter harus mengganti placeholder LATEST_ROW_HTML dengan HTML <table> baris terakhir -->
+                <div id="latest_row">
+                    {{LATEST_ROW_HTML}}
+                </div>
+
+                <div class="hr"></div>
+
+                <h4 style="margin:10px 0 6px 0">LSTM Records</h4>
+                <p class="muted">Master CSV: <a href="{{LSTM_MASTER_CSV}}" target="_blank">{{LSTM_MASTER_FILENAME}}</a></p>
+                <p class="muted">Recent 15d: <a href="{{LSTM_RECENT_CSV}}" target="_blank">{{LSTM_RECENT_FILENAME}}</a></p>
+                <p class="muted">Anomali: <a href="{{LSTM_ANOMALIES_CSV}}" target="_blank">{{LSTM_ANOMALIES_FILENAME}}</a></p>
+
+                <div class="hr"></div>
+
+                <h4 style="margin:10px 0 6px 0">CNN ? Prediksi Visual</h4>
+                <p class="muted">File hasil inference (CSV/JSON): <a href="{{CNN_PRED_CSV}}" target="_blank">{{CNN_PRED_CSV}}</a></p>
+                <p class="muted">(Jika ada gambar dual view, tampil di bawah)</p>
+                <div id="cnn_images">
+                    {{CNN_IMAGE_LIST_HTML}}
+                </div>
+            </div>
+        </div>
+
+        <!-- ROW 2: Evaluasi Naive Bayes & Metrics -->
+        <div style="margin-top:16px;" class="card">
+            <h3 style="margin-top:0">Evaluasi & Statistik (Naive Bayes)</h3>
+            <div style="display:flex;gap:12px;align-items:flex-start;">
+                <div style="flex:1;">
+                    <h4 style="margin:6px 0">Metrics</h4>
+                    <div id="metrics_block">
+                        {{NB_METRICS_HTML}}
+                    </div>
+                </div>
+                <div style="width:360px;">
+                    <h4 style="margin:6px 0">Confusion Matrix</h4>
+                    <img id="cm_img" class="plot" src="{{NB_CONFUSION_PNG}}" alt="Confusion matrix" />
+                    <h4 style="margin:10px 0 6px 0">ROC Curves</h4>
+                    <img class="plot" src="{{NB_ROC_PNG}}" alt="ROC curves" />
+                </div>
+            </div>
+            <div class="hr"></div>
+            <p class="muted">Laporan singkat: <pre style="white-space:pre-wrap; font-family:inherit; font-size:13px;">{{NB_REPORT_STR}}</pre></p>
+        </div>
+
+        <!-- Footer / troubleshooting -->
+        <div style="margin-top:14px; display:flex; gap:12px;">
+            <div class="card" style="flex:1;">
+                <h4 style="margin-top:0">Debug / Output Files</h4>
+                <ul class="muted">
+                    <li>ACO HTML: {{ACO_MAP}} (contoh: output/aco_results/aco_impact_zones.html)</li>
+                    <li>GA Map: {{GA_MAP}} (contoh: output/ga_results/ga_path_map.html)</li>
+                    <li>LSTM CSVs: {{LSTM_MASTER_CSV}}, {{LSTM_RECENT_CSV}}</li>
+                    <li>CNN predictions: {{CNN_PRED_CSV}} / {{CNN_PRED_JSON}}</li>
+                    <li>NaiveBayes plots: {{NB_CONFUSION_PNG}}, {{NB_ROC_PNG}}</li>
+                </ul>
+            </div>
+
+            <div class="card" style="width:320px;">
+                <h4 style="margin-top:0">Kontrol Live</h4>
+                <p class="muted">Auto-refresh halaman setiap <span id="refresh_interval_display">60</span>s.</p>
+                <label>Refresh (detik): <input id="refresh_interval" type="number" value="60" min="10" max="600" style="width:70px" /></label>
+                <div style="margin-top:8px;">
+                    <button onclick="manualRefresh()">Refresh sekarang</button>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            Template: monitor_live_template.html � VolcanoAI � generated template
+        </footer>
+    </div>
+
+    <script>
+    // Simple client-side helpers. Template engine on server should replace placeholders above.
+    function manualRefresh(){ window.location.reload(true); }
+    // read refresh interval input
+    (function(){
+      const input = document.getElementById('refresh_interval');
+      const display = document.getElementById('refresh_interval_display');
+      let interval = parseInt(input.value || 60, 10);
+      display.textContent = interval;
+      let timer = setInterval(()=>{ window.location.reload(true); }, interval * 1000);
+      input.addEventListener('change', ()=> {
+        clearInterval(timer);
+        interval = parseInt(input.value || 60, 10);
+        display.textContent = interval;
+        timer = setInterval(()=>{ window.location.reload(true); }, interval * 1000);
+      });
+    })();
+    </script>
+</body>
+</html>
