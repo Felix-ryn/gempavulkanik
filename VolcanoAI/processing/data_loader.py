@@ -8,7 +8,7 @@ import logging
 import time
 from typing import Optional, Tuple, Dict, Any, List
 from pathlib import Path
-
+from datetime import timedelta, datetime
 import pandas as pd
 import numpy as np
 from pandas import merge_asof
@@ -238,6 +238,26 @@ class DataLoader:
         self._save_output(df_final)
 
         return df_final
+
+    def load_last_n_days(self) -> pd.DataFrame:
+        """
+        Mengambil data terakhir N hari berdasarkan konfigurasi
+        DataLoaderConfig.hybrid_window_days.
+        """
+        df = self.run()  # existing loader (Excel / DB / merged)
+        if df is None or df.empty:
+            return pd.DataFrame()
+
+        if 'Acquired_Date' not in df.columns:
+            raise ValueError("Kolom 'Acquired_Date' tidak ditemukan pada dataset")
+
+        df = df.copy()
+        df['Acquired_Date'] = pd.to_datetime(df['Acquired_Date'], errors='coerce')
+
+        cutoff = datetime.utcnow() - timedelta(days=self.cfg.hybrid_window_days)
+        df_recent = df[df['Acquired_Date'] >= cutoff]
+
+        return df_recent.reset_index(drop=True)
 
     # ---------------------------------------------------------
     # HELPER FUNCTIONS

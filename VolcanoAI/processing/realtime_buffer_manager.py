@@ -1,4 +1,4 @@
-# VolcanoAI/processing/realtime_buffer_manager.py
+﻿# VolcanoAI/processing/realtime_buffer_manager.py
 # -- coding: utf-8 --
 
 import os
@@ -47,7 +47,7 @@ class RealtimeBufferManager:
         return df.reset_index(drop=True)
 
     # ======================================================================
-    # RAW � REALTIME
+    # RAW — REALTIME
     # ======================================================================
     def append_raw_realtime(self, df_new: pd.DataFrame):
         if df_new is None or df_new.empty:
@@ -63,7 +63,7 @@ class RealtimeBufferManager:
         self.raw_realtime = self._filter_last_n_days(self.raw_realtime)
 
     # ======================================================================
-    # RAW � INJECTION (from Excel)
+    # RAW — INJECTION (from Excel)
     # ======================================================================
     def append_raw_injection(self, df_inj: pd.DataFrame):
         if df_inj is None or df_inj.empty:
@@ -140,6 +140,39 @@ class RealtimeBufferManager:
         self.processed = self._filter_last_n_days(self.processed)
 
     # ======================================================================
+    # GET SUBSET — LAST N DAYS (FOR HYBRID TRAINING)
+    # ======================================================================
+    def get_last_n_days(self, n_days: int = 15, source: str = "processed") -> pd.DataFrame:
+        """
+        Mengambil subset data n hari terakhir dari buffer.
+    
+        source:
+        - "processed" (default) → hasil FE (dipakai CNN/LSTM)
+        - "raw" → raw_realtime + raw_injection
+        """
+        if source == "processed":
+            df = self.processed
+        elif source == "raw":
+            df = self.get_merged_raw()
+        else:
+            self.logger.warning(f"Unknown source '{source}'")
+            return pd.DataFrame()
+
+        if df is None or df.empty:
+            return pd.DataFrame()
+
+        if "Acquired_Date" not in df.columns:
+            self.logger.error("Acquired_Date tidak ditemukan di buffer")
+            return pd.DataFrame()
+
+        df = df.copy()
+        df["Acquired_Date"] = pd.to_datetime(df["Acquired_Date"], errors="coerce")
+        df = df.dropna(subset=["Acquired_Date"])
+
+        cutoff = datetime.utcnow() - timedelta(days=n_days)
+        return df[df["Acquired_Date"] >= cutoff].reset_index(drop=True)
+
+    # ======================================================================
     # EXPORT ALL BUFFERS
     # ======================================================================
     def export_all(self, base_dir="output/realtime"):
@@ -153,3 +186,4 @@ class RealtimeBufferManager:
             self.processed.to_csv(os.path.join(base_dir, "processed.csv"), index=False)
         except Exception as e:
             self.logger.error(f"[Buffer Export Error] {e}")
+

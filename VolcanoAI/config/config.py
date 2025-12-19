@@ -244,6 +244,28 @@ class NaiveBayesEngineConfig:
     
     output_dir: str = field(init=False, default="")
 
+
+
+@dataclass
+class HybridTrainingConfig:
+    """
+    Konfigurasi Hybrid Training (CNN + LSTM + GA feedback).
+    """
+    window_days: int = 15
+    split_ratio: float = 0.7
+    min_success_rate: float = 0.8
+    max_retries: int = 3
+
+    train_epochs: int = 5
+    retrain_epochs: int = 3
+
+    thresholds: Dict[str, float] = field(
+        default_factory=lambda: {
+            'dist_km': 10.0,
+            'angle_deg': 30.0
+        }
+    )
+
 # =============================================================================
 # 3. MAIN PROJECT CONFIGURATION
 # =============================================================================
@@ -264,8 +286,7 @@ class ProjectConfig:
     LSTM_ENGINE: LstmEngineConfig
     CNN_ENGINE: CnnEngineConfig
     NAIVE_BAYES_ENGINE: NaiveBayesEngineConfig
-    
-    # [PENTING] REALTIME diletakkan di akhir karena memiliki default value
+    HYBRID: HybridTrainingConfig   
     REALTIME: RealtimeConfig = field(default_factory=RealtimeConfig)
 
     def __post_init__(self):
@@ -349,6 +370,7 @@ def load_configuration() -> ProjectConfig:
             epochs=_get_env(f"{prefix}_CNN_EPOCHS", 5)
         ),
         NAIVE_BAYES_ENGINE=NaiveBayesEngineConfig(),
+        HYBRID=HybridTrainingConfig(),   # 🔥 WAJIB
         REALTIME=RealtimeConfig()
     )
 

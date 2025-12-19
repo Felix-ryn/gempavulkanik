@@ -1072,6 +1072,51 @@ class LstmEngine:
 
         return df_out, final_anoms
 
+        def record_actual_events(self, df_actual: pd.DataFrame):
+            """
+            Merekam event aktual (ground truth) ke buffer & vault
+            untuk pembelajaran lanjutan LSTM (integrasi CNN).
+            """
+            if df_actual is None or df_actual.empty:
+                logger.warning("[LSTM] record_actual_events: df_actual kosong")
+                return False
+
+            try:
+                # 1️⃣ Update buffer realtime
+                self.buffer.update(df_actual)
+
+                # 2️⃣ (Opsional) Simpan ke vault sebagai arsip learning
+                if hasattr(self.vault, 'append'):
+                    self.vault.append(df_actual)
+
+                # 3️⃣ Persist state
+                self.save_state()
+
+                logger.info(f"[LSTM] Recorded {len(df_actual)} actual events")
+                return True
+
+            except Exception as e:
+                logger.error(f"[LSTM] record_actual_events failed: {e}")
+                return False
+        
+        
+        def save_state(self):
+            """
+            Simpan state LSTM (buffer, metadata).
+            """
+            try:
+                # Simpan buffer ke pickle
+                state_dir = Path(self.cfg.model_dir)
+                state_dir.mkdir(parents=True, exist_ok=True)
+
+                buffer_path = state_dir / "lstm_buffer.pkl"
+                with open(buffer_path, "wb") as f:
+                    pickle.dump(self.buffer.get_context(), f)
+
+                logger.info(f"[LSTM] State saved: {buffer_path}")
+
+            except Exception as e:
+                logger.warning(f"[LSTM] save_state failed: {e}")
 
 
         def extract_hidden_states(self, X_input, cid):

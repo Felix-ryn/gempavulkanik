@@ -10,6 +10,7 @@ import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from pathlib import Path
 import seaborn as sns
 import folium
 import networkx as nx
@@ -282,70 +283,60 @@ class ComprehensiveReporter(MapGenerator):
     # ------------------------------------------------------------------
     # HTML WRAPPER (Sama seperti sebelumnya)
     # ------------------------------------------------------------------
-    def _build_and_save_dashboard(self, file_path: str, map_html: str, latest_row: pd.Series, img_trend_b64: str, is_live: bool):
+    from pathlib import Path
+
+    def _build_and_save_dashboard(
+        self, file_path: str, map_html: str,
+        latest_row: pd.Series, img_trend_b64: str, is_live: bool
+    ):
+        # ==============================
+        # 1. BUILD KONTEN REPORTER SAJA
+        # ==============================
         status = latest_row.get('impact_level', 'Unknown') if not latest_row.empty else "No Data"
-        status_color = {"Parah": "#e74c3c", "Sedang": "#f39c12", "Ringan": "#27ae60", "Unknown": "#95a5a6"}.get(status, "#95a5a6")
-        
         mag_val = f"{latest_row.get('Magnitudo', 0):.1f}" if not latest_row.empty else "-"
         cnn_val = f"{latest_row.get('luas_cnn', 0):.2f} km²" if not latest_row.empty else "-"
         risk_score = f"{latest_row.get('PheromoneScore', 0):.3f}" if not latest_row.empty else "-"
         img_roc = self.assets.get_image_b64("nb_roc")
-        
-        title = "LIVE MONITOR COMMAND CENTER" if is_live else "HISTORICAL ANALYSIS & VALIDATION"
-        
-        html_template = f"""
-        <!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>VolcanoAI {title}</title>
-        <style>
-            body {{ font-family: 'Segoe UI', sans-serif; margin: 0; background-color: #ecf0f1; }}
-            .navbar {{ background-color: #2c3e50; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }}
-            .status-badge {{ background-color: #e74c3c; padding: 5px 15px; border-radius: 20px; font-weight: bold; animation: pulse 2s infinite; }}
-            .grid-container {{ display: grid; grid-template-columns: 300px 1fr; gap: 20px; padding: 20px; height: calc(100vh - 70px); }}
-            .card {{ background: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; margin-bottom: 20px; }}
-            .card-header {{ background: #f7f9fc; padding: 15px; border-bottom: 1px solid #eee; font-weight: bold; color: #34495e; }}
-            .card-body {{ padding: 20px; }}
-            .kpi-box {{ text-align: center; padding: 15px; background: {status_color}; color: white; border-radius: 8px; margin-bottom: 10px; }}
-            .kpi-value {{ font-size: 2.5rem; font-weight: bold; }}
-            .data-row {{ display: flex; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px dashed #eee; padding-bottom: 5px; }}
-            .data-label {{ color: #7f8c8d; }} .data-val {{ font-weight: 600; }}
-            iframe {{ width: 100%; height: 100%; border: none; }} img {{ max-width: 100%; height: auto; }}
-            @keyframes pulse {{ 0% {{ opacity: 1; }} 50% {{ opacity: 0.6; }} 100% {{ opacity: 1; }} }}
-        </style></head><body>
-            <div class="navbar"><h1>🌋 VolcanoAI {title}</h1><div class="status-badge">System Active</div></div>
-            <div class="grid-container">
-                <div class="sidebar">
-                    <div class="card"><div class="card-header">Status Prediksi</div><div class="card-body">
-                        <div class="kpi-box"><div class="kpi-value">{status}</div><div>Level Siaga</div></div>
-                        <div class="data-row"><span class="data-label">Lokasi</span><span class="data-val">{latest_row.get('Nama', '-')}</span></div>
-                        <div class="data-row"><span class="data-label">Waktu</span><span class="data-val">{latest_row.get('Acquired_Date', '-')}</span></div>
-                    </div></div>
-                    <div class="card"><div class="card-header">Metrik Fisika & AI</div><div class="card-body">
-                        <div class="data-row"><span class="data-label">Magnitudo</span><span class="data-val">{mag_val} SR</span></div>
-                        <div class="data-row"><span class="data-label">Kedalaman</span><span class="data-val">{latest_row.get('Kedalaman (km)', 0)} km</span></div>
-                        <div class="data-row"><span class="data-label">Prediksi Area</span><span class="data-val">{cnn_val}</span></div>
-                        <div class="data-row"><span class="data-label">Skor Risiko</span><span class="data-val">{risk_score}</span></div>
-                    </div></div>
-                    <div class="card" style="flex-grow: 1;"><div class="card-header">Validasi Model</div><div class="card-body" style="text-align: center;"><img src="data:image/png;base64,{img_roc}" alt="ROC Curve"></div></div>
-                </div>
-                <div class="main-content">
-                    <div class="card" style="flex-grow: 2; min-height: 400px;"><div class="card-header">Peta Komando Strategis</div><div style="height: 100%;">{map_html}</div></div>
-                    <div class="card" style="flex-grow: 1; min-height: 250px;"><div class="card-header">Dinamika Waktu (LSTM)</div><div class="card-body"><img src="data:image/png;base64,{img_trend_b64}" style="width: 100%; max-height: 250px; object-fit: contain;"></div></div>
-                </div>
-            </div>
-            
-            <script>
-                // Auto-refresh hanya di mode LIVE (sejalan dengan interval BMKG fetch)
-                if ({'true' if is_live else 'false'}) {{
-                   setTimeout(function(){{
-                       window.location.reload(1);
-                   }}, 300000); // 5 menit
-                }}
-            </script>
-        </body></html>
+
+        report_html = f"""
+        <div class="reporter-block">
+          <h2>🌋 VolcanoAI Live Summary</h2>
+          <p><b>Status:</b> {status}</p>
+          <p><b>Magnitudo:</b> {mag_val}</p>
+          <p><b>Prediksi Area CNN:</b> {cnn_val}</p>
+          <p><b>Risk Score:</b> {risk_score}</p>
+
+          <div style="margin-top:20px;">
+            {map_html}
+          </div>
+
+          <img src="data:image/png;base64,{img_trend_b64}" style="width:100%;max-height:250px">
+          <img src="data:image/png;base64,{img_roc}" style="width:100%;max-height:250px">
+        </div>
         """
 
-        try:
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write(html_template)
-            logger.info(f"Dashboard Updated: {file_path}")
-        except Exception as e:
-            logger.error(f"Dashboard generation failed: {e}")
+        # ==============================
+        # 2. LOAD TEMPLATE CLIENT
+        # ==============================
+        template_path = (
+            Path(__file__).parent /
+            "templates" /
+            "monitor_live_template.html"
+        )
+
+        template_html = template_path.read_text(encoding="utf-8")
+
+        # ==============================
+        # 3. INJEKSI (TIDAK OVERWRITE)
+        # ==============================
+        final_html = template_html.replace(
+            "{{REPORT_CONTENT}}",
+            report_html
+        )
+
+        # ==============================
+        # 4. SAVE FINAL HTML
+        # ==============================
+        Path(file_path).write_text(final_html, encoding="utf-8")
+
+        logger.info(f"Dashboard Updated (SAFE): {file_path}")

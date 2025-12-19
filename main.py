@@ -310,7 +310,58 @@ class VolcanoAiPipeline:
 
         df_processed = self.cnn_engine.predict(df_processed, self.lstm_engine)
 
-        # 5️⃣ Naive Bayes
+        # =========================
+        # CNN ERROR CHECK (TRAINING)
+        # =========================
+        if hasattr(self.cnn_engine, "evaluate_error"):
+            cnn_error = self.cnn_engine.evaluate_error(df_processed)
+            self.logger.info(f"[CNN] Training error: {cnn_error:.4f}")
+
+            if cnn_error > self.config.CNN_ENGINE.max_error_threshold:
+                self.logger.warning("[CNN] Error tinggi, retraining CNN...")
+                self.cnn_engine.train(df_processed, self.lstm_engine)
+
+
+        from datetime import datetime
+        from pathlib import Path
+
+        out_dir = Path(self.config.OUTPUT.directory) / "cnn_results" / "results"
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        export_cols = [
+            'cluster_id',
+            'Acquired_Date',
+            'luas_cnn',
+            'cnn_angle_deg',
+            'cnn_distance_km'
+        ]
+        export_cols = [c for c in export_cols if c in df_processed.columns]
+
+        # ===============================
+        # 1️⃣ FILE TERKINI (UNTUK HTML)
+        # ===============================
+        latest_path = out_dir / "cnn_predictions_latest.csv"
+        df_processed[export_cols].to_csv(latest_path, index=False)
+
+        self.logger.info(f"✅ CNN latest overwritten: {latest_path}")
+
+        # setelah menulis latest_path
+        try:
+            from VolcanoAI.postprocess.cnn_csv_to_json import run as cnn_postprocess_run
+            cnn_postprocess_run(csv_path=str(latest_path), out_json=str(Path(self.config.OUTPUT.directory) / "cnn_results" / "cnn_predictions_latest.json"))
+            self.logger.info("✅ CNN JSON updated for client")
+        except Exception as e:
+            self.logger.error(f"❌ CNN postprocess failed: {e}")
+
+        # ===============================
+        # 2️⃣ FILE ARSIP (HISTORI)
+        # ===============================
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        archive_path = out_dir / f"cnn_predictions_{ts}.csv"
+        df_processed[export_cols].to_csv(archive_path, index=False)
+        self.logger.info(f" CNN archive saved: {archive_path}")
+
+                # 5️⃣ Naive Bayes
         self.nb_engine.train(df_processed)
         self.trained_nb_engine = self.nb_engine
 
@@ -467,12 +518,61 @@ class VolcanoAiPipeline:
                 df_pred = self.cnn_engine.predict(df_pred, self.lstm_engine)
                 df_pred, _ = self.nb_engine.evaluate(df_pred)
 
-                # 5. UPDATE BUFFER & SAVE (FIXED)
-                self.lstm_engine.update_buffer(df_pred)
+                # =========================
+                # SEMI-HYBRID FEEDBACK LOOP
+                # =========================
+
+                if 'actual_event' in df_pred.columns:
+                    df_actual = df_pred[df_pred['actual_event'] == 1].copy()
+
+                    if not df_actual.empty:
+                        self.logger.info(f"[FEEDBACK] Actual events detected: {len(df_actual)}")
+
+                        # 1️⃣ RECORD ACTUAL KE LSTM (INI WAJIB ADA)
+                        self.lstm_engine.record_actual_events(df_actual)
+
+                        # 2️⃣ EVALUASI ERROR CNN
+                        if hasattr(self.cnn_engine, "evaluate_error"):
+                            cnn_error = self.cnn_engine.evaluate_error(df_actual)
+                            self.logger.info(f"[CNN] Live error: {cnn_error:.4f}")
+
+                            # 3️⃣ RETRAIN JIKA SALAH
+                            if cnn_error > self.config.CNN_ENGINE.max_error_threshold:
+                                self.logger.warning("[CNN] Retraining due to live mismatch...")
+                                self.cnn_engine.train(
+                                    self.lstm_engine.get_buffer(),
+                                    self.lstm_engine
+                                )
+
+               # =====================================
+                # 5. UPDATE BUFFER (CONFIRMED ONLY)
+                # =====================================
+
+                # Update buffer hanya event yang cukup valid
+                confirmed_cols = ['actual_event', 'confidence']
+
+                if all(c in df_pred.columns for c in confirmed_cols):
+                    df_confirmed = df_pred[df_pred['confidence'] >= 0.7].copy()
+                    self.logger.info(
+                        f"[BUFFER] Confirmed events: {len(df_confirmed)} / {len(df_pred)}"
+                    )
+                else:
+                    # Fallback: jika belum ada mekanisme confidence
+                    self.logger.warning(
+                        "[BUFFER] Kolom confidence belum tersedia → fallback update semua (TEMP)"
+                    )
+                    df_confirmed = df_pred.copy()
+
+                # Update buffer LSTM dengan data terkonfirmasi
+                if not df_confirmed.empty:
+                    self.lstm_engine.update_buffer(df_confirmed)
+
+                # Persist buffer
                 df_current_buffer = self.lstm_engine.get_buffer()
-                safe_save_csv("output/realtime/processed.csv", df_current_buffer) 
+                safe_save_csv("output/realtime/processed.csv", df_current_buffer)
 
                 time.sleep(interval)
+
 
         except KeyboardInterrupt:
             self.logger.info("Monitoring dihentikan. Melakukan penyimpanan akhir...")

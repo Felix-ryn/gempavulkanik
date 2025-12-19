@@ -21,6 +21,10 @@ class DataLoaderConfig:
     realtime_buffer_size: int = 256
     stream_update_interval: float = 2.0  # detik
 
+    # Hybrid / Semi-online learning
+    hybrid_window_days: int = 15
+    hybrid_split_ratio: float = 0.7
+
     # DataLoader behaviour
     batch_size: int = 32
     shuffle: bool = True

@@ -586,6 +586,33 @@ class CnnEngine:
             # =========================
             self.models[cid] = model
             success_count += 1
+    
+
+        def train_from_scratch(
+            self,
+            df_train: pd.DataFrame,
+            lstm_engine,
+            epochs: Optional[int] = None
+        ) -> bool:
+            """
+            Retrain CNN dari dataset training baru (misal 70% dari 15 hari terakhir).
+            """
+            if df_train.empty:
+                logger.warning("[CNN] train_from_scratch: df_train kosong")
+                return False
+
+            prev_epochs = self.cfg.get('epochs', 20)
+
+            if epochs is not None:
+                self.cfg['epochs'] = epochs
+
+            try:
+                logger.info("[CNN] Retraining CNN from scratch...")
+                self.train(df_train, lstm_engine)
+                return True
+            finally:
+                self.cfg['epochs'] = prev_epochs
+
 
     def predict(self, df_predict: pd.DataFrame, lstm_engine) -> pd.DataFrame:
         df_out = df_predict.copy()
@@ -652,26 +679,43 @@ class CnnEngine:
             df_out.loc[idxs_to_write, 'cnn_angle_deg'] = angles_deg[:min_len]
             df_out.loc[idxs_to_write, 'cnn_distance_km'] = dist_vals[:min_len]
             
-        try:
-            out_dir = Path(self.cfg.get("output_dir", "output/cnn")) / "results"
-            out_dir.mkdir(parents=True, exist_ok=True)
-
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            out_path = out_dir / f"cnn_predictions_{ts}.csv"
-
-            export_cols = [
-                'cluster_id',
-                'Acquired_Date',
-                'luas_cnn',
-                'cnn_angle_deg',
-                'cnn_distance_km'
-            ]
-            export_cols = [c for c in export_cols if c in df_out.columns]
-
-            df_out[export_cols].to_csv(out_path, index=False)
-            logger.info(f"[CNN] Prediction CSV saved: {out_path}")
-
-        except Exception as e:
-            logger.warning(f"[CNN] Gagal export CSV: {e}")
-
         return df_out 
+
+        def evaluate_predictions(
+            self,
+            df_out: pd.DataFrame,
+            thresholds: Dict[str, float]
+        ) -> pd.DataFrame:
+            """
+            Menilai apakah prediksi CNN benar atau tidak.
+            thresholds contoh:
+            {
+                'dist_km': 10.0,
+                'angle_deg': 30.0
+            }
+            """
+            df = df_out.copy()
+            df['cnn_correct'] = False
+
+            def angle_diff(a, b):
+                return abs((a - b + 180) % 360 - 180)
+
+            if {'cnn_distance_km', 'ga_distance_km'}.issubset(df.columns):
+                df['dist_err'] = (df['cnn_distance_km'] - df['ga_distance_km']).abs()
+
+            if {'cnn_angle_deg', 'ga_angle_deg'}.issubset(df.columns):
+                df['angle_err'] = df.apply(
+                    lambda r: angle_diff(r['cnn_angle_deg'], r['ga_angle_deg']),
+                    axis=1
+                )
+
+            cond = pd.Series(True, index=df.index)
+
+            if 'dist_km' in thresholds and 'dist_err' in df.columns:
+                cond &= df['dist_err'] <= thresholds['dist_km']
+
+            if 'angle_deg' in thresholds and 'angle_err' in df.columns:
+                cond &= df['angle_err'] <= thresholds['angle_deg']
+
+            df['cnn_correct'] = cond
+            return df
