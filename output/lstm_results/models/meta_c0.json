@@ -1,16 +1,16 @@
 {
     "features": [
+        "Intensity",
         "PheromoneScore",
         "seismic_energy_log10",
-        "Magnitudo",
         "Kedalaman (km)",
-        "Intensity",
+        "Magnitudo",
         "R3_final"
     ],
     "best_params": {
-        "latent_dim": 64,
-        "learning_rate": 0.0001,
-        "dropout_rate": 0.1
+        "latent_dim": 128,
+        "learning_rate": 5e-05,
+        "dropout_rate": 0.2
     },
-    "trained_at": "2025-12-20 01:39:59.206592"
+    "trained_at": "2025-12-20 14:36:59.931081"
 }

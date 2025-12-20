@@ -678,13 +678,28 @@ class VolcanoAiPipeline:
                     if cnn_json.exists():
                         normalized["cnn_pred_json"] = str(cnn_json)
 
-                    # 5) NaiveBayes plots
-                    nb_dir = outdir / "naive_bayes"
-                    if nb_dir.exists():
-                        p1 = nb_dir / "confusion_matrix.png"
-                        p2 = nb_dir / "roc_curves.png"
+                    # 5) NaiveBayes outputs (support multiple candidate dirs & files)
+                    nb_candidates = [
+                                outdir / "naive_bayes",           # legacy
+                                outdir / "naive_bayes_results",
+                                outdir / "naive_bayes_outputs"
+                    ]
+                    nb_found = None
+                    for d in nb_candidates:
+                        if d.exists():
+                            nb_found = d
+                            break
+
+                    if nb_found:
+                        p1 = nb_found / "confusion_matrix.png"
+                        p2 = nb_found / "roc_curves.png"
+                        p_csv = nb_found / "naive_bayes_predictions.csv"
+                        p_json = nb_found / "naive_bayes_metrics.json"
                         if p1.exists(): normalized["nb_confusion_png"] = str(p1)
                         if p2.exists(): normalized["nb_roc_png"] = str(p2)
+                        if p_csv.exists(): normalized["nb_pred_csv"] = str(p_csv)
+                        if p_json.exists(): normalized["nb_metrics_json"] = str(p_json)
+
 
                     # 6) combine: normalized keys override only when not present in original metrics
                     final_metrics = {}
@@ -920,18 +935,54 @@ def build_dashboard_context(output_dir: Path) -> dict:
     else:
         ctx["CNN_MAP"] = "#"
 
-    # NaiveBayes outputs (images)
-    nb_dir = out / "naive_bayes"
-    if nb_dir.exists():
-        p1 = nb_dir / "confusion_matrix.png"
-        p2 = nb_dir / "roc_curves.png"
+    # NaiveBayes outputs (support multiple candidate dirs & files)
+    nb_candidates = [
+        out / "naive_bayes",           # legacy
+        out / "naive_bayes_results",   # earlier assistant default
+        out / "naive_bayes_outputs"    # any other naming variant
+    ]
+
+    nb_found = None
+    for cand in nb_candidates:
+        if cand.exists():
+            nb_found = cand
+            break
+
+    if nb_found:
+        p1 = nb_found / "confusion_matrix.png"
+        p2 = nb_found / "roc_curves.png"
+        p_csv = nb_found / "naive_bayes_predictions.csv"
+        p_json = nb_found / "naive_bayes_metrics.json"
+        p_report = nb_found / "classification_report.txt"
+
         if p1.exists():
             ctx["NB_CONFUSION_PNG"] = _file_url_for(p1)
         if p2.exists():
             ctx["NB_ROC_PNG"] = _file_url_for(p2)
+        if p_csv.exists():
+            ctx["CNN_PRED_CSV"] = ctx.get("CNN_PRED_CSV", "#")  # avoid clobbering CNN keys
+            # add a separate key for NB predictions if you want:
+            ctx["NB_PRED_CSV"] = _file_url_for(p_csv)
+        if p_json.exists():
+            try:
+                mj = json.loads(p_json.read_text(encoding="utf-8"))
+                # convert metrics json to a small HTML table (reuse existing style)
+                rows = ["<table>"]
+                for k, v in mj.items():
+                    rows.append(f"<tr><th style='text-align:left;padding:6px'>{k}</th><td style='padding:6px'>{v}</td></tr>")
+                rows.append("</table>")
+                ctx["NB_METRICS_HTML"] = "\n".join(rows)
+            except Exception:
+                ctx["NB_METRICS_HTML"] = "<em>Metrics JSON exists but failed to parse</em>"
+        if p_report.exists():
+            try:
+                ctx["NB_REPORT_STR"] = p_report.read_text(encoding="utf-8")
+            except Exception:
+                pass
+
 
     # If reporter generated textual metrics in a JSON, try reading it (optional)
-    metrics_json = out / "report_metrics.json"
+    metrics_json = output_dir / "report_metrics.json"
     if metrics_json.exists():
         try:
             mj = json.loads(metrics_json.read_text(encoding="utf-8"))
@@ -1003,6 +1054,11 @@ def main_with_dashboard():
 
     os.makedirs(CONFIG.OUTPUT.directory, exist_ok=True)
     setup_logging(CONFIG.OUTPUT.directory)
+
+    from pathlib import Path
+    out = Path(CONFIG.OUTPUT.directory)
+    out.mkdir(parents=True, exist_ok=True)  # pastikan folder utama ada
+
 
     logging.info("=" * 80)
     logging.info("  VOLCANOAI SYSTEM STARTUP  ".center(80))

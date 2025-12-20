@@ -1,0 +1,44 @@
+2025-12-20 14:47:10,259 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251220_144710.log
+2025-12-20 14:47:10,261 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-20 14:47:10,262 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
+2025-12-20 14:47:10,262 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-20 14:47:10,269 [INFO    ] [root                ] [MainThread] --- [Dashboard] Starting Flask server in background thread (monitoring enabled)...
+2025-12-20 14:47:10,284 [INFO    ] [RealtimeSensorManager] [MainThread] --- [MIROVA] Menggunakan log terbaru: output/realtime\mirova_log_20251003-094000.txt
+2025-12-20 14:47:10,286 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2025-12-20 14:47:10,287 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2025-12-20 14:47:10,290 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING ==========
+2025-12-20 14:47:10,347 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 2: FEATURE ENGINEERING ==========
+2025-12-20 14:47:10,372 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-20 14:47:10,763 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-20 14:47:10,888 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: Kolom berikut kosong total saat training -> diisi 0.0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-20 14:47:11,478 [INFO    ] [werkzeug            ] [Thread-1 (_run)] --- [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-12-20 14:47:11,480 [INFO    ] [werkzeug            ] [Thread-1 (_run)] --- [33mPress CTRL+C to quit[0m
+2025-12-20 14:47:11,713 [INFO    ] [werkzeug            ] [Thread-148 (process_request_thread)] --- 127.0.0.1 - - [20/Dec/2025 14:47:11] "GET / HTTP/1.1" 200 -
+2025-12-20 14:47:12,326 [INFO    ] [VolcanoAI.processing.feature_engineer] [MainThread] --- Preprocessor state saved to: output\feature_preprocessor.pkl
+2025-12-20 14:47:12,333 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (1307, 55)
+2025-12-20 14:47:12,341 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-20 14:47:12,624 [INFO    ] [werkzeug            ] [Thread-181 (process_request_thread)] --- 127.0.0.1 - - [20/Dec/2025 14:47:12] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-20 14:47:12,637 [INFO    ] [werkzeug            ] [Thread-183 (process_request_thread)] --- 127.0.0.1 - - [20/Dec/2025 14:47:12] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-20 14:47:12,804 [INFO    ] [werkzeug            ] [Thread-209 (process_request_thread)] --- 127.0.0.1 - - [20/Dec/2025 14:47:12] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-20 14:47:12,943 [INFO    ] [werkzeug            ] [Thread-210 (process_request_thread)] --- 127.0.0.1 - - [20/Dec/2025 14:47:12] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-20 14:47:13,021 [INFO    ] [werkzeug            ] [Thread-211 (process_request_thread)] --- 127.0.0.1 - - [20/Dec/2025 14:47:13] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-20 14:47:13,031 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-20 14:47:13,142 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: Kolom berikut kosong total saat training -> diisi 0.0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-20 14:47:14,476 [INFO    ] [VolcanoAI.processing.feature_engineer] [MainThread] --- Preprocessor state saved to: output\feature_preprocessor.pkl
+2025-12-20 14:47:14,477 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (561, 55)
+2025-12-20 14:47:14,484 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 3: MODEL TRAINING ==========
+2025-12-20 14:47:15,037 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Melanjutkan dari brain state sebelumnya.
+2025-12-20 14:47:47,325 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-49] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-20 14:48:06,658 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-90] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-20 14:48:12,227 [INFO    ] [werkzeug            ] [Thread-416 (process_request_thread)] --- 127.0.0.1 - - [20/Dec/2025 14:48:12] "GET / HTTP/1.1" 200 -
+2025-12-20 14:48:12,302 [INFO    ] [werkzeug            ] [Thread-417 (process_request_thread)] --- 127.0.0.1 - - [20/Dec/2025 14:48:12] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-20 14:48:12,307 [INFO    ] [werkzeug            ] [Thread-418 (process_request_thread)] --- 127.0.0.1 - - [20/Dec/2025 14:48:12] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-20 14:48:12,409 [INFO    ] [werkzeug            ] [Thread-419 (process_request_thread)] --- 127.0.0.1 - - [20/Dec/2025 14:48:12] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-20 14:48:12,454 [INFO    ] [werkzeug            ] [Thread-420 (process_request_thread)] --- 127.0.0.1 - - [20/Dec/2025 14:48:12] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-20 14:48:12,470 [INFO    ] [werkzeug            ] [Thread-421 (process_request_thread)] --- 127.0.0.1 - - [20/Dec/2025 14:48:12] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-20 14:48:29,699 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-131] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-20 14:48:46,537 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- System shutdown. Uptime: 96.25s

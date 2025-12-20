@@ -1,0 +1,62 @@
+2025-12-20 13:06:53,001 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251220_130652.log
+2025-12-20 13:06:53,002 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-20 13:06:53,003 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
+2025-12-20 13:06:53,004 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-20 13:06:53,011 [INFO    ] [root                ] [MainThread] --- [Dashboard] Starting Flask server in background thread (monitoring enabled)...
+2025-12-20 13:06:53,038 [INFO    ] [RealtimeSensorManager] [MainThread] --- [MIROVA] Menggunakan log terbaru: output/realtime\mirova_log_20251003-094000.txt
+2025-12-20 13:06:53,039 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2025-12-20 13:06:53,040 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2025-12-20 13:06:53,040 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING ==========
+2025-12-20 13:06:53,098 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 2: FEATURE ENGINEERING ==========
+2025-12-20 13:06:53,111 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-20 13:06:53,344 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-20 13:06:53,594 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: Kolom berikut kosong total saat training -> diisi 0.0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-20 13:06:53,969 [INFO    ] [werkzeug            ] [Thread-1 (_run)] --- [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-12-20 13:06:53,969 [INFO    ] [werkzeug            ] [Thread-1 (_run)] --- [33mPress CTRL+C to quit[0m
+2025-12-20 13:06:54,434 [INFO    ] [VolcanoAI.processing.feature_engineer] [MainThread] --- Preprocessor state saved to: output\feature_preprocessor.pkl
+2025-12-20 13:06:54,434 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (1307, 55)
+2025-12-20 13:06:54,434 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-20 13:06:54,500 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-20 13:06:54,521 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: Kolom berikut kosong total saat training -> diisi 0.0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-20 13:06:54,968 [INFO    ] [VolcanoAI.processing.feature_engineer] [MainThread] --- Preprocessor state saved to: output\feature_preprocessor.pkl
+2025-12-20 13:06:54,968 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (561, 55)
+2025-12-20 13:06:54,981 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 3: MODEL TRAINING ==========
+2025-12-20 13:06:55,227 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Melanjutkan dari brain state sebelumnya.
+2025-12-20 13:06:56,965 [INFO    ] [werkzeug            ] [Thread-410 (process_request_thread)] --- 127.0.0.1 - - [20/Dec/2025 13:06:56] "GET / HTTP/1.1" 200 -
+2025-12-20 13:06:57,367 [INFO    ] [werkzeug            ] [Thread-411 (process_request_thread)] --- 127.0.0.1 - - [20/Dec/2025 13:06:57] "GET / HTTP/1.1" 200 -
+2025-12-20 13:06:57,666 [INFO    ] [werkzeug            ] [Thread-412 (process_request_thread)] --- 127.0.0.1 - - [20/Dec/2025 13:06:57] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-20 13:06:57,673 [INFO    ] [werkzeug            ] [Thread-413 (process_request_thread)] --- 127.0.0.1 - - [20/Dec/2025 13:06:57] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-20 13:06:57,692 [INFO    ] [werkzeug            ] [Thread-414 (process_request_thread)] --- 127.0.0.1 - - [20/Dec/2025 13:06:57] "GET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1" 200 -
+2025-12-20 13:06:59,844 [INFO    ] [werkzeug            ] [Thread-415 (process_request_thread)] --- 127.0.0.1 - - [20/Dec/2025 13:06:59] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-12-20 13:07:09,361 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-48] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-20 13:07:21,215 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-94] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-20 13:07:30,179 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-135] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-20 13:07:47,861 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- Visual ACO tersimpan: C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\output\aco_results/aco_impact_zones.html
+2025-12-20 13:07:47,866 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Output GA tersimpan → C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\output\aco_results\aco_to_ga.json
+2025-12-20 13:07:47,867 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Impact Center: {'center_lat': -8.03683711554216, 'center_lon': 113.32166069975221, 'lat_column_used': 'Lintang', 'lon_column_used': 'Bujur'} | Impact Area (km²): 201.96594424565433
+2025-12-20 13:07:47,870 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- 
+================================================================================
+2025-12-20 13:07:47,871 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] ---                             === GA ENGINE START ===                             
+2025-12-20 13:07:47,872 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- ================================================================================
+2025-12-20 13:07:47,884 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA Evolution Start → Pop=80, Gen=150
+2025-12-20 13:07:47,918 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- Resuming GA from checkpoint...
+2025-12-20 13:07:47,950 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- [GA] next_event berhasil ditulis ke aco_to_ga.json
+2025-12-20 13:07:47,952 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA vector JSON saved → output\ga_results\ga_vector.json
+2025-12-20 13:07:59,814 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA Map saved → output\ga_results\ga_path_map.html
+2025-12-20 13:08:03,300 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- Excel exported → output\ga_results\ga_report.xlsx
+2025-12-20 13:08:03,302 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] ---                            === GA ENGINE COMPLETE ===                           
+2025-12-20 13:08:03,304 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- === LSTM V6.0 TITAN TRAINING START ===
+2025-12-20 13:08:03,331 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Processing Cluster 0...
+2025-12-20 13:08:03,344 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] ---     [Tuner] Menjalankan 3 trial optimasi...
+2025-12-20 13:08:08,630 [WARNING ] [tensorflow          ] [MainThread] --- From C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\env\lib\site-packages\keras\src\backend\common\global_state.py:82: The name tf.reset_default_graph is deprecated. Please use tf.compat.v1.reset_default_graph instead.
+
+2025-12-20 13:08:09,455 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Model LSTM berhasil dikompilasi (Standard MAE). Input: 30x6
+2025-12-20 13:08:17,208 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Model LSTM berhasil dikompilasi (Standard MAE). Input: 30x6
+2025-12-20 13:08:24,111 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Model LSTM berhasil dikompilasi (Standard MAE). Input: 30x6
+2025-12-20 13:08:31,919 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] ---     [Tuner] Parameter Terbaik: {'latent_dim': 64, 'learning_rate': 0.0005, 'dropout_rate': 0.1} (Loss: 0.5279)
+2025-12-20 13:08:32,014 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Model LSTM berhasil dikompilasi (Standard MAE). Input: 30x6
+2025-12-20 13:08:41,353 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- System shutdown. Uptime: 108.31s
