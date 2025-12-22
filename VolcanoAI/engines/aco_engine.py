@@ -99,22 +99,32 @@ class EnvironmentManager:
 
     # ----------------------
     def _normalize_geo_columns(self):
-        """Samakan nama kolom geospasial untuk ACO."""
-        col_map_lat = ['Lintang', 'EQ_Lintang', 'lat', 'Latitude']
-        col_map_lon = ['Bujur', 'EQ_Bujur', 'lon', 'Longitude']
+        # PRIORITAS KERAS: EQ_Lintang & EQ_Bujur (SAFE)
+        if 'EQ_Lintang' in self.df.columns and 'EQ_Bujur' in self.df.columns:
+            self.df['Lintang'] = pd.to_numeric(self.df['EQ_Lintang'], errors='coerce')
+            self.df['Bujur'] = pd.to_numeric(self.df['EQ_Bujur'], errors='coerce')
+            # fill NaN with 0.0 (atau kebijakan lain)
+            if self.df['Lintang'].isna().any() or self.df['Bujur'].isna().any():
+                self.logger.warning("[ACO] NaN pada EQ_Lintang/EQ_Bujur -> diisi 0.0")
+                self.df[['Lintang', 'Bujur']] = self.df[['Lintang', 'Bujur']].fillna(0.0)
+            return
+
+        # fallback lama (jaga kompatibilitas)
+        col_map_lat = ['Lintang', 'Latitude', 'lat']
+        col_map_lon = ['Bujur', 'Longitude', 'lon']
 
         lat_col = next((c for c in col_map_lat if c in self.df.columns), None)
         lon_col = next((c for c in col_map_lon if c in self.df.columns), None)
 
         if lat_col is None or lon_col is None:
-            raise KeyError(
-                f"[ACO] Tidak menemukan kolom koordinat. "
-                f"Cari salah satu dari {col_map_lat} dan {col_map_lon}"
-            )
+            raise KeyError("[ACO] Kolom koordinat tidak ditemukan")
 
-        self.df['Lintang'] = self.df[lat_col].astype(float)
-        self.df['Bujur'] = self.df[lon_col].astype(float)
+        self.df['Lintang'] = pd.to_numeric(self.df[lat_col], errors='coerce')
+        self.df['Bujur'] = pd.to_numeric(self.df[lon_col], errors='coerce')
 
+        if self.df['Lintang'].isna().any() or self.df['Bujur'].isna().any():
+            self.logger.warning("[ACO] NaN pada koordinat → diisi 0.0")
+            self.df[['Lintang','Bujur']] = self.df[['Lintang','Bujur']].fillna(0.0)
     # ----------------------
     def _build_distance_matrix(self):
         lats = self.df['Lintang'].values
@@ -134,18 +144,21 @@ class EnvironmentManager:
         print("[DEBUG ACO] mags:", self.df[mag_col].values)
         print("[DEBUG ACO] depths:", self.df[depth_col].values)
 
-        mags = np.clip(self.df[mag_col].values.astype(float), 0.1, None)
-        depths = np.clip(self.df[depth_col].values.astype(float), 1.0, None)
+        mags_raw = pd.to_numeric(self.df[mag_col], errors='coerce').fillna(0.1)
+        depths_raw = pd.to_numeric(self.df[depth_col], errors='coerce').fillna(1.0)
 
-        energy_score = np.power(mags, 2.5)
-        depth_factor = 1.0 / np.power(depths, 0.5)
+        mags = np.clip(mags_raw.values.astype(float), 0.1, None)
+        depths = np.clip(depths_raw.values.astype(float), 1.0, None)
+
+        energy_score = np.clip(np.power(mags, 2.5), 1e-4, None)
+        depth_factor = np.clip(1.0 / np.power(depths, 0.5), 1e-4, None)
         if np.max(depth_factor) > 0:
             depth_factor /= np.max(depth_factor)
 
         attractiveness = energy_score * depth_factor
         attr_matrix = np.tile(attractiveness, (self.n_nodes, 1))
         dist_safe = self.dist_matrix.copy()
-        dist_safe[dist_safe < 1e-6] = 1e-6
+        dist_safe[dist_safe < 0.5] = 0.5  # MIN 500 meter
         self.heuristic_matrix = attr_matrix / dist_safe
 
         np.fill_diagonal(self.heuristic_matrix, 0.0)
@@ -395,15 +408,8 @@ class DynamicAcoEngine:
                 new_start = np.random.randint(0, n_nodes)
                 
             ant.reset(int(new_start), n_nodes)
-    def _compute_impact_center(self, df):
-        """
-        Hitung pusat area terdampak berbobot risiko
-        (robust terhadap variasi nama kolom koordinat)
-        """
 
-        # -------------------------------
-        # Deteksi nama kolom koordinat
-        # -------------------------------
+    def _compute_impact_center(self, df):
         lat_col = None
         lon_col = None
 
@@ -415,46 +421,60 @@ class DynamicAcoEngine:
                 lon_col = c
 
         if lat_col is None or lon_col is None:
-            raise KeyError(
-                f"[ACO] Kolom koordinat tidak ditemukan. "
-                f"Kolom tersedia: {list(df.columns)}"
-            )
+            raise KeyError(f"[ACO] Kolom koordinat tidak ditemukan. Kolom tersedia: {list(df.columns)}")
 
-        weights = df['PheromoneScore'].values
+        # safe numeric conversion
+        coords = df[[lat_col, lon_col]].copy()
+        coords[lat_col] = pd.to_numeric(coords[lat_col], errors='coerce')
+        coords[lon_col] = pd.to_numeric(coords[lon_col], errors='coerce')
 
-        lat_center = np.average(df[lat_col].values, weights=weights)
-        lon_center = np.average(df[lon_col].values, weights=weights)
+        weights = pd.to_numeric(df.get('PheromoneScore', pd.Series(0, index=df.index)), errors='coerce').fillna(0.0).values
+        valid_mask = coords[lat_col].notna() & coords[lon_col].notna()
+
+        if valid_mask.sum() == 0:
+            # fallback: mean of numeric-coerced columns (or 0.0)
+            lat_center = float(coords[lat_col].mean(skipna=True) or 0.0)
+            lon_center = float(coords[lon_col].mean(skipna=True) or 0.0)
+        else:
+            # use only valid rows for weighted average (weights aligned)
+            w = weights[valid_mask]
+            # if all weights 0 -> fallback to simple mean of valid coords
+            if np.sum(w) <= 1e-9:
+                lat_center = float(coords.loc[valid_mask, lat_col].mean())
+                lon_center = float(coords.loc[valid_mask, lon_col].mean())
+            else:
+                lat_center = float(np.average(coords.loc[valid_mask, lat_col].values, weights=w))
+                lon_center = float(np.average(coords.loc[valid_mask, lon_col].values, weights=w))
 
         return {
-            "center_lat": float(lat_center),
-            "center_lon": float(lon_center),
+            "center_lat": lat_center,
+            "center_lon": lon_center,
             "lat_column_used": lat_col,
             "lon_column_used": lon_col
         }
 
-
     def _compute_impact_area(self, df):
         """
-        Estimasi luas area terdampak (km²)
-        menggunakan radius efektif berbobot risiko
+        Hitung estimasi luas area terdampak (km²)
+        Berdasarkan radius visual hasil ACO
         """
-        if df.empty:
-            return {
-                "effective_radius_km": None,
-                "impact_area_km2": None
-            }
 
-        r_eff = np.average(
-            df['Radius_Visual_KM'].values,
-            weights=df['PheromoneScore'].values
-        )
+        if df.empty or 'Radius_Visual_KM' not in df.columns:
+            self.logger.warning("[ACO] Tidak dapat menghitung impact area (data kosong / kolom hilang)")
+            return {"impact_area_km2": 0.0}
 
-        area_km2 = math.pi * (r_eff ** 2)
+        radius_km = pd.to_numeric(df['Radius_Visual_KM'], errors='coerce').fillna(0.0)
+
+        # Area lingkaran: πr²
+        areas = math.pi * np.power(radius_km.values, 2)
+
+        # Total area unik (bukan sum mentah → konservatif)
+        impact_area = float(np.nanmax(areas))
 
         return {
-            "effective_radius_km": float(r_eff),
-            "impact_area_km2": float(area_km2)
+            "impact_area_km2": round(impact_area, 2)
         }
+
     def _export_for_ga(self, df, center_info):
         """
         Export hasil ACO sebagai input GA
@@ -557,7 +577,13 @@ class DynamicAcoEngine:
         except Exception as e:
             self.logger.warning(f"[ACO] Gagal simpan brain state: {e}")
 
-        return self._finalize_results(df)
+        df_out, meta = self._finalize_results(df)
+        center_info = self._compute_impact_center(df_out)
+        self._export_for_ga(df_out, center_info)
+        self._save_to_disk(df_out)
+        self._generate_visuals(df_out)
+        return df_out, meta
+
 
     def _finalize_results(self, df: pd.DataFrame):
         """
@@ -582,6 +608,12 @@ class DynamicAcoEngine:
                 norm_scores = (clipped - q01) / (q99 - q01)
 
             norm_scores = np.clip(norm_scores, 1e-4, 1.0)
+            norm_scores = np.nan_to_num(norm_scores, nan=1e-4)
+
+            if np.sum(norm_scores) <= 1e-6:
+                self.logger.warning("[ACO] All pheromone scores zero → fallback uniform")
+                norm_scores[:] = 1.0 / len(norm_scores)
+            
 
         df_out = self.env_manager.df.copy() if self.env_manager else df.copy()
         df_out['PheromoneScore'] = norm_scores
@@ -601,6 +633,13 @@ class DynamicAcoEngine:
         radius_km = base_r * (1.0 + 0.5 * pher)
         radius_km = np.clip(radius_km, 3.0, 80.0)
         df_out['Radius_Visual_KM'] = radius_km
+
+        for src, dst in [('EQ_Lintang','Lintang'), ('EQ_Bujur','Bujur')]:
+            if dst not in df_out.columns or df_out[dst].isna().all():
+                if src in df_out.columns:
+                    df_out[dst] = pd.to_numeric(df_out[src], errors='coerce')
+
+        df_out[['Lintang','Bujur']] = df_out[['Lintang','Bujur']].fillna(0.0)
 
         return df_out, {
             "pheromone_matrix": self.env_manager.pheromone_matrix if self.env_manager else None
@@ -629,6 +668,10 @@ class DynamicAcoEngine:
             final_df['Lokasi'] = df['Nama']
         if 'Acquired_Date' in df.columns and 'Tanggal' not in df.columns:
             final_df['Tanggal'] = df['Acquired_Date']
+        if 'Lintang' not in final_df.columns or 'Bujur' not in final_df.columns:
+            self.logger.warning("[ACO] final_df belum punya Lintang/Bujur sebelum save; menambahkan default 0.0")
+            final_df['Lintang'] = pd.to_numeric(final_df.get('Lintang', 0.0), errors='coerce').fillna(0.0)
+            final_df['Bujur'] = pd.to_numeric(final_df.get('Bujur', 0.0), errors='coerce').fillna(0.0)
 
         final_df = final_df[[c for c in cols if c in final_df.columns]].rename(columns={mag_col: 'Magnitudo', depth_col: 'Kedalaman'})
 
@@ -653,24 +696,61 @@ class DynamicAcoEngine:
             return
 
         try:
-            center = [float(df['Lintang'].mean()), float(df['Bujur'].mean())]
-            m = folium.Map(location=center, zoom_start=7, tiles='CartoDB positron')
+            df = df.copy()
 
+            # koordinat aman
+            df['Lintang'] = pd.to_numeric(df['Lintang'], errors='coerce').fillna(0.0)
+            df['Bujur'] = pd.to_numeric(df['Bujur'], errors='coerce').fillna(0.0)
+
+            # === FIX TANGGAL ===
+            if 'Tanggal' in df.columns:
+                df['Tanggal'] = pd.to_datetime(df['Tanggal'], errors='coerce')
+                df['Tanggal'] = df['Tanggal'].dt.strftime('%Y-%m-%d')
+                df['Tanggal'] = df['Tanggal'].fillna('-')
+            elif 'Acquired_Date' in df.columns:
+                df['Tanggal'] = pd.to_datetime(df['Acquired_Date'], errors='coerce')
+                df['Tanggal'] = df['Tanggal'].dt.strftime('%Y-%m-%d')
+                df['Tanggal'] = df['Tanggal'].fillna('-')
+            else:
+                df['Tanggal'] = '-'
+
+            # === FIX LOKASI ===
+            if 'Lokasi' in df.columns:
+                df['Lokasi'] = df['Lokasi'].astype(str).replace(['nan', 'None'], '-')
+            elif 'Nama' in df.columns:
+                df['Lokasi'] = df['Nama'].astype(str).replace(['nan', 'None'], '-')
+            else:
+                df['Lokasi'] = '-'
+
+            # === INIT MAP (WAJIB) ===
+            center_lat = float(df['Lintang'].mean())
+            center_lon = float(df['Bujur'].mean())
+
+            m = folium.Map(
+                location=[center_lat, center_lon],
+                zoom_start=6,
+                tiles="OpenStreetMap"
+            )
+
+            # === LOOP VISUAL ===
             for _, r in df.iterrows():
                 radius_m = float(r['Radius_Visual_KM']) * 1000.0
 
-                # Fallbacks untuk kolom yang mungkin tidak ada di df input
-                lokasi = r.get('Lokasi', r.get('Nama', '-'))
-                tanggal = r.get('Tanggal', r.get('Acquired_Date', '-'))
+                lokasi = r['Lokasi']
+                tanggal = r['Tanggal']
                 mag = r.get('Magnitudo', r.get('Magnitudo_Original', '-'))
                 depth = r.get('Kedalaman', r.get('Kedalaman (km)', r.get('Kedalaman_km', '-')))
-                
-                # Pastikan numerik
-                try: mag = f"{float(mag):.1f}" if mag != '-' else mag
-                except: mag = str(mag)
-                try: depth = f"{float(depth):.0f}" if depth != '-' else depth
-                except: depth = str(depth)
-                
+
+                try:
+                    mag = f"{float(mag):.1f}"
+                except:
+                    mag = '-'
+
+                try:
+                    depth = f"{float(depth):.0f}"
+                except:
+                    depth = '-'
+
                 rad = float(r['Radius_Visual_KM'])
                 risk = float(r['Pheromone_Score'])
                 risk_idx = float(r.get('Risk_Index', risk * 100.0))
@@ -687,7 +767,6 @@ class DynamicAcoEngine:
 
                 popup = folium.Popup(popup_html, max_width=320)
 
-                # CIRCLE ZONA
                 folium.Circle(
                     location=[r['Lintang'], r['Bujur']],
                     radius=radius_m,
@@ -698,7 +777,6 @@ class DynamicAcoEngine:
                     popup=popup
                 ).add_to(m)
 
-                # TITIK PUSAT
                 folium.CircleMarker(
                     location=[r['Lintang'], r['Bujur']],
                     radius=3,
@@ -708,7 +786,7 @@ class DynamicAcoEngine:
                 ).add_to(m)
 
             m.save(self.output_paths['aco_impact_html'])
-            self.logger.info(f"Visual ACO tersimpan: {self.output_paths['aco_impact_html']}")
+            self.logger.info(f"[ACO] Visual ACO tersimpan → {self.output_paths['aco_impact_html']}")
 
         except Exception as e:
-            self.logger.error(f"Gagal membuat visual ACO: {e}")
+            self.logger.error(f"[ACO] Gagal membuat visual ACO: {e}", exc_info=True)

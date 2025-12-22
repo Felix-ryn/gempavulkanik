@@ -327,7 +327,13 @@ class PhysicsFitnessEngine:
 
         # pastikan df_path minimal 2 baris
         if df_path is None or len(df_path) < 2:
-            return {}
+            return {
+            "pred_lat": float(df_path.iloc[-1]['EQ_Lintang']),
+            "pred_lon": float(df_path.iloc[-1]['EQ_Bujur']),
+            "bearing_degree": 0.0,
+            "distance_km": 0.0,
+            "confidence": 0.3
+        }
 
         # default gunakan segmen terakhir (n = 5 atau lebih kecil jika data sedikit)
         if n_seg is None:
@@ -454,20 +460,20 @@ class PhysicsFitnessEngine:
 
 
     def compute_confidence(self, df_seg: pd.DataFrame) -> float:
-        """
-        Hitung confidence sederhana: berdasarkan mean risk dan std risk.
-        Output 0..1 (naive).
-        """
         try:
             risks = df_seg['PheromoneScore'].astype(float).values
+
+            if np.all(risks == 0):
+                return 0.4  # fallback confidence minimal
+
             mean_r = float(np.mean(risks))
-            std_r = float(np.std(risks))
-            # formula — lebih kecil std dan lebih besar mean => confidence tinggi
-            conf = (mean_r / (std_r + 1e-6)) / 5.0
-            conf = max(0.0, min(conf, 1.0))
-            return conf
+            std_r = float(np.std(risks)) + 1e-6
+
+            conf = mean_r / (mean_r + std_r)
+            return max(0.3, min(conf, 1.0))
+
         except Exception:
-            return 0.0
+            return 0.4
 
 # ============================================
 # BLOCK 2/3 — Evolutionary Controller + Checkpoint
@@ -923,42 +929,72 @@ class GaEngine:
 
     def _write_back_to_aco_json(self, pred: Dict[str, Any]):
         """
-        Menulis hasil prediksi GA ke aco_to_ga.json
-        agar dashboard bisa membaca next_event
+        Menulis hasil prediksi GA ke aco_to_ga.json agar dashboard bisa membaca next_event.
+        Robust: jika file tidak ada, buat minimal template. Jaga tipe numeric & buang NaN/Inf.
         """
-
         aco_json_path = os.path.join(
             os.path.dirname(self.output_dir),
             "aco_results",
             "aco_to_ga.json"
         )
 
-        if not os.path.exists(aco_json_path):
-            logger.warning(f"[GA] aco_to_ga.json tidak ditemukan → {aco_json_path}")
-            return
+        # Ensure folder exists
+        aco_dir = os.path.dirname(aco_json_path)
+        os.makedirs(aco_dir, exist_ok=True)
+
+        # Helper untuk safe float
+        def safe_float(x, default=0.0):
+            try:
+                fx = float(x)
+                if np.isfinite(fx):
+                    return fx
+                return default
+            except Exception:
+                return default
+
+        # Build next_event payload from pred (with safe conversions)
+        next_event = {
+            "lat": safe_float(pred.get("pred_lat", None), 0.0),
+            "lon": safe_float(pred.get("pred_lon", None), 0.0),
+            "direction_deg": safe_float(pred.get("bearing_degree", None), 0.0),
+            "distance_km": safe_float(pred.get("distance_km", None), 0.0),
+            "confidence": max(0.0, min(1.0, float(pred.get("confidence", 0.0) or 0.0)))
+        }
+
+        # If pred seems empty or invalid (all zeros) -> don't overwrite to meaningless zeros,
+        # but still attempt to write an explicit marker so dashboard can show "0.00" instead of N/A if desired.
+        pred_is_valid = any([
+            np.isfinite(next_event["lat"]) and abs(next_event["lat"]) > 1e-9,
+            np.isfinite(next_event["lon"]) and abs(next_event["lon"]) > 1e-9,
+            np.isfinite(next_event["distance_km"]) and next_event["distance_km"] > 1e-9,
+            np.isfinite(next_event["confidence"]) and next_event["confidence"] > 1e-9
+        ])
 
         try:
-            with open(aco_json_path, "r") as f:
-                data = json.load(f)
+            # read existing file if present, else create minimal template
+            if os.path.exists(aco_json_path):
+                with open(aco_json_path, "r") as f:
+                    try:
+                        data = json.load(f)
+                    except Exception:
+                        data = {}
+            else:
+                data = {}
 
-            # 🔥 INI FORMAT YANG DIBACA DASHBOARD
-            data["next_event"] = {
-                "lat": float(pred.get("pred_lat", 0)),
-                "lon": float(pred.get("pred_lon", 0)),
-                "direction_deg": float(pred.get("bearing_degree", 0)),
-                "distance_km": float(pred.get("distance_km", 0)),
-                "confidence": float(pred.get("confidence", 0)),
-            }
-
+            # attach next_event only if pred dict non-empty; otherwise still write placeholder
+            data.setdefault("center_lat", data.get("center_lat", None))
+            data.setdefault("center_lon", data.get("center_lon", None))
+            data["next_event"] = next_event
             data["_ga_generated_at"] = datetime.now().isoformat()
 
+            # dump (use allow_nan=False to prevent invalid JSON if NaN sneaks in)
             with open(aco_json_path, "w") as f:
-                json.dump(data, f, indent=2)
+                json.dump(data, f, indent=2, ensure_ascii=False)
 
-            logger.info("[GA] next_event berhasil ditulis ke aco_to_ga.json")
-
+            logger.info(f"[GA] next_event berhasil ditulis ke {aco_json_path} (valid={pred_is_valid})")
         except Exception as e:
-            logger.error(f"[GA] Gagal menulis next_event: {e}")
+            logger.error(f"[GA] Gagal menulis next_event: {e}", exc_info=True)
+
 
     def run(self, df_train: pd.DataFrame) -> Tuple[List[int], Dict[str, Any]]:
         logger.info("\n" + "=" * 80)
