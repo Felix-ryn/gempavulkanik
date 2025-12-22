@@ -412,12 +412,17 @@ class FeatureEngineer:
     # =========================================================================
     # PRIVATE GRANULAR STEPS (Logika Inti)
     # =========================================================================
+   
 
     def run(self, df: pd.DataFrame, is_training: bool = True, preprocessor: Optional[FeaturePreprocessor] = None) -> Tuple[pd.DataFrame, FeaturePreprocessor]:
         """
         Pipeline Utama. Menjalankan semua langkah secara berurutan.
         [FIX]: Menambahkan is_training ke signature dan memperbaiki logika ACO input.
         """
+        print(df.head())
+        print(df.columns)
+        print(df.dtypes)
+        print(df.isna().sum())
         if not isinstance(df, pd.DataFrame):
             raise TypeError("Input must be DataFrame")
         if df.empty:

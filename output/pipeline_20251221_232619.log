@@ -1,0 +1,49 @@
+2025-12-21 23:26:19,266 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251221_232619.log
+2025-12-21 23:26:19,269 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-21 23:26:19,269 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
+2025-12-21 23:26:19,269 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-21 23:26:19,269 [INFO    ] [root                ] [MainThread] --- [Dashboard] Starting Flask server in background thread (monitoring enabled)...
+2025-12-21 23:26:19,286 [INFO    ] [RealtimeSensorManager] [MainThread] --- [MIROVA] Menggunakan log terbaru: output/realtime\mirova_log_20251003-094000.txt
+2025-12-21 23:26:19,287 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2025-12-21 23:26:19,288 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2025-12-21 23:26:19,289 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING ==========
+2025-12-21 23:26:19,569 [INFO    ] [werkzeug            ] [Thread-1 (_run)] --- [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-12-21 23:26:19,569 [INFO    ] [werkzeug            ] [Thread-1 (_run)] --- [33mPress CTRL+C to quit[0m
+2025-12-21 23:26:19,618 [INFO    ] [werkzeug            ] [Thread-2 (process_request_thread)] --- 127.0.0.1 - - [21/Dec/2025 23:26:19] "GET / HTTP/1.1" 200 -
+2025-12-21 23:26:19,697 [INFO    ] [werkzeug            ] [Thread-4 (process_request_thread)] --- 127.0.0.1 - - [21/Dec/2025 23:26:19] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-21 23:26:19,697 [INFO    ] [werkzeug            ] [Thread-3 (process_request_thread)] --- 127.0.0.1 - - [21/Dec/2025 23:26:19] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-21 23:26:19,823 [INFO    ] [werkzeug            ] [Thread-5 (process_request_thread)] --- 127.0.0.1 - - [21/Dec/2025 23:26:19] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-21 23:26:19,828 [INFO    ] [werkzeug            ] [Thread-6 (process_request_thread)] --- 127.0.0.1 - - [21/Dec/2025 23:26:19] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-21 23:26:19,839 [INFO    ] [werkzeug            ] [Thread-7 (process_request_thread)] --- 127.0.0.1 - - [21/Dec/2025 23:26:19] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-21 23:26:20,015 [WARNING ] [VolcanoAI.DataLoader] [MainThread] --- [DataGuard] Kolom datetime 'Acquired_Date' tidak ditemukan. Skip.
+2025-12-21 23:26:21,374 [INFO    ] [werkzeug            ] [Thread-8 (process_request_thread)] --- 127.0.0.1 - - [21/Dec/2025 23:26:21] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-12-21 23:26:23,896 [WARNING ] [VolcanoAI.DataLoader] [MainThread] --- [VolcanoSource] Kolom VRP_Date tidak ditemukan. Mengisi NaT.
+2025-12-21 23:26:23,934 [CRITICAL] [PipelineGuard       ] [MainThread] --- CRASH di _step_load_and_split_data: left keys must be sorted
+2025-12-21 23:26:23,989 [CRITICAL] [VolcanoAiPipeline   ] [MainThread] --- PIPELINE FAILED: left keys must be sorted
+Traceback (most recent call last):
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 613, in run
+    if not self._step_load_and_split_data():
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 100, in wrapper
+    raise e
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 93, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 232, in _step_load_and_split_data
+    df_full = self.data_loader.run()
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\VolcanoAI\processing\data_loader.py", line 302, in run
+    df_merged = self._merge_datasets_temporal(df_eq, df_vol)
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\VolcanoAI\processing\data_loader.py", line 345, in _merge_datasets_temporal
+    df = merge_asof(
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\env\lib\site-packages\pandas\core\reshape\merge.py", line 708, in merge_asof
+    return op.get_result()
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\env\lib\site-packages\pandas\core\reshape\merge.py", line 1927, in get_result
+    join_index, left_indexer, right_indexer = self._get_join_info()
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\env\lib\site-packages\pandas\core\reshape\merge.py", line 1152, in _get_join_info
+    (left_indexer, right_indexer) = self._get_join_indexers()
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\env\lib\site-packages\pandas\core\reshape\merge.py", line 2239, in _get_join_indexers
+    left_values = self._convert_values_for_libjoin(left_values, "left")
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\env\lib\site-packages\pandas\core\reshape\merge.py", line 2183, in _convert_values_for_libjoin
+    raise ValueError(f"{side} keys must be sorted")
+ValueError: left keys must be sorted
+2025-12-21 23:26:23,990 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- System shutdown. Uptime: 4.70s

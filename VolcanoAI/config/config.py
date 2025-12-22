@@ -43,7 +43,7 @@ TYPE_KEYWORDS: Dict[str, List[str]] = {
 @dataclass
 class DataLoaderConfig:
     """Konfigurasi lokasi data dan parameter penggabungan awal."""
-    volcano_data_path: str = "data_volcano/Hasil_Ekstraksi_Data_Vulkanik_Final.xlsx"
+    volcanic_data_path: str = "data_volcano/Hasil_Ekstraksi_Data_Vulkanik_Final.xlsx"
     earthquake_data_path: str = "data/Volcanic_Earthquake_Data.xlsx"
     merged_output_path: str = "output/data_merged.xlsx"
     

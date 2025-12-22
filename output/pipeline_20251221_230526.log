@@ -1,0 +1,29 @@
+2025-12-21 23:05:26,719 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251221_230526.log
+2025-12-21 23:05:26,722 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-21 23:05:26,722 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
+2025-12-21 23:05:26,722 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-21 23:05:26,722 [INFO    ] [root                ] [MainThread] --- [Dashboard] Starting Flask server in background thread (monitoring enabled)...
+2025-12-21 23:05:26,729 [INFO    ] [RealtimeSensorManager] [MainThread] --- [MIROVA] Menggunakan log terbaru: output/realtime\mirova_log_20251003-094000.txt
+2025-12-21 23:05:26,736 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2025-12-21 23:05:26,736 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2025-12-21 23:05:26,736 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING ==========
+2025-12-21 23:05:27,111 [INFO    ] [werkzeug            ] [Thread-1 (_run)] --- [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-12-21 23:05:27,111 [INFO    ] [werkzeug            ] [Thread-1 (_run)] --- [33mPress CTRL+C to quit[0m
+2025-12-21 23:05:27,346 [WARNING ] [VolcanoAI.DataLoader] [MainThread] --- [DataGuard] Kolom datetime 'Acquired_Date' tidak ditemukan. Skip.
+2025-12-21 23:05:27,394 [CRITICAL] [PipelineGuard       ] [MainThread] --- CRASH di _step_load_and_split_data: 'DataLoaderConfig' object has no attribute 'volcanic_data_path'
+2025-12-21 23:05:27,394 [CRITICAL] [VolcanoAiPipeline   ] [MainThread] --- PIPELINE FAILED: 'DataLoaderConfig' object has no attribute 'volcanic_data_path'
+Traceback (most recent call last):
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 613, in run
+    if not self._step_load_and_split_data():
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 100, in wrapper
+    raise e
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 93, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 232, in _step_load_and_split_data
+    df_full = self.data_loader.run()
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\VolcanoAI\processing\data_loader.py", line 296, in run
+    if self.cfg.volcanic_data_path and os.path.exists(self.cfg.volcanic_data_path):
+AttributeError: 'DataLoaderConfig' object has no attribute 'volcanic_data_path'
+2025-12-21 23:05:27,394 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- System shutdown. Uptime: 0.66s

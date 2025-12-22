@@ -90,31 +90,28 @@ class SpatialDataGenerator:
     # [NEW/PINDAHKAN]: Metode untuk membuat target mask
     def create_target_mask(self, row: pd.Series) -> np.ndarray:
         """
-        Always return a mask array shape (grid_size, grid_size) dtype float32.
-        If AreaTerdampak_km2 missing or <=0, return zeros mask.
+        Target mask dibuat dari radius GA (pseudo ground truth).
         """
-        target_col = 'AreaTerdampak_km2'
         gs = self.grid_size
-        if target_col in row and pd.notna(row[target_col]) and float(row[target_col]) > 0:
-            area = float(row[target_col])
-            radius_km = np.sqrt(area / np.pi)
-            mask = self._create_gaussian_heatmap(radius_km)
-            return mask.reshape(gs, gs, 1).astype(np.float32)
-        # fallback: return zeros mask (keamanan shape)
+
+        radius = row.get("ga_distance_km", np.nan)
+        if pd.notna(radius) and float(radius) > 0:
+            return self._create_gaussian_heatmap(float(radius)).reshape(gs, gs, 1)
+
         return np.zeros((gs, gs, 1), dtype=np.float32)
 
-    # [NEW/PINDAHKAN]: Metode untuk membuat heatmap (private helper)
-    def _create_gaussian_heatmap(self, radius_km: float) -> np.ndarray:
-        gs = self.grid_size
-        if radius_km is None or radius_km <= 0:
-            return np.zeros((gs, gs), dtype=np.float32)
-        radius_px = radius_km / (self.km_per_pixel + 1e-12)
-        center = (gs - 1) / 2.0
-        x, y = np.ogrid[:gs, :gs]
-        sigma = max(radius_px / 3.0, 1.0)
-        dist_sq = (x - center + 0.5) ** 2 + (y - center + 0.5) ** 2
-        heatmap = np.exp(-dist_sq / (2.0 * (sigma ** 2) + 1e-9))
-        return heatmap.astype(np.float32)
+        # [NEW/PINDAHKAN]: Metode untuk membuat heatmap (private helper)
+        def _create_gaussian_heatmap(self, radius_km: float) -> np.ndarray:
+            gs = self.grid_size
+            if radius_km is None or radius_km <= 0:
+                return np.zeros((gs, gs), dtype=np.float32)
+            radius_px = radius_km / (self.km_per_pixel + 1e-12)
+            center = (gs - 1) / 2.0
+            x, y = np.ogrid[:gs, :gs]
+            sigma = max(radius_px / 3.0, 1.0)
+            dist_sq = (x - center + 0.5) ** 2 + (y - center + 0.5) ** 2
+            heatmap = np.exp(-dist_sq / (2.0 * (sigma ** 2) + 1e-9))
+            return heatmap.astype(np.float32)
 
 class CnnDataGenerator(Sequence):
     def __init__(self, spatial_data, temporal_data, targets, config):
@@ -506,7 +503,8 @@ class CnnEngine:
                 continue
             lstm_feats, valid_idx = res
             
-            df_aligned = df_aligned.sort_values("Acquired_Date").reset_index(drop=True)
+            df_aligned = df_c.loc[valid_idx].sort_values("Acquired_Date").reset_index(drop=True)
+
 
             spatial_list, mask_list, vec_list = [], [], []
 

@@ -232,6 +232,8 @@ class VolcanoAiPipeline:
                 df_full = self.data_loader.run()
                 if df_full is None or df_full.empty:
                     return False
+                from VolcanoAI.processing.preprocess_eq import preprocess_earthquake_data
+                df_full = preprocess_earthquake_data(df_full)
                 df_full.to_pickle(self.data_cache_path)
             else:
                 df_full = pd.read_pickle(self.data_cache_path)
@@ -711,6 +713,12 @@ class VolcanoAiPipeline:
 
                     # optional: log keys for debug
                     self.logger.info(f"Reporter metrics keys being passed: {list(final_metrics.keys())}")
+
+                    # main.py sebelum self.reporter.run()
+                    print("=== COLUMNS df_final ===")
+                    print(df_final.columns)
+                    print("=== LAST ROW df_final ===")
+                    print(df_final.tail(1))
 
                     # 7) run reporter
                     self.reporter.run(df_final, final_metrics, anomalies)

@@ -1,0 +1,54 @@
+2025-12-21 22:17:46,829 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251221_221746.log
+2025-12-21 22:17:46,829 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-21 22:17:46,829 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
+2025-12-21 22:17:46,829 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-21 22:17:46,834 [INFO    ] [root                ] [MainThread] --- [Dashboard] Starting Flask server in background thread (monitoring enabled)...
+2025-12-21 22:17:46,845 [INFO    ] [RealtimeSensorManager] [MainThread] --- [MIROVA] Menggunakan log terbaru: output/realtime\mirova_log_20251003-094000.txt
+2025-12-21 22:17:46,845 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2025-12-21 22:17:46,845 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2025-12-21 22:17:46,847 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING ==========
+2025-12-21 22:17:47,106 [INFO    ] [werkzeug            ] [Thread-1 (_run)] --- [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-12-21 22:17:47,114 [INFO    ] [werkzeug            ] [Thread-1 (_run)] --- [33mPress CTRL+C to quit[0m
+2025-12-21 22:17:47,160 [INFO    ] [werkzeug            ] [Thread-2 (process_request_thread)] --- 127.0.0.1 - - [21/Dec/2025 22:17:47] "GET / HTTP/1.1" 200 -
+2025-12-21 22:17:47,478 [INFO    ] [werkzeug            ] [Thread-3 (process_request_thread)] --- 127.0.0.1 - - [21/Dec/2025 22:17:47] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-21 22:17:47,480 [INFO    ] [werkzeug            ] [Thread-4 (process_request_thread)] --- 127.0.0.1 - - [21/Dec/2025 22:17:47] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-21 22:17:47,530 [INFO    ] [werkzeug            ] [Thread-5 (process_request_thread)] --- 127.0.0.1 - - [21/Dec/2025 22:17:47] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-21 22:17:47,566 [INFO    ] [werkzeug            ] [Thread-6 (process_request_thread)] --- 127.0.0.1 - - [21/Dec/2025 22:17:47] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-21 22:17:47,570 [INFO    ] [werkzeug            ] [Thread-7 (process_request_thread)] --- 127.0.0.1 - - [21/Dec/2025 22:17:47] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-21 22:17:47,724 [WARNING ] [VolcanoAI.DataLoader] [MainThread] --- [DataGuard] Kolom datetime 'Acquired_Date' tidak ditemukan. Skip.
+2025-12-21 22:17:47,743 [CRITICAL] [PipelineGuard       ] [MainThread] --- CRASH di _step_load_and_split_data: 'Acquired_Date'
+2025-12-21 22:17:47,875 [CRITICAL] [VolcanoAiPipeline   ] [MainThread] --- PIPELINE FAILED: 'Acquired_Date'
+Traceback (most recent call last):
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\env\lib\site-packages\pandas\core\indexes\base.py", line 3812, in get_loc
+    return self._engine.get_loc(casted_key)
+  File "pandas/_libs/index.pyx", line 167, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/index.pyx", line 196, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7088, in pandas._libs.hashtable.PyObjectHashTable.get_item
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7096, in pandas._libs.hashtable.PyObjectHashTable.get_item
+KeyError: 'Acquired_Date'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 613, in run
+    if not self._step_load_and_split_data():
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 100, in wrapper
+    raise e
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 93, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 232, in _step_load_and_split_data
+    df_full = self.data_loader.run()
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\VolcanoAI\processing\data_loader.py", line 252, in run
+    ).load_and_clean()
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\VolcanoAI\processing\data_loader.py", line 164, in load_and_clean
+    self._load_single(self.extra_path)
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\VolcanoAI\processing\data_loader.py", line 125, in _load_single
+    df["Acquired_Date"], dayfirst=True, errors="coerce"
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\env\lib\site-packages\pandas\core\frame.py", line 4113, in __getitem__
+    indexer = self.columns.get_loc(key)
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\env\lib\site-packages\pandas\core\indexes\base.py", line 3819, in get_loc
+    raise KeyError(key) from err
+KeyError: 'Acquired_Date'
+2025-12-21 22:17:47,875 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- System shutdown. Uptime: 1.03s

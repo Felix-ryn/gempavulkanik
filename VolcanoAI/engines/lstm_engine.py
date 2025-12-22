@@ -1223,10 +1223,11 @@ class LstmEngine:
             logger.warning("[LSTM] Data kosong setelah parsing tanggal.")
             return {}
 
+        df = df.sort_values("Acquired_Date")
         # ===============================
         # 2️⃣ Ambil timestamp dari DATA TERBARU
         # ===============================
-        latest_date = df['Acquired_Date'].max()
+        latest_date = pd.Timestamp.now()
         ts = latest_date.strftime("%Y%m%d")
 
         # ===============================

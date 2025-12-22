@@ -193,13 +193,23 @@ class MapGenerator:
         return m._repr_html_()
 
     def generate_live_map(self, df_ga_all: pd.DataFrame, latest_row: pd.Series) -> str:
-        center = [latest_row['EQ_Lintang'], latest_row['EQ_Bujur']] if not latest_row.empty else self.default_center
+        print("=== LATEST ROW ===")
+        print(latest_row)
+        print("=== COLUMNS LATEST ROW ===")
+        print(latest_row.index)
+
+        if not latest_row.empty and 'EQ_Lintang' in latest_row and 'EQ_Bujur' in latest_row:
+            center = [latest_row['EQ_Lintang'], latest_row['EQ_Bujur']]
+        else:
+            center = self.default_center
         m = folium.Map(location=center, zoom_start=9, tiles="CartoDB dark_matter")
         self._add_ga_path_layer(df_ga_all, m, name="Context Path (GA Snake)")
 
         fg_live = FeatureGroup(name="⚠️ LIVE ALERT", show=True)
         if not latest_row.empty:
-            lat, lon = latest_row['EQ_Lintang'], latest_row['EQ_Bujur']
+            lat = latest_row.get('EQ_Lintang', 0.0)
+            lon = latest_row.get('EQ_Bujur', 0.0)
+
             luas_cnn = latest_row.get('luas_cnn', 0)
             if luas_cnn > 0:
                 rad_meter = np.sqrt(luas_cnn / np.pi) * 1000
@@ -234,12 +244,51 @@ class ComprehensiveReporter(MapGenerator):
         df_ga_all = self.assets.get_data("ga_path_csv")
         df_historical_points = df_final.copy()
 
-        if not df_final.empty:
-            latest_row = df_final.iloc[-1]
-            df_buffer_view = df_final.tail(100)
-        else:
-            latest_row = pd.Series()
-            df_buffer_view = pd.DataFrame()
+        latest_row = pd.Series()
+        df_buffer_view = pd.DataFrame()
+
+        # 1) realtime buffer (paling up-to-date jika monitoring berjalan)
+        rt_path = os.path.join(self.output_dir, "realtime", "processed.csv")
+        try:
+            if os.path.exists(rt_path):
+                df_rt = pd.read_csv(rt_path, parse_dates=["Acquired_Date"])
+                if not df_rt.empty:
+                    # pastikan datetime dan urut
+                    if 'Acquired_Date' in df_rt.columns:
+                        df_rt['Acquired_Date'] = pd.to_datetime(df_rt['Acquired_Date'], errors='coerce')
+                        df_rt.sort_values('Acquired_Date', inplace=True)
+                    latest_row = df_rt.iloc[-1]
+                    df_buffer_view = df_rt.tail(100)
+        except Exception as e:
+            self.logger.debug(f"[Reporter] gagal baca realtime buffer: {e}")
+
+        # 2) jika belum ada, coba file CNN latest (hasil prediksi CNN)
+        if latest_row.empty:
+            cnn_latest_path = os.path.join(self.output_dir, "cnn_results", "results", "cnn_predictions_latest.csv")
+            try:
+                if os.path.exists(cnn_latest_path):
+                    df_cnn = pd.read_csv(cnn_latest_path, parse_dates=["Acquired_Date"])
+                    if not df_cnn.empty:
+                        if 'Acquired_Date' in df_cnn.columns:
+                            df_cnn['Acquired_Date'] = pd.to_datetime(df_cnn['Acquired_Date'], errors='coerce')
+                            df_cnn.sort_values('Acquired_Date', inplace=True)
+                        latest_row = df_cnn.iloc[-1]
+                        df_buffer_view = df_cnn.tail(100)
+            except Exception as e:
+                self.logger.debug(f"[Reporter] gagal baca cnn latest: {e}")
+
+        # 3) fallback: gunakan df_final yang dipass ke reporter
+        if latest_row.empty:
+            try:
+                if not df_final.empty:
+                    df_final_local = df_final.copy()
+                    if 'Acquired_Date' in df_final_local.columns:
+                        df_final_local['Acquired_Date'] = pd.to_datetime(df_final_local['Acquired_Date'], errors='coerce')
+                        df_final_local.sort_values('Acquired_Date', inplace=True)
+                    latest_row = df_final_local.iloc[-1] if not df_final_local.empty else pd.Series()
+                    df_buffer_view = df_final_local.tail(100) if not df_final_local.empty else pd.DataFrame()
+            except Exception as e:
+                self.logger.debug(f"[Reporter] gagal fallback df_final: {e}")
 
         html_map_static = self.generate_static_map(df_aco_all, df_ga_all, df_historical_points)
         html_map_live = self.generate_live_map(df_ga_all, latest_row)

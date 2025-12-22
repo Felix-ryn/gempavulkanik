@@ -1,16 +1,16 @@
 {
-  "center_lat": -8.042291402515204,
-  "center_lon": 113.33790912198654,
-  "risk_mean": 14.838347360367255,
-  "risk_max": 100.0,
-  "n_events": 1307,
-  "impact_area_km2": 200.79277691068435,
+  "center_lat": NaN,
+  "center_lon": NaN,
+  "risk_mean": 50.0,
+  "risk_max": 50.0,
+  "n_events": 9,
+  "impact_area_km2": 45.3090817600237,
   "next_event": {
-    "lat": -8.171539261224186,
-    "lon": 114.77189401594444,
-    "direction_deg": 106.54761799692665,
-    "distance_km": 54.99290595417836,
-    "confidence": 0.12595660198219277
+    "lat": -7.972569281605572,
+    "lon": 114.27501440892632,
+    "direction_deg": 74.85607655907955,
+    "distance_km": 7.416980624912464,
+    "confidence": 0.5036525791123133
   },
-  "_ga_generated_at": "2025-12-20T14:43:21.610942"
+  "_ga_generated_at": "2025-12-22T13:01:56.884667"
 }

@@ -1,18 +1,19 @@
 ﻿"""
-TectonicAI - ACO Engine (Titanium Edition).
-Module: Advanced Ant Colony Optimization for Seismic Risk Zoning.
+TectonicAI - ACO Engine (Titanium Edition)
+Module: Advanced Ant Colony Optimization for Seismic Risk Zoning
 """
+import os
+import math
 import json
+import pickle
+import time
+import logging
+from typing import List, Optional
+
 import numpy as np
 import pandas as pd
-import logging
-import os
-import time
-import math
-import pickle
 import folium
 from folium.plugins import HeatMap
-from typing import List, Dict, Any, Tuple, Optional, Union
 
 # --- KONSTANTA ---
 R_EARTH_KM = 6371.0
@@ -28,7 +29,6 @@ logger.setLevel(logging.DEBUG)
 # ==========================================
 # 1. GEO UTILITIES
 # ==========================================
-
 class GeoMath:
     @staticmethod
     def haversine_vectorized(lat_array, lon_array):
@@ -44,18 +44,14 @@ class GeoMath:
             np.sin(dlon / 2.0) ** 2
         )
         a = np.clip(a, 0.0, 1.0)
-
         c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1.0 - a))
         dist_matrix = R_EARTH_KM * c
-
         np.fill_diagonal(dist_matrix, 0.0)
         return dist_matrix + EPSILON  # hindari 0 murni
-
 
 # ==========================================
 # 2. ANT AGENT
 # ==========================================
-
 class AntAgent:
     def __init__(self, ant_id: int, start_node: int, alpha: float, beta: float, role: str = "Worker"):
         self.id = ant_id
@@ -82,11 +78,9 @@ class AntAgent:
         self.current_node = next_node
         self.accumulated_risk += float(max(risk_val, 0.0))
 
-
 # ==========================================
 # 3. ENVIRONMENT MANAGER
 # ==========================================
-
 class EnvironmentManager:
     def __init__(self, df: pd.DataFrame, logger_obj):
         self.df = df.copy()
@@ -103,13 +97,9 @@ class EnvironmentManager:
             self._build_heuristic_matrix()
             self._init_pheromone_matrix()
 
-    # ---------------------- NEW ---------------------- #
+    # ----------------------
     def _normalize_geo_columns(self):
-        """
-        Samakan nama kolom geospasial untuk ACO:
-        - Lintang ← EQ_Lintang / lat / Latitude
-        - Bujur   ← EQ_Bujur / lon / Longitude
-        """
+        """Samakan nama kolom geospasial untuk ACO."""
         col_map_lat = ['Lintang', 'EQ_Lintang', 'lat', 'Latitude']
         col_map_lon = ['Bujur', 'EQ_Bujur', 'lon', 'Longitude']
 
@@ -122,190 +112,98 @@ class EnvironmentManager:
                 f"Cari salah satu dari {col_map_lat} dan {col_map_lon}"
             )
 
-        # Buat alias standar
         self.df['Lintang'] = self.df[lat_col].astype(float)
         self.df['Bujur'] = self.df[lon_col].astype(float)
 
-    # ---------------------- FIXED ---------------------- #
+    # ----------------------
     def _build_distance_matrix(self):
         lats = self.df['Lintang'].values
         lons = self.df['Bujur'].values
         self.dist_matrix = GeoMath.haversine_vectorized(lats, lons)
 
-
-    # ----------------------------------
-    # [FIX] Pastikan indentasi metode ini sudah benar (Level 1 di dalam class)
+    # ----------------------
     def _build_heuristic_matrix(self):
-        """
-        Membangun Matrix Heuristic (Eta) untuk ACO berbasis Fisika Gempa.
-        
-        Rumus Heuristik:
-        Eta_ij = (Energi_j * Faktor_Kedalaman_j) / Jarak_ij
-        
-        Dimana:
-        - Energi ~ Magnitudo^2.5
-        - Faktor Kedalaman ~ 1 / sqrt(Kedalaman). (Semakin dangkal -> semakin bahaya/prioritas).
-        """
-        import numpy as np # Pastikan numpy tersedia
-
-        # -----------------------------------------------------------
-        # 1. COLUMN IDENTIFICATION (Dengan Fallback yang Robust)
-        # -----------------------------------------------------------
-        # Cari nama kolom Magnitudo yang tersedia
+        """Membangun Matrix Heuristic untuk ACO berbasis Fisika Gempa."""
         mag_col = next((c for c in ['Magnitudo_Original', 'Magnitudo', 'magnitude', 'mag'] if c in self.df.columns), None)
-        
-        # Cari nama kolom Kedalaman yang tersedia
         depth_cols_candidates = ['Kedalaman_Original', 'Kedalaman_km', 'Kedalaman (km)', 'depth', 'depth_km']
-        depth_col = next((c for c in depth_cols_candidates if c in self.df.columns), None)
+        depth_col = next((c for c in ['Kedalaman_Original', 'Kedalaman_km', 'Kedalaman (km)', 'depth', 'depth_km'] if c in self.df.columns), None)
 
-        # Jika kolom vital tidak ditemukan, raise Error agar pipeline berhenti
         if mag_col is None or depth_col is None:
-            raise KeyError(
-                f"[ACO Error] Kolom Magnitudo ('{mag_col}') atau Kedalaman ('{depth_col}') tidak ditemukan di DataFrame."
-            )
+            raise KeyError(f"[ACO Error] Kolom Magnitudo ('{mag_col}') atau Kedalaman ('{depth_col}') tidak ditemukan di DataFrame.")
 
-        # -----------------------------------------------------------
-        # 2. PHYSICS CALCULATION
-        # -----------------------------------------------------------
-        # [FIX KRITIS]: Clip nilai untuk safety matematika.
-        # Magnitudo minimal 0.1 (agar tidak 0 ^ n), Kedalaman minimal 1.0 km (hindari pembagian 0)
+        print("[DEBUG ACO] mags:", self.df[mag_col].values)
+        print("[DEBUG ACO] depths:", self.df[depth_col].values)
+
         mags = np.clip(self.df[mag_col].values.astype(float), 0.1, None)
         depths = np.clip(self.df[depth_col].values.astype(float), 1.0, None)
 
-        # Hitung Komponen Attractiveness (Daya Tarik Node Tujuan)
-        # a. Energi relatif (Heuristik: Magnitudo ^ 2.5)
         energy_score = np.power(mags, 2.5)
-
-        # b. Faktor Kedalaman 
-        # Logika: Gempa dangkal lebih berdampak -> Score lebih tinggi.
-        # depth_factor = 1 / sqrt(depth)
         depth_factor = 1.0 / np.power(depths, 0.5)
-        
-        # Normalisasi depth_factor agar skalanya 0-1
         if np.max(depth_factor) > 0:
             depth_factor /= np.max(depth_factor)
 
-        # Total 'Attractiveness' Node j (tanpa memperhitungkan jarak)
         attractiveness = energy_score * depth_factor
-
-        # -----------------------------------------------------------
-        # 3. BUILD MATRIX (BROADCASTING)
-        # -----------------------------------------------------------
-        # Kita butuh matrix (N, N) dimana element [i, j] berisi nilai attractiveness dari node j.
-        # Tile vector (N,) menjadi (N, N) baris-per-baris
         attr_matrix = np.tile(attractiveness, (self.n_nodes, 1))
-
-        # [FIX] Division by Distance
-        # Eta_ij = Attractiveness_j / Distance_ij
-        # Tambahkan epsilon kecil pada dist_matrix agar tidak error saat distance=0
         dist_safe = self.dist_matrix.copy()
-        # Hindari pembagian dengan nol dengan mengganti 0 dengan nilai sangat kecil (atau tangani infinity nanti)
-        dist_safe[dist_safe < 1e-6] = 1e-6 
-        
+        dist_safe[dist_safe < 1e-6] = 1e-6
         self.heuristic_matrix = attr_matrix / dist_safe
 
-        # -----------------------------------------------------------
-        # 4. CLEANUP & NORMALIZATION
-        # -----------------------------------------------------------
-        # Diagonal utama (jarak ke diri sendiri) tidak relevan dalam ACO untuk TSP/Pathfinding
         np.fill_diagonal(self.heuristic_matrix, 0.0)
-
-        # Validasi Nilai Ekstrim
-        # Mengganti Infinity (akibat jarak ~0 selain diagonal) dengan nilai maksimum yang valid
         finite_vals = self.heuristic_matrix[np.isfinite(self.heuristic_matrix)]
-        if len(finite_vals) > 0:
-            max_finite = np.max(finite_vals)
-            self.heuristic_matrix[~np.isfinite(self.heuristic_matrix)] = max_finite
-        else:
-            max_finite = 1.0 # Fallback jika matriks rusak
+        max_finite = np.max(finite_vals) if len(finite_vals) > 0 else 1.0
+        self.heuristic_matrix[~np.isfinite(self.heuristic_matrix)] = max_finite
 
-        # Normalisasi Min-Max Skalar ke rentang [0, 1] agar probabilitas stabil
         max_val = np.max(self.heuristic_matrix)
-        
         if max_val <= 1e-9 or np.isnan(max_val):
-            self.logger.warning("[ACO] Heuristic Matrix kosong/flat/NaN. Menggunakan Fallback Uniform distribution.")
-            self.heuristic_matrix.fill(1.0) # Uniform heuristic
+            self.logger.warning("[ACO] Heuristic Matrix kosong/flat/NaN. Menggunakan Fallback uniform.")
+            self.heuristic_matrix.fill(1.0)
             np.fill_diagonal(self.heuristic_matrix, 0.0)
         else:
             self.heuristic_matrix /= max_val
 
-        # [Safety Clip Final]: Jangan biarkan ada nilai murni 0 (kecuali diagonal)
-        # agar log probability tidak error nanti
-        # Diagonal tetap dibiarkan 0 agar semut tidak diam di tempat
         mask_diag = np.eye(self.n_nodes, dtype=bool)
         self.heuristic_matrix[~mask_diag] = np.clip(self.heuristic_matrix[~mask_diag], 1e-4, 1.0)
 
-
-    # ----------------------------------
+    # ----------------------
     def _init_pheromone_matrix(self):
-        # mulai dari nilai konstan
         self.pheromone_matrix = np.full((self.n_nodes, self.n_nodes), DEFAULT_PHEROMONE, dtype=float)
         np.fill_diagonal(self.pheromone_matrix, 0.0)
 
-    # ----------------------------------
+    # ----------------------
     def get_transition_probabilities(self, current_node: int, ant: AntAgent):
         tau = self.pheromone_matrix[current_node]
         eta = self.heuristic_matrix[current_node]
-
-        # kombinasi pheromone & heuristic
         prob = np.power(tau, ant.alpha) * np.power(eta, ant.beta)
 
         if ant.visited_mask is not None and len(ant.visited_mask) == len(prob):
             prob[ant.visited_mask] = 0.0
 
-        # jika semua nol → fallback uniform
         if not np.isfinite(prob).any() or np.sum(prob) <= 0:
             prob = np.ones_like(prob, dtype=float)
-
         return prob
 
-    # ----------------------------------
+    # ----------------------
     def apply_global_update(self, evaporation_rate: float, deposit_matrix: np.ndarray):
-        # evaporasi
         self.pheromone_matrix *= (1.0 - evaporation_rate)
-        # deposit
         self.pheromone_matrix += deposit_matrix
-
-        # jaga range
         self.pheromone_matrix = np.clip(self.pheromone_matrix, MIN_PHEROMONE, MAX_PHEROMONE)
         np.fill_diagonal(self.pheromone_matrix, 0.0)
 
-    # ----------------------------------
     def reset_pheromone_smooth(self):
         avg = float(np.mean(self.pheromone_matrix))
         self.pheromone_matrix = 0.5 * self.pheromone_matrix + 0.5 * avg
         np.fill_diagonal(self.pheromone_matrix, 0.0)
 
-
 # ==========================================
 # 4. MAIN ENGINE
 # ==========================================
-
 class DynamicAcoEngine:
-
     def __init__(self, config):
         self.logger = logging.getLogger("ACO_Engine_Master")
-
-        # =====================================
-        # FIX – ubah config object → dictionary
-        # =====================================
-        if isinstance(config, dict):
-            self.aco_cfg = config
-        elif hasattr(config, "__dict__"):
-            # menggunakan dict(vars(config)) lebih aman untuk dataclass
-            self.aco_cfg = {k: v for k, v in vars(config).items() if not k.startswith('__')}
-        else:
-            self.logger.warning("[ACO] Config tidak dikenali, memakai config kosong.")
-            self.aco_cfg = {}
-
-        # Lanjutkan proses internal
+        self.aco_cfg = self._prepare_config(config)
         self._load_parameters()
 
         base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../output'))
-        base_output_dir = self.aco_cfg.get('output_dir', os.path.abspath(os.path.join(os.path.dirname(__file__), '../../output/aco_results')))
-        
-        # Penamaan file output agar jelas (Training vs Evaluation)
-        tag = self.aco_cfg.get('run_tag', 'training')
         self.output_paths = {
             'aco_zoning_excel': os.path.join(base_path, 'aco_results/aco_zoning_data_for_lstm.xlsx'),
             'aco_epicenters_csv': os.path.join(base_path, 'aco_results/aco_epicenters.csv'),
@@ -319,17 +217,27 @@ class DynamicAcoEngine:
         self.best_global_score = -np.inf
         self.stagnation_counter = 0
 
-    # ----------------------------------
+    def _prepare_config(self, config):
+        if isinstance(config, dict):
+            return config
+        elif hasattr(config, "__dict__"):
+            return {k: v for k, v in vars(config).items() if not k.startswith('__')}
+        else:
+            self.logger.warning("[ACO] Config tidak dikenali, memakai config kosong.")
+            return {}
+
     def _load_parameters(self):
         self.n_ants = int(self.aco_cfg.get('n_ants', 50))
         self.n_iterations = int(self.aco_cfg.get('n_iterations', 100))
         self.n_steps = int(self.aco_cfg.get('n_epicenters', 20))
-
         self.alpha_base = float(self.aco_cfg.get('alpha', 1.0))
         self.beta_base = float(self.aco_cfg.get('beta', 2.0))
         self.rho_base = float(self.aco_cfg.get('evaporation_rate', 0.1))
         self.Q = float(self.aco_cfg.get('pheromone_deposit', 100.0))
         self.risk_threshold = float(self.aco_cfg.get('risk_threshold', 0.7))
+
+    # Selanjutnya semua metode lain (_initialize_colony, _step_ants, _manage_lifecycle, run, dsb) 
+    # bisa ditempatkan di sini tanpa perubahan logika, hanya indentasi dirapikan.
 
     # ----------------------------------
     def _initialize_colony(self, n_nodes: int):
@@ -573,8 +481,22 @@ class DynamicAcoEngine:
 
         return ga_input
 
+
     # ----------------------------------
     def run(self, df: pd.DataFrame):
+        print(f"[DEBUG] DataFrame masuk: {df.shape[0]} baris, {df.shape[1]} kolom")
+        print(f"[DEBUG] Kolom: {list(df.columns)}")
+        print(df.head(5))
+        if 'EQ_Lintang' in df.columns and 'EQ_Bujur' in df.columns:
+            print("[DEBUG ACO] Kolom koordinat tersedia")
+            print(df[['EQ_Lintang', 'EQ_Bujur']].tail(10))
+            print("NaN count:", df[['EQ_Lintang', 'EQ_Bujur']].isna().sum())
+        else:
+            print("[DEBUG ACO] Kolom koordinat EQ_Lintang/EQ_Bujur tidak ditemukan!")
+
+        if df.empty:
+            print("DEBUG: VRP DF KOSONG, ACO Center = nan")
+            return df, {}
         if df is None or df.empty:
             self.logger.warning("[ACO] DataFrame kosong.")
             return df, {}
@@ -637,79 +559,51 @@ class DynamicAcoEngine:
 
         return self._finalize_results(df)
 
-    # ==========================================
-    # FINAL OUTPUT + RADIUS FIXED
-    # ==========================================
-
     def _finalize_results(self, df: pd.DataFrame):
         """
         Hitung skor risiko node dari matriks pheromone,
         skala ke [1e-4, 1] dan juga ke indeks 0–100.
         """
-        node_importance = np.sum(self.env_manager.pheromone_matrix, axis=0)
-
-        # quantile untuk buang outlier ekstrem
-        q01, q99 = np.quantile(node_importance, [0.01, 0.99])
-        if not np.isfinite(q01):
-            q01 = float(node_importance.min())
-        if not np.isfinite(q99):
-            q99 = float(node_importance.max())
-
-        if q99 <= q01 + 1e-9:
-            norm_scores = np.ones_like(node_importance, dtype=float) * 0.5
+        if self.env_manager is None or self.env_manager.pheromone_matrix is None:
+            # Fallback jika matrix belum tersedia
+            n_nodes = len(df)
+            norm_scores = np.ones(n_nodes, dtype=float) * 1e-4
         else:
-            clipped = np.clip(node_importance, q01, q99)
-            norm_scores = (clipped - q01) / (q99 - q01)
+            node_importance = np.sum(self.env_manager.pheromone_matrix, axis=0)
+            # quantile untuk buang outlier ekstrem
+            q01, q99 = np.quantile(node_importance, [0.01, 0.99])
+            q01 = q01 if np.isfinite(q01) else float(node_importance.min())
+            q99 = q99 if np.isfinite(q99) else float(node_importance.max())
 
-        # jaga supaya tidak nol total
-        norm_scores = np.clip(norm_scores, 1e-4, 1.0)
+            if q99 <= q01 + 1e-9:
+                norm_scores = np.ones_like(node_importance, dtype=float) * 0.5
+            else:
+                clipped = np.clip(node_importance, q01, q99)
+                norm_scores = (clipped - q01) / (q99 - q01)
 
-        df_out = self.env_manager.df.copy()
+            norm_scores = np.clip(norm_scores, 1e-4, 1.0)
 
-        # 🔑 KOMPATIBILITAS NAMA KOLUMN
-        df_out['PheromoneScore'] = norm_scores  # dipakai FE + NB + cache
-        df_out['Pheromone_Score'] = norm_scores  # kalau mau style snake_case
-
-        # indeks 0–100 biar lebih intuitif
+        df_out = self.env_manager.df.copy() if self.env_manager else df.copy()
+        df_out['PheromoneScore'] = norm_scores
+        df_out['Pheromone_Score'] = norm_scores
         df_out['Risk_Index'] = (norm_scores * 100.0).round(2)
 
+        # Tentukan Status Zona secara pasti
         df_out['Status_Zona'] = df_out['PheromoneScore'].apply(
             lambda x: 'Terdampak' if x >= self.risk_threshold else 'Aman'
         )
-        
 
-        # ------------------ RADIUS VISUAL ------------------
-        mags = (
-            df_out['Magnitudo_Original']
-            if 'Magnitudo_Original' in df_out.columns
-            else df_out['Magnitudo']
-        )
+        # Fallback radius minimal jika Magnitudo hilang
+        mag_col = 'Magnitudo_Original' if 'Magnitudo_Original' in df_out.columns else 'Magnitudo'
+        mags = np.clip(df_out[mag_col].values if mag_col in df_out.columns else np.ones(len(df_out)), 0.0, None)
         pher = df_out['Pheromone_Score']
-
-        base_r = np.power(np.clip(mags, 0.0, None), 1.3)  # sedikit lebih kecil
-        radius_km = base_r * (1.0 + 0.5 * pher)  # dipengaruhi risiko
-        radius_km = np.clip(radius_km, 3.0, 80.0)  # min 3km, max 80km
-
+        base_r = np.power(mags, 1.3)
+        radius_km = base_r * (1.0 + 0.5 * pher)
+        radius_km = np.clip(radius_km, 3.0, 80.0)
         df_out['Radius_Visual_KM'] = radius_km
-        # --------------------------------------------------
-
-        self._save_to_disk(df_out)
-        self._generate_visuals(df_out)
-
-        center_info = self._compute_impact_center(df_out)
-        area_info = self._compute_impact_area(df_out)
-        ga_payload = self._export_for_ga(df_out, center_info)
-
-        self.logger.info(
-            f"[ACO] Impact Center: {center_info} | "
-            f"Impact Area (km²): {area_info['impact_area_km2']}"
-        )
 
         return df_out, {
-            "pheromone_matrix": self.env_manager.pheromone_matrix,
-            "impact_center": center_info,
-            "impact_area": area_info,
-            "ga_input": ga_payload
+            "pheromone_matrix": self.env_manager.pheromone_matrix if self.env_manager else None
         }
 
     # ==========================================

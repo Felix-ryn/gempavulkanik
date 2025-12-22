@@ -160,7 +160,8 @@ class DataSanitizer:
 
         df = df.copy()
         df['Acquired_Date'] = pd.to_datetime(df['Acquired_Date'], errors='coerce')
-        df = df.dropna(subset=['Acquired_Date', 'EQ_Lintang', 'EQ_Bujur'])
+        df = df.dropna(subset=['EQ_Lintang', 'EQ_Bujur']).reset_index(drop=True)
+
 
         for c in ['EQ_Lintang', 'EQ_Bujur', 'Magnitudo', 'Kedalaman (km)', 'PheromoneScore']:
             df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
@@ -735,7 +736,18 @@ class MultiLayerVisualizer:
         # SNAKE LAYER (Best GA path)
         snake = folium.FeatureGroup(name="Snake Path (Best Sequence)", show=True)
 
-        best_df = df.iloc[best_path].reset_index(drop=True)
+        if not best_path:
+            logger.warning("best_path kosong, map tidak dibuat")
+            return
+
+        max_idx = len(df) - 1
+        safe_path = [i for i in best_path if 0 <= i <= max_idx]
+
+        if not safe_path:
+            safe_path = list(range(len(df)))  # fallback
+
+        best_df = df.iloc[safe_path].reset_index(drop=True)
+
         path_coords = best_df[['EQ_Lintang', 'EQ_Bujur']].values.tolist()
 
         if len(path_coords) >= 2:
@@ -972,7 +984,23 @@ class GaEngine:
         best_idx = [int(x) for x in best_idx]
 
         # 4. Best Path DF
-        df_opt = clean_df.iloc[best_idx].reset_index(drop=True)
+        # ===============================
+        # SAFE INDEXING (ANTI CRASH)
+        # ===============================
+        max_idx = len(clean_df) - 1
+
+        safe_idx = [
+            i for i in best_idx
+            if isinstance(i, int) and 0 <= i <= max_idx
+        ]
+
+        if not safe_idx:
+            self.logger.warning(
+                "[GA] Semua index hasil GA out-of-bounds. Menggunakan fallback data."
+            )
+            df_opt = clean_df.copy().reset_index(drop=True)
+        else:
+            df_opt = clean_df.iloc[safe_idx].reset_index(drop=True)
 
         # 5. Prediction module (menghasilkan struktur lengkap)
         pred = fit_engine.predict_next_event(
@@ -997,7 +1025,7 @@ class GaEngine:
 
         # 6. Visualization (pass pred_info)
         self.visualizer.generate_map(
-            best_idx,
+            safe_idx,
             clean_df,
             pred,
             self.map_path

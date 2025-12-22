@@ -1,0 +1,37 @@
+2025-12-22 01:36:37,223 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251222_013637.log
+2025-12-22 01:36:37,224 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-22 01:36:37,224 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
+2025-12-22 01:36:37,225 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-22 01:36:37,229 [INFO    ] [root                ] [MainThread] --- [Dashboard] Starting Flask server in background thread (monitoring enabled)...
+2025-12-22 01:36:37,236 [INFO    ] [RealtimeSensorManager] [MainThread] --- [MIROVA] Menggunakan log terbaru: output/realtime\mirova_log_20251003-094000.txt
+2025-12-22 01:36:37,237 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2025-12-22 01:36:37,237 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2025-12-22 01:36:37,238 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING ==========
+2025-12-22 01:36:37,277 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 2: FEATURE ENGINEERING ==========
+2025-12-22 01:36:37,290 [CRITICAL] [PipelineGuard       ] [MainThread] --- CRASH di _step_feature_engineering: [Errno 2] No such file or directory: 'path_to_csv'
+2025-12-22 01:36:37,423 [CRITICAL] [VolcanoAiPipeline   ] [MainThread] --- PIPELINE FAILED: [Errno 2] No such file or directory: 'path_to_csv'
+Traceback (most recent call last):
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 619, in run
+    if not self._step_feature_engineering(is_training=True):
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 100, in wrapper
+    raise e
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 93, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 264, in _step_feature_engineering
+    self.df_train, self.feature_preprocessor = self.feature_engineer.run(self.df_train)
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\VolcanoAI\processing\feature_engineer.py", line 422, in run
+    df_raw = pd.read_csv("path_to_csv")
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\env\lib\site-packages\pandas\io\parsers\readers.py", line 1026, in read_csv
+    return _read(filepath_or_buffer, kwds)
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\env\lib\site-packages\pandas\io\parsers\readers.py", line 620, in _read
+    parser = TextFileReader(filepath_or_buffer, **kwds)
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\env\lib\site-packages\pandas\io\parsers\readers.py", line 1620, in __init__
+    self._engine = self._make_engine(f, self.engine)
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\env\lib\site-packages\pandas\io\parsers\readers.py", line 1880, in _make_engine
+    self.handles = get_handle(
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\env\lib\site-packages\pandas\io\common.py", line 873, in get_handle
+    handle = open(
+FileNotFoundError: [Errno 2] No such file or directory: 'path_to_csv'
+2025-12-22 01:36:37,424 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- System shutdown. Uptime: 0.19s
