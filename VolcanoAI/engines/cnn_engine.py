@@ -88,46 +88,46 @@ class SpatialDataGenerator:
         return np.stack(channels, axis=-1)
 
     # [NEW/PINDAHKAN]: Metode untuk membuat target mask
-    # --- GANTI SELURUH bagian create_target_mask (dan tambahkan helper) di class SpatialDataGenerator ---
-
     def create_target_mask(self, row: pd.Series) -> np.ndarray:
         """
         Target mask dibuat dari radius GA (pseudo ground truth).
-        Jika row kemungkinan berisi 'ga_distance_km' (lebih baik gunakan r_next saat training).
         """
         gs = self.grid_size
-        # prefer numeric fetch with fallback
-        try:
-            radius = row.get("ga_distance_km", np.nan)
-            radius = float(radius) if pd.notna(radius) else np.nan
-        except Exception:
-            radius = np.nan
 
-        if np.isfinite(radius) and radius > 0.0:
-            return self._create_gaussian_heatmap(radius).reshape(gs, gs, 1)
+        radius = row.get("ga_distance_km", np.nan)
+        if pd.notna(radius) and float(radius) > 0:
+            return self._create_gaussian_heatmap(float(radius)).reshape(gs, gs, 1)
 
         return np.zeros((gs, gs, 1), dtype=np.float32)
 
+    # Helper: buat heatmap gaussian dari radius (pixel)
     def _create_gaussian_heatmap(self, radius_km: float) -> np.ndarray:
-        """
-        Helper: buat Gaussian-like heatmap terpusat di tengah grid
-        radius_km => skala radius (km) yang akan dipetakan ke pixels.
-        """
         gs = self.grid_size
-        if radius_km is None or not np.isfinite(radius_km) or radius_km <= 0:
+        if radius_km is None or radius_km <= 0:
             return np.zeros((gs, gs), dtype=np.float32)
-
-        # radius dalam pixel
         radius_px = radius_km / (self.km_per_pixel + 1e-12)
         center = (gs - 1) / 2.0
         x, y = np.ogrid[:gs, :gs]
         sigma = max(radius_px / 3.0, 1.0)
         dist_sq = (x - center + 0.5) ** 2 + (y - center + 0.5) ** 2
         heatmap = np.exp(-dist_sq / (2.0 * (sigma ** 2) + 1e-9))
-        # normalisasi agar peak = 1
-        heatmap = heatmap.astype(np.float32)
-        heatmap /= (heatmap.max() + 1e-12)
-        return heatma
+        return heatmap.astype(np.float32)
+
+    def create_delta_mask(self, r_now: pd.Series, r_next: pd.Series) -> np.ndarray:
+        """
+        Buat mask target yang merepresentasikan area terkait event berikutnya (r_next).
+        Dipakai saat training: input = kondisi sekarang (r_now), target = lokasi/luas next (r_next).
+        """
+        gs = self.grid_size
+        if r_next is None:
+            return np.zeros((gs, gs, 1), dtype=np.float32)
+
+        d = r_next.get("ga_distance_km", np.nan)
+        # Jika tidak ada jarak/invalid -> zero mask
+        if pd.isna(d) or float(d) <= 0:
+            return np.zeros((gs, gs, 1), dtype=np.float32)
+
+        return self._create_gaussian_heatmap(float(d)).reshape(gs, gs, 1)
 
 class CnnDataGenerator(Sequence):
     def __init__(self, spatial_data, temporal_data, targets, config):
@@ -530,9 +530,9 @@ class CnnEngine:
 
                 # spatial input (current state)
                 spatial_list.append(self.spatial_gen.create_input_mask(r_now))
-                # target mask seharusnya dibuat dari event berikutnya (r_next)
-                mask_list.append(self.spatial_gen.create_target_mask(r_next))
-
+                mask_list.append(
+                    self.spatial_gen.create_delta_mask(r_now, r_next)
+                )
 
                 # vector target = GA NEXT EVENT
                 angle = r_next.get('ga_angle_deg', np.nan)
@@ -633,85 +633,141 @@ class CnnEngine:
     def predict(self, df_predict: pd.DataFrame, lstm_engine) -> pd.DataFrame:
         df_out = df_predict.copy()
         df_out['luas_cnn'] = 0.0
-        
+        df_out['cnn_confidence'] = 0.0
+
         unique_clusters = sorted([c for c in df_out['cluster_id'].unique() if c != -1])
-        
+
         for cid in unique_clusters:
+            # --- try load model if not in memory
             model = self.models.get(cid)
-            if not model:
+            if model is None:
                 try:
                     path = self.model_dir / f"cnn_model_c{cid}.keras"
                     if path.exists():
                         model = load_model(path, compile=False)
                         self.models[cid] = model
-                except: pass
-            if not model: continue
-            
+                        logger.info(f"[CNN] Loaded model for cluster {cid} from disk.")
+                    else:
+                        logger.warning(f"[CNN] No model file for cluster {cid}, will fallback.")
+                except Exception as e:
+                    logger.warning(f"[CNN] Failed to load model for c{cid}: {e}")
+
+            # get rows for this cluster
             df_c = df_out[df_out['cluster_id'] == cid]
+
+            # try extract LSTM features (may return None)
             res = self._extract_lstm_features(df_c, lstm_engine, cid)
-            if not res: continue
+            if not res:
+                # fallback: use AreaTerdampak_km2 and low confidence
+                logger.warning(f"[CNN] Skip c{cid}: no LSTM features — applying fallback area.")
+                fallback_area = df_c.get('AreaTerdampak_km2', pd.Series(0.0, index=df_c.index)).values
+                df_out.loc[df_c.index, 'luas_cnn'] = fallback_area
+                df_out.loc[df_c.index, 'cnn_confidence'] = 0.25
+                continue
+
             lstm_feats, valid_idx = res
-            
-            if len(lstm_feats) == 0: continue
-            
+            if lstm_feats is None or len(lstm_feats) == 0 or len(valid_idx) == 0:
+                logger.warning(f"[CNN] Skip c{cid}: empty LSTM features/indices — applying fallback.")
+                fallback_area = df_c.get('AreaTerdampak_km2', pd.Series(0.0, index=df_c.index)).values
+                df_out.loc[df_c.index, 'luas_cnn'] = fallback_area
+                df_out.loc[df_c.index, 'cnn_confidence'] = 0.25
+                continue
+
+            # align df rows (valid_idx are original df indices)
             df_aligned = df_out.loc[valid_idx]
-            spatial_data = np.array([self.spatial_gen.create_input_mask(r) for _, r in df_aligned.iterrows()])
-            
-            # Predict
+            # build spatial inputs
+            spatial_list = [self.spatial_gen.create_input_mask(row) for _, row in df_aligned.iterrows()]
+            if len(spatial_list) == 0:
+                logger.warning(f"[CNN] Skip c{cid}: no spatial data for aligned rows — fallback.")
+                fallback_area = df_aligned.get('AreaTerdampak_km2', pd.Series(0.0, index=df_aligned.index)).values
+                df_out.loc[df_aligned.index, 'luas_cnn'] = fallback_area
+                df_out.loc[df_aligned.index, 'cnn_confidence'] = 0.25
+                continue
+
+            spatial_data = np.array(spatial_list)
+
+            # GUARD: if model missing or spatial_data all zeros -> fallback
+            if model is None or np.all(spatial_data == 0):
+                logger.warning(f"[CNN] Cluster {cid} invalid (no model or empty spatial) → fallback area.")
+                fallback_area = df_aligned.get('AreaTerdampak_km2', pd.Series(0.0, index=df_aligned.index)).values
+                df_out.loc[df_aligned.index, 'luas_cnn'] = fallback_area
+                df_out.loc[df_aligned.index, 'cnn_confidence'] = 0.25
+                continue
+
+            # create generator and predict
             gen = CnnDataGenerator(spatial_data, lstm_feats, None, self.cfg)
-            preds_out = model.predict(gen, verbose=0)
-            if isinstance(preds_out, list) or (isinstance(preds_out, tuple) and len(preds_out) == 2):
+            try:
+                preds_out = model.predict(gen, verbose=0)
+            except Exception as e:
+                logger.warning(f"[CNN] Prediction failed for c{cid}: {e} — fallback applied.")
+                fallback_area = df_aligned.get('AreaTerdampak_km2', pd.Series(0.0, index=df_aligned.index)).values
+                df_out.loc[df_aligned.index, 'luas_cnn'] = fallback_area
+                df_out.loc[df_aligned.index, 'cnn_confidence'] = 0.25
+                continue
+
+            # unpack outputs
+            if isinstance(preds_out, (list, tuple)) and len(preds_out) >= 2:
                 preds_mask = preds_out[0]
                 preds_vec = preds_out[1]
             else:
-                # fallback: single output (legacy) -> treat as mask
                 preds_mask = preds_out
-                preds_vec = np.zeros((preds_mask.shape[0], 3))
+                preds_vec = np.zeros((preds_mask.shape[0], 3), dtype=float)
 
-            # Visualize last sample (dual)
+            # compute confidence (mean activation)
             try:
-                last_idx_in_batch = -1
-                last_img = spatial_data[last_idx_in_batch]
-                last_pred_mask = preds_mask[last_idx_in_batch]
-                self.visualizer.save_dual_inference_view(cid, last_idx_in_batch, last_img, last_pred_mask, str(df_aligned.iloc[last_idx_in_batch]['Acquired_Date']))
+                confidence = np.mean(preds_mask, axis=(1, 2, 3))
             except Exception:
-                pass
+                # if mask dims unexpected
+                confidence = np.mean(preds_mask.reshape(preds_mask.shape[0], -1), axis=1)
 
-            # Hitung Luas dari masks — dua metrik: probabilistic (area_prob) + binarized (area_bin)
-            km2_px = (self.spatial_gen.km_per_pixel) ** 2  # km per pixel sisi -> km^2 per pixel
-            # preds_mask shape: (N, H, W, 1) with values in [0,1] (sigmoid)
-            # 1) probabilistic area: sum of probabilities * pixel_area
-            areas_prob = np.sum(preds_mask, axis=(1,2,3)) * km2_px
+            # compute areas from thresholded mask
+            pixel_area_km2 = float(self.spatial_gen.km_per_pixel) ** 2
+            thr = float(self.cfg.get("cnn_area_threshold", 0.3))
 
-            # 2) binarized area (threshold default 0.5) — pakai ambang yang bisa nanti dikonfigurasi
-            threshold = float(self.cfg.get('mask_threshold', 0.5))
-            areas_bin = np.sum(preds_mask > threshold, axis=(1,2,3)) * km2_px
+            # ensure preds_mask is numeric float ndarray
+            preds_mask = preds_mask.astype(float)
+            binary_mask = preds_mask >= thr
+            pixel_count = np.sum(binary_mask, axis=tuple(range(1, preds_mask.ndim)))  # sum over H,W,(C)
+            areas = pixel_count * pixel_area_km2
 
-            # Map back to df_out:
-            min_len = min(len(valid_idx), len(areas_prob))
-            idxs_to_write = list(valid_idx[:min_len])
-            # simpan kedua kolom sehingga klien bisa lihat perhitungan
-            df_out.loc[idxs_to_write, 'luas_cnn_prob'] = areas_prob[:min_len]
-            df_out.loc[idxs_to_write, 'luas_cnn_bin'] = areas_bin[:min_len]
-            # masih pertahankan 'luas_cnn' untuk kompatibilitas — gunakan probabilistic default
-            df_out.loc[idxs_to_write, 'luas_cnn'] = areas_prob[:min_len]
+            # soft fallback: if all pixel_count == 0 then use soft sum
+            if np.all(pixel_count == 0):
+                areas = np.sum(preds_mask, axis=tuple(range(1, preds_mask.ndim))) * pixel_area_km2
 
+            # HARD FALLBACK: if still all zero (model produced near-zero), use engineered AreaTerdampak_km2
+            min_len = min(len(areas), len(valid_idx))
+            if min_len == 0:
+                logger.warning(f"[CNN] No predicted areas for c{cid} — applying fallback areas.")
+                fallback_area = df_aligned.get('AreaTerdampak_km2', pd.Series(0.0, index=df_aligned.index)).values
+                df_out.loc[df_aligned.index, 'luas_cnn'] = fallback_area
+                df_out.loc[df_aligned.index, 'cnn_confidence'] = 0.25
+                continue
 
-            # Convert vec predictions: sin,cos,dist -> angle_deg, dist
-            sin_vals = preds_vec[:, 0]
-            cos_vals = preds_vec[:, 1]
-            dist_vals = preds_vec[:, 2]
+            if np.all(areas[:min_len] == 0):
+                logger.info(f"[CNN] Areas zero for c{cid} → using AreaTerdampak_km2 fallback.")
+                fallback_area = df_aligned.get('AreaTerdampak_km2', pd.Series(0.0, index=df_aligned.index)).values[:min_len]
+                areas_to_write = fallback_area
+                confidence_to_write = np.full((min_len,), 0.25, dtype=float)
+            else:
+                areas_to_write = areas[:min_len]
+                confidence_to_write = confidence[:min_len]
+
+            # convert vector outputs
+            sin_vals = preds_vec[:min_len, 0]
+            cos_vals = preds_vec[:min_len, 1]
+            dist_vals = preds_vec[:min_len, 2]
             angles_rad = np.arctan2(sin_vals, cos_vals)
             angles_deg = (np.degrees(angles_rad) + 360) % 360
 
-            # Map back to df_out
-            min_len = min(len(valid_idx), len(areas))
+            # map back to original df indices (valid_idx contains original indices)
             idxs_to_write = list(valid_idx[:min_len])
-            df_out.loc[idxs_to_write, 'luas_cnn'] = areas[:min_len]
-            df_out.loc[idxs_to_write, 'cnn_angle_deg'] = angles_deg[:min_len]
-            df_out.loc[idxs_to_write, 'cnn_distance_km'] = dist_vals[:min_len]
-            
-        return df_out 
+            df_out.loc[idxs_to_write, 'luas_cnn'] = areas_to_write
+            df_out.loc[idxs_to_write, 'cnn_confidence'] = confidence_to_write
+            df_out.loc[idxs_to_write, 'cnn_angle_deg'] = angles_deg
+            df_out.loc[idxs_to_write, 'cnn_distance_km'] = dist_vals
+
+        return df_out
+ 
 
     # =========================================================
     # CNN → EXPORT SIMPLE MAP (LAT/LON POINT)

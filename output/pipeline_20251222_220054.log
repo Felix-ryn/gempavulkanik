@@ -1,0 +1,116 @@
+2025-12-22 22:00:54,549 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251222_220054.log
+2025-12-22 22:00:54,549 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-22 22:00:54,549 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
+2025-12-22 22:00:54,549 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-22 22:00:54,549 [INFO    ] [root                ] [MainThread] --- [Dashboard] Starting Flask server in background thread (monitoring enabled)...
+2025-12-22 22:00:54,549 [INFO    ] [RealtimeSensorManager] [MainThread] --- [MIROVA] Menggunakan log terbaru: output/realtime\mirova_log_20251003-094000.txt
+2025-12-22 22:00:54,549 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2025-12-22 22:00:54,549 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2025-12-22 22:00:54,549 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING ==========
+2025-12-22 22:00:54,566 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 2: FEATURE ENGINEERING ==========
+2025-12-22 22:00:54,583 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-22 22:00:54,625 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-22 22:00:54,638 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: Kolom berikut kosong total saat training -> diisi 0.0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-22 22:00:54,783 [INFO    ] [werkzeug            ] [Thread-1 (_run)] --- [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-12-22 22:00:54,783 [INFO    ] [werkzeug            ] [Thread-1 (_run)] --- [33mPress CTRL+C to quit[0m
+2025-12-22 22:00:54,914 [INFO    ] [werkzeug            ] [Thread-126 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:00:54] "GET / HTTP/1.1" 200 -
+2025-12-22 22:00:55,044 [INFO    ] [werkzeug            ] [Thread-128 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:00:55] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-22 22:00:55,044 [INFO    ] [werkzeug            ] [Thread-150 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:00:55] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-22 22:00:55,044 [INFO    ] [VolcanoAI.processing.feature_engineer] [MainThread] --- Preprocessor state saved to: output\feature_preprocessor.pkl
+2025-12-22 22:00:55,044 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (21, 60)
+2025-12-22 22:00:55,071 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-22 22:00:55,146 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-22 22:00:55,298 [INFO    ] [werkzeug            ] [Thread-179 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:00:55] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-22 22:00:55,304 [INFO    ] [werkzeug            ] [Thread-180 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:00:55] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-22 22:00:55,308 [INFO    ] [werkzeug            ] [Thread-181 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:00:55] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-22 22:00:58,356 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: Kolom berikut kosong total saat training -> diisi 0.0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-22 22:00:58,672 [INFO    ] [VolcanoAI.processing.feature_engineer] [MainThread] --- Preprocessor state saved to: output\feature_preprocessor.pkl
+2025-12-22 22:00:58,672 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (9, 60)
+2025-12-22 22:00:58,672 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 3: MODEL TRAINING ==========
+2025-12-22 22:01:01,203 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-68] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-22 22:01:02,750 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-109] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-22 22:01:04,198 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-150] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-22 22:01:05,924 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-191] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-22 22:01:06,214 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Output GA tersimpan → C:\Users\laygenda surya putra\Documents\JOKI\gempavulkanik\output\aco_results\aco_to_ga.json
+2025-12-22 22:01:06,378 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Visual ACO tersimpan → C:\Users\laygenda surya putra\Documents\JOKI\gempavulkanik\output\aco_results/aco_impact_zones.html
+2025-12-22 22:01:06,379 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- 
+================================================================================
+2025-12-22 22:01:06,379 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] ---                             === GA ENGINE START ===                             
+2025-12-22 22:01:06,379 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- ================================================================================
+2025-12-22 22:01:06,385 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA Evolution Start → Pop=80, Gen=150
+2025-12-22 22:01:06,388 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- Resuming GA from checkpoint...
+2025-12-22 22:01:06,404 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- [GA] next_event berhasil ditulis ke output\aco_results\aco_to_ga.json (valid=True)
+2025-12-22 22:01:06,407 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA vector JSON saved → output\ga_results\ga_vector.json
+2025-12-22 22:01:06,528 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA Map saved → output\ga_results\ga_path_map.html
+2025-12-22 22:01:06,636 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- Excel exported → output\ga_results\ga_report.xlsx
+2025-12-22 22:01:06,638 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] ---                            === GA ENGINE COMPLETE ===                           
+2025-12-22 22:01:06,638 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- === LSTM V6.0 TITAN TRAINING START ===
+2025-12-22 22:01:06,669 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Processing Cluster 0...
+2025-12-22 22:01:06,677 [WARNING ] [VolcanoAI.LstmEngine] [MainThread] --- Sample c0 terlalu sedikit (0). Skip training.
+2025-12-22 22:01:06,969 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- [Vault] Model Cluster 0 berhasil dimuat.
+2025-12-22 22:01:06,982 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- [LSTM] Saved CSV (overwrite-safe): master=output\lstm_results\lstm_records_2y_20251222.csv, recent=output\lstm_results\lstm_recent_15d_20251222.csv, anomalies=output\lstm_results\lstm_anomalies_20251222.csv
+2025-12-22 22:01:06,982 [INFO    ] [VolcanoAI_CNN       ] [MainThread] --- === MEMULAI CNN TRAINING PIPELINE V5.0 (TITAN) ===
+2025-12-22 22:01:06,982 [INFO    ] [VolcanoAI_CNN       ] [MainThread] --- 
+>>> Training CNN Cluster 0
+2025-12-22 22:01:07,153 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- [Vault] Model Cluster 0 berhasil dimuat.
+2025-12-22 22:01:07,155 [WARNING ] [VolcanoAI_CNN       ] [MainThread] --- Skip c0: Gagal get LSTM features (mungkin data kurang).
+2025-12-22 22:01:07,867 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- [Vault] Model Cluster 0 berhasil dimuat.
+2025-12-22 22:01:07,874 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- ✅ CNN latest overwritten: output\cnn_results\results\cnn_predictions_latest.csv
+2025-12-22 22:01:07,876 [INFO    ] [VolcanoAiPipeline   ] [MainThread] ---  CNN JSON overwritten: output\cnn_results\cnn_predictions_latest.json
+2025-12-22 22:01:07,876 [ERROR   ] [VolcanoAiPipeline   ] [MainThread] --- Failed to generate CNN map: 'list' object has no attribute 'get'
+Traceback (most recent call last):
+  File "C:\Users\laygenda surya putra\Documents\JOKI\gempavulkanik\main.py", line 386, in _run_training_flow
+    map_path = cnn_map_gen.generate(json_path=cnn_json_path)
+  File "C:\Users\laygenda surya putra\Documents\JOKI\gempavulkanik\VolcanoAI\engines\cnn_map_generator.py", line 44, in generate
+    nxt = data.get("next_event")
+AttributeError: 'list' object has no attribute 'get'
+2025-12-22 22:01:07,876 [INFO    ] [VolcanoAiPipeline   ] [MainThread] ---  CNN archive saved: output\cnn_results\results\cnn_predictions_20251222_220107.csv
+2025-12-22 22:01:07,896 [INFO    ] [VolcanoAI.NaiveBayesEngine] [MainThread] --- Fitur terpilih (7): ['Magnitudo', 'Kedalaman (km)', 'isVulkanik', 'isTektonik', 'R3_final', 'PheromoneScore', 'luas_cnn']
+2025-12-22 22:01:07,906 [INFO    ] [VolcanoAI.NaiveBayesEngine] [MainThread] --- Training Naive Bayes selesai.
+2025-12-22 22:01:07,906 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 4: MODEL EVALUATION ==========
+2025-12-22 22:01:10,280 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-48] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-22 22:01:12,706 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-114] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-22 22:01:14,222 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-155] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-22 22:01:15,699 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-196] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-22 22:01:15,816 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Output GA tersimpan → C:\Users\laygenda surya putra\Documents\JOKI\gempavulkanik\output\aco_results\aco_to_ga.json
+2025-12-22 22:01:15,846 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Visual ACO tersimpan → C:\Users\laygenda surya putra\Documents\JOKI\gempavulkanik\output\aco_results/aco_impact_zones.html
+2025-12-22 22:01:15,873 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- [LSTM] Saved CSV (overwrite-safe): master=output\lstm_results\lstm_records_2y_20251222.csv, recent=output\lstm_results\lstm_recent_15d_20251222.csv, anomalies=output\lstm_results\lstm_anomalies_20251222.csv
+2025-12-22 22:01:16,001 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- [Vault] Model Cluster 0 berhasil dimuat.
+2025-12-22 22:01:16,006 [ERROR   ] [VolcanoAI.NaiveBayesEngine] [MainThread] --- Evaluasi gagal: Number of classes, 2, does not match size of target_names, 3. Try specifying the labels parameter
+2025-12-22 22:01:16,164 [INFO    ] [VolcanoAI.NaiveBayesEngine] [MainThread] --- Output Naive Bayes berhasil disimpan.
+2025-12-22 22:01:16,166 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Reporter metrics keys being passed: ['class_names', 'accuracy', 'confusion_matrix', 'aco_center', 'aco_area', 'aco_map', 'ga_map', 'cnn_pred_csv', 'cnn_pred_json', 'nb_confusion_png', 'nb_roc_png', 'nb_pred_csv', 'nb_metrics_json']
+2025-12-22 22:01:16,198 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- Generating Dual Dashboard HTML...
+2025-12-22 22:01:16,364 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- Dashboard berhasil dibuat: output\VolcanoAI_Analysis_STATIC.html
+2025-12-22 22:01:16,372 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- Dashboard berhasil dibuat: output\VolcanoAI_Monitor_LIVE.html
+2025-12-22 22:01:16,372 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- ✅ Dual Dashboard Updated. Files: LIVE, STATIC.
+2025-12-22 22:01:16,374 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 5: LIVE MONITORING ==========
+2025-12-22 22:01:16,374 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Loading 21 rows to buffer.
+2025-12-22 22:01:16,391 [INFO    ] [RealtimeSensorManager] [MainThread] --- [MIROVA] Berhasil membaca 13 baris dari log.
+2025-12-22 22:01:50,439 [INFO    ] [werkzeug            ] [Thread-354 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:01:50] "GET / HTTP/1.1" 200 -
+2025-12-22 22:01:50,484 [INFO    ] [werkzeug            ] [Thread-355 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:01:50] "GET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1" 200 -
+2025-12-22 22:01:50,491 [INFO    ] [werkzeug            ] [Thread-356 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:01:50] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-22 22:01:50,732 [INFO    ] [werkzeug            ] [Thread-357 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:01:50] "GET /files/output/aco_results/aco_impact_zones.html HTTP/1.1" 200 -
+2025-12-22 22:01:50,739 [INFO    ] [werkzeug            ] [Thread-358 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:01:50] "GET /files/output/ga_results/ga_path_map.html HTTP/1.1" 200 -
+2025-12-22 22:01:50,742 [INFO    ] [werkzeug            ] [Thread-359 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:01:50] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-22 22:02:50,777 [INFO    ] [werkzeug            ] [Thread-361 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:02:50] "GET / HTTP/1.1" 200 -
+2025-12-22 22:02:50,837 [INFO    ] [werkzeug            ] [Thread-360 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:02:50] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-22 22:02:50,840 [INFO    ] [werkzeug            ] [Thread-362 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:02:50] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-22 22:02:51,027 [INFO    ] [werkzeug            ] [Thread-363 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:02:51] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-22 22:02:51,036 [INFO    ] [werkzeug            ] [Thread-364 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:02:51] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-22 22:02:51,042 [INFO    ] [werkzeug            ] [Thread-365 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:02:51] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-22 22:03:51,976 [INFO    ] [werkzeug            ] [Thread-366 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:03:51] "GET / HTTP/1.1" 200 -
+2025-12-22 22:03:52,023 [INFO    ] [werkzeug            ] [Thread-367 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:03:52] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-22 22:03:52,041 [INFO    ] [werkzeug            ] [Thread-368 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:03:52] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-22 22:03:52,346 [INFO    ] [werkzeug            ] [Thread-369 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:03:52] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-22 22:03:52,346 [INFO    ] [werkzeug            ] [Thread-370 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:03:52] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-22 22:03:52,359 [INFO    ] [werkzeug            ] [Thread-371 (process_request_thread)] --- 127.0.0.1 - - [22/Dec/2025 22:03:52] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-22 22:04:37,145 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Monitoring dihentikan. Melakukan penyimpanan akhir...
+2025-12-22 22:04:37,154 [INFO    ] [root                ] [MainThread] --- [BUFFER SAVED] output/realtime/processed.csv
+2025-12-22 22:04:37,154 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Penyimpanan buffer live selesai.
+2025-12-22 22:04:37,154 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- System shutdown. Uptime: 222.61s

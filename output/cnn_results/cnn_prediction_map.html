@@ -17,7 +17,11 @@
             <meta name="viewport" content="width=device-width,
                 initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
             <style>
+<<<<<<< HEAD
                 #map_5ed43719bec8d0faf1d3c0e07bbc52b1 {
+=======
+                #map_84afa37bdf2d8b9be6b83824b8ecb11c {
+>>>>>>> 172132b (fix luas cnn)
                     position: relative;
                     width: 100.0%;
                     height: 100.0%;
@@ -54,14 +58,23 @@
 <body>
     
     
+<<<<<<< HEAD
             <div class="folium-map" id="map_5ed43719bec8d0faf1d3c0e07bbc52b1" ></div>
+=======
+            <div class="folium-map" id="map_84afa37bdf2d8b9be6b83824b8ecb11c" ></div>
+>>>>>>> 172132b (fix luas cnn)
         
 </body>
 <script>
     
     
+<<<<<<< HEAD
             var map_5ed43719bec8d0faf1d3c0e07bbc52b1 = L.map(
                 "map_5ed43719bec8d0faf1d3c0e07bbc52b1",
+=======
+            var map_84afa37bdf2d8b9be6b83824b8ecb11c = L.map(
+                "map_84afa37bdf2d8b9be6b83824b8ecb11c",
+>>>>>>> 172132b (fix luas cnn)
                 {
                     center: [-7.97, 112.38],
                     crs: L.CRS.EPSG3857,
@@ -78,7 +91,11 @@
 
         
     
+<<<<<<< HEAD
             var tile_layer_cb374164affb97f3cfac8e6e4895e8d8 = L.tileLayer(
+=======
+            var tile_layer_7d67eb16c1ca3533b5f4c2937aa1a3a8 = L.tileLayer(
+>>>>>>> 172132b (fix luas cnn)
                 "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
                 {
   "minZoom": 0,
@@ -95,6 +112,7 @@
             );
         
     
+<<<<<<< HEAD
             tile_layer_cb374164affb97f3cfac8e6e4895e8d8.addTo(map_5ed43719bec8d0faf1d3c0e07bbc52b1);
         
     
@@ -106,6 +124,19 @@
         
     
             var icon_a6936a5f9b9195ab355b1caba83cac08 = L.AwesomeMarkers.icon(
+=======
+            tile_layer_7d67eb16c1ca3533b5f4c2937aa1a3a8.addTo(map_84afa37bdf2d8b9be6b83824b8ecb11c);
+        
+    
+            var marker_dd02b310abdba2b3c7d9221bdb88fe86 = L.marker(
+                [-7.97, 112.38],
+                {
+}
+            ).addTo(map_84afa37bdf2d8b9be6b83824b8ecb11c);
+        
+    
+            var icon_608f4361254d32b62aa14422f66e277e = L.AwesomeMarkers.icon(
+>>>>>>> 172132b (fix luas cnn)
                 {
   "markerColor": "red",
   "iconColor": "white",
@@ -116,23 +147,37 @@
             );
         
     
+<<<<<<< HEAD
         var popup_118381f830ce51032dc34f49e553878c = L.popup({
+=======
+        var popup_b28d91cdee28194c756a89a4f29cc9cb = L.popup({
+>>>>>>> 172132b (fix luas cnn)
   "maxWidth": 300,
 });
 
         
             
+<<<<<<< HEAD
                 var html_de23bdddaac21c8f30e27f619b860221 = $(`<div id="html_de23bdddaac21c8f30e27f619b860221" style="width: 100.0%; height: 100.0%;"><b>CNN Predicted Event</b><br>Lat: -7.97<br>Lon: 112.38<br>Bearing: 116.6 deg<br>Direction: SE<br>Distance: 2.48 km<br>Confidence: 0.40<br>Generated: 2025-12-19T17:55:30.907347</div>`)[0];
                 popup_118381f830ce51032dc34f49e553878c.setContent(html_de23bdddaac21c8f30e27f619b860221);
             
         
 
         marker_21c7e044c64f7d9dae5ec31e66d85265.bindPopup(popup_118381f830ce51032dc34f49e553878c)
+=======
+                var html_25e9507d310971ee08f817ce71e382d3 = $(`<div id="html_25e9507d310971ee08f817ce71e382d3" style="width: 100.0%; height: 100.0%;"><b>CNN Predicted Event</b><br>Lat: -7.97<br>Lon: 112.38<br>Bearing: 116.6 deg<br>Direction: SE<br>Distance: 2.48 km<br>Confidence: 0.40<br>Generated: 2025-12-19T17:55:30.907347</div>`)[0];
+                popup_b28d91cdee28194c756a89a4f29cc9cb.setContent(html_25e9507d310971ee08f817ce71e382d3);
+            
+        
+
+        marker_dd02b310abdba2b3c7d9221bdb88fe86.bindPopup(popup_b28d91cdee28194c756a89a4f29cc9cb)
+>>>>>>> 172132b (fix luas cnn)
         ;
 
         
     
     
+<<<<<<< HEAD
                 marker_21c7e044c64f7d9dae5ec31e66d85265.setIcon(icon_a6936a5f9b9195ab355b1caba83cac08);
             
     
@@ -140,6 +185,15 @@
                 [[-7.97, 112.38], [-8.014729084841871, 112.469438856037]],
                 {"bubblingMouseEvents": true, "color": "#3388ff", "dashArray": null, "dashOffset": null, "fill": false, "fillColor": "#3388ff", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.7, "smoothFactor": 1.0, "stroke": true, "weight": 4}
             ).addTo(map_5ed43719bec8d0faf1d3c0e07bbc52b1);
+=======
+                marker_dd02b310abdba2b3c7d9221bdb88fe86.setIcon(icon_608f4361254d32b62aa14422f66e277e);
+            
+    
+            var poly_line_67855991502df0de907f6d023a4d4dd7 = L.polyline(
+                [[-7.97, 112.38], [-8.014729084841871, 112.469438856037]],
+                {"bubblingMouseEvents": true, "color": "#3388ff", "dashArray": null, "dashOffset": null, "fill": false, "fillColor": "#3388ff", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.7, "smoothFactor": 1.0, "stroke": true, "weight": 4}
+            ).addTo(map_84afa37bdf2d8b9be6b83824b8ecb11c);
+>>>>>>> 172132b (fix luas cnn)
         
 </script>
 </html>
