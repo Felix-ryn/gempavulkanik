@@ -1017,16 +1017,19 @@ class LstmEngine:
             # sigma not available in current architecture -> zeros
             sigma_seq = np.zeros_like(mu_seq)
 
-            # Inverse transform: rebuild dummy matrix for scaler inverse
-            dummy = np.zeros((len(mu_seq), len(feats)))
-            dummy[:, tfactory.target_idx] = mu_seq
-            try:
-                res_mu = scaler.inverse_transform(dummy)[:, tfactory.target_idx]
-            except Exception:
-                # fallback jika scaler tipe tertentu tidak mendukung inverse untuk array shape
-                res_mu = mu_seq.copy()
+            # Inverse transform target saja menggunakan MinMaxScaler atau RobustScaler
+            from sklearn.preprocessing import MinMaxScaler
 
-            res_sigma = sigma_seq * (getattr(scaler, 'scale_', np.ones(len(feats)))[tfactory.target_idx] if hasattr(scaler, 'scale_') else 1.0)
+            # Buat scaler hanya untuk target
+            target_scaler = MinMaxScaler()
+            target_scaler.fit(df_c[[self.cfg.target_feature]].values)
+
+            # Inverse transform prediksi mu_seq
+            res_mu = target_scaler.inverse_transform(mu_seq.reshape(-1, 1)).ravel()
+
+            # Sigma tetap nol karena arsitektur saat ini tidak memprediksi sigma
+            res_sigma = np.zeros_like(res_mu)
+
 
             # Map Back -> each mu_seq corresponds to prediction time starting at index = seq_len
             start_idx = self.cfg.input_seq_len

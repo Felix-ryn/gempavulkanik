@@ -88,30 +88,46 @@ class SpatialDataGenerator:
         return np.stack(channels, axis=-1)
 
     # [NEW/PINDAHKAN]: Metode untuk membuat target mask
+    # --- GANTI SELURUH bagian create_target_mask (dan tambahkan helper) di class SpatialDataGenerator ---
+
     def create_target_mask(self, row: pd.Series) -> np.ndarray:
         """
         Target mask dibuat dari radius GA (pseudo ground truth).
+        Jika row kemungkinan berisi 'ga_distance_km' (lebih baik gunakan r_next saat training).
         """
         gs = self.grid_size
+        # prefer numeric fetch with fallback
+        try:
+            radius = row.get("ga_distance_km", np.nan)
+            radius = float(radius) if pd.notna(radius) else np.nan
+        except Exception:
+            radius = np.nan
 
-        radius = row.get("ga_distance_km", np.nan)
-        if pd.notna(radius) and float(radius) > 0:
-            return self._create_gaussian_heatmap(float(radius)).reshape(gs, gs, 1)
+        if np.isfinite(radius) and radius > 0.0:
+            return self._create_gaussian_heatmap(radius).reshape(gs, gs, 1)
 
         return np.zeros((gs, gs, 1), dtype=np.float32)
 
-        # [NEW/PINDAHKAN]: Metode untuk membuat heatmap (private helper)
-        def _create_gaussian_heatmap(self, radius_km: float) -> np.ndarray:
-            gs = self.grid_size
-            if radius_km is None or radius_km <= 0:
-                return np.zeros((gs, gs), dtype=np.float32)
-            radius_px = radius_km / (self.km_per_pixel + 1e-12)
-            center = (gs - 1) / 2.0
-            x, y = np.ogrid[:gs, :gs]
-            sigma = max(radius_px / 3.0, 1.0)
-            dist_sq = (x - center + 0.5) ** 2 + (y - center + 0.5) ** 2
-            heatmap = np.exp(-dist_sq / (2.0 * (sigma ** 2) + 1e-9))
-            return heatmap.astype(np.float32)
+    def _create_gaussian_heatmap(self, radius_km: float) -> np.ndarray:
+        """
+        Helper: buat Gaussian-like heatmap terpusat di tengah grid
+        radius_km => skala radius (km) yang akan dipetakan ke pixels.
+        """
+        gs = self.grid_size
+        if radius_km is None or not np.isfinite(radius_km) or radius_km <= 0:
+            return np.zeros((gs, gs), dtype=np.float32)
+
+        # radius dalam pixel
+        radius_px = radius_km / (self.km_per_pixel + 1e-12)
+        center = (gs - 1) / 2.0
+        x, y = np.ogrid[:gs, :gs]
+        sigma = max(radius_px / 3.0, 1.0)
+        dist_sq = (x - center + 0.5) ** 2 + (y - center + 0.5) ** 2
+        heatmap = np.exp(-dist_sq / (2.0 * (sigma ** 2) + 1e-9))
+        # normalisasi agar peak = 1
+        heatmap = heatmap.astype(np.float32)
+        heatmap /= (heatmap.max() + 1e-12)
+        return heatma
 
 class CnnDataGenerator(Sequence):
     def __init__(self, spatial_data, temporal_data, targets, config):
@@ -514,7 +530,9 @@ class CnnEngine:
 
                 # spatial input (current state)
                 spatial_list.append(self.spatial_gen.create_input_mask(r_now))
-                mask_list.append(self.spatial_gen.create_target_mask(r_now))
+                # target mask seharusnya dibuat dari event berikutnya (r_next)
+                mask_list.append(self.spatial_gen.create_target_mask(r_next))
+
 
                 # vector target = GA NEXT EVENT
                 angle = r_next.get('ga_angle_deg', np.nan)
@@ -659,9 +677,25 @@ class CnnEngine:
             except Exception:
                 pass
 
-            # Hitung Luas dari masks
-            km2_px = self.spatial_gen.km_per_pixel ** 2
-            areas = np.sum(preds_mask > 0.5, axis=(1, 2, 3)) * km2_px
+            # Hitung Luas dari masks — dua metrik: probabilistic (area_prob) + binarized (area_bin)
+            km2_px = (self.spatial_gen.km_per_pixel) ** 2  # km per pixel sisi -> km^2 per pixel
+            # preds_mask shape: (N, H, W, 1) with values in [0,1] (sigmoid)
+            # 1) probabilistic area: sum of probabilities * pixel_area
+            areas_prob = np.sum(preds_mask, axis=(1,2,3)) * km2_px
+
+            # 2) binarized area (threshold default 0.5) — pakai ambang yang bisa nanti dikonfigurasi
+            threshold = float(self.cfg.get('mask_threshold', 0.5))
+            areas_bin = np.sum(preds_mask > threshold, axis=(1,2,3)) * km2_px
+
+            # Map back to df_out:
+            min_len = min(len(valid_idx), len(areas_prob))
+            idxs_to_write = list(valid_idx[:min_len])
+            # simpan kedua kolom sehingga klien bisa lihat perhitungan
+            df_out.loc[idxs_to_write, 'luas_cnn_prob'] = areas_prob[:min_len]
+            df_out.loc[idxs_to_write, 'luas_cnn_bin'] = areas_bin[:min_len]
+            # masih pertahankan 'luas_cnn' untuk kompatibilitas — gunakan probabilistic default
+            df_out.loc[idxs_to_write, 'luas_cnn'] = areas_prob[:min_len]
+
 
             # Convert vec predictions: sin,cos,dist -> angle_deg, dist
             sin_vals = preds_vec[:, 0]

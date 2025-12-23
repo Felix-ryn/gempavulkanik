@@ -778,12 +778,11 @@ class MultiLayerVisualizer:
                 popup="END"
             ).add_to(snake)
 
-        # Popup info untuk tiap titik di snake (+ sudut & jarak segmen)
-        for i, r in enumerate(best_df.itertuples()):
-            row = r._asdict()
-
-            lat = row['EQ_Lintang']
-            lon = row['EQ_Bujur']
+               # Popup info untuk tiap titik di snake (+ sudut & jarak segmen)
+        for i in range(len(best_df)):
+            row = best_df.iloc[i]  # ambil sebagai Series — menjaga nama kolom asli
+            lat = float(row.get('EQ_Lintang', float('nan')))
+            lon = float(row.get('EQ_Bujur', float('nan')))
 
             # hitung jarak & sudut dari titik sebelumnya (kalau ada)
             if i == 0:
@@ -792,13 +791,36 @@ class MultiLayerVisualizer:
             else:
                 prev = best_df.iloc[i - 1]
                 seg_dist = GeoMathCore.haversine(
-                    prev['EQ_Lintang'], prev['EQ_Bujur'],
+                    float(prev.get('EQ_Lintang', 0)), float(prev.get('EQ_Bujur', 0)),
                     lat, lon
                 )
                 seg_bearing = GeoMathCore.calculate_bearing(
-                    prev['EQ_Lintang'], prev['EQ_Bujur'],
+                    float(prev.get('EQ_Lintang', 0)), float(prev.get('EQ_Bujur', 0)),
                     lat, lon
                 )
+
+            # Depth: ambil dari kolom asli jika ada; tampilkan "N/A" bila NaN / tidak ada
+            depth_val = None
+            if 'Kedalaman (km)' in best_df.columns:
+                depth_val = row.get('Kedalaman (km)', None)
+            elif 'Kedalaman_km' in best_df.columns:
+                depth_val = row.get('Kedalaman_km', None)
+            elif 'depth' in best_df.columns:
+                depth_val = row.get('depth', None)
+            # fallback ke None bila tidak ditemukan
+
+            if depth_val is None or (isinstance(depth_val, float) and np.isnan(depth_val)):
+                depth_str = "N/A"
+            else:
+                # format sebagai integer bila cocok atau float 1 desimal
+                try:
+                    depth_num = float(depth_val)
+                    if depth_num.is_integer():
+                        depth_str = f"{int(depth_num)}"
+                    else:
+                        depth_str = f"{depth_num:.1f}"
+                except Exception:
+                    depth_str = str(depth_val)
 
             dist_str = f"{seg_dist:.2f} km" if seg_dist is not None else "-"
             bearing_str = f"{seg_bearing:.1f}°" if seg_bearing is not None else "-"
@@ -807,7 +829,7 @@ class MultiLayerVisualizer:
             <b>Event Detail</b><br>
             Date: {row.get('Acquired_Date', 'N/A')}<br>
             Mag: {row.get('Magnitudo', 'N/A')}<br>
-            Depth: {row.get('Kedalaman (km)', 'N/A')} km<br>
+            Depth: {depth_str} km<br>
             Risk: {row.get('PheromoneScore', 0):.3f}<br>
             Segment Distance: {dist_str}<br>
             Segment Bearing: {bearing_str}<br>
@@ -822,6 +844,7 @@ class MultiLayerVisualizer:
                 fill_opacity=0.8,
                 popup=folium.Popup(popup, max_width=320)
             ).add_to(snake)
+
 
         snake.add_to(m)
 
