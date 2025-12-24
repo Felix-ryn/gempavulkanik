@@ -1,14 +1,14 @@
 {
-  "timestamp": "2025-12-19T17:55:30.907347",
+  "timestamp": "2025-12-24T12:31:55.807411",
   "next_event": {
     "lat": -7.97,
     "lon": 112.38,
     "direction_deg": 116.57,
     "movement": "SE",
     "distance_km": 2.48,
-    "confidence": 0.4,
-    "seismic": 0.0
+    "confidence": 1.0,
+    "seismic": 4719.73
   },
   "status": "ok",
-  "rows": 1307
+  "rows": 21
 }

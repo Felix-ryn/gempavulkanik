@@ -1,34 +1,18 @@
 {
     "DataLoading": {
         "status": "Success",
-<<<<<<< HEAD
-        "timestamp": "2025-12-23T22:51:11.377262"
+        "timestamp": "2025-12-24T19:31:33.080976"
     },
     "FeatureEngineering": {
         "status": "Success",
-        "timestamp": "2025-12-23T22:51:20.323614"
+        "timestamp": "2025-12-24T19:31:37.273852"
     },
     "Training": {
         "status": "Success",
-        "timestamp": "2025-12-23T22:52:03.029467"
+        "timestamp": "2025-12-24T19:31:55.856125"
     },
     "Evaluation": {
         "status": "Success",
-        "timestamp": "2025-12-23T22:52:40.840022"
-=======
-        "timestamp": "2025-12-24T00:22:46.843987"
-    },
-    "FeatureEngineering": {
-        "status": "Success",
-        "timestamp": "2025-12-24T00:22:56.620683"
-    },
-    "Training": {
-        "status": "Success",
-        "timestamp": "2025-12-24T00:23:22.042628"
-    },
-    "Evaluation": {
-        "status": "Success",
-        "timestamp": "2025-12-24T00:23:38.563404"
->>>>>>> 172132b (fix luas cnn)
+        "timestamp": "2025-12-24T19:32:13.226867"
     }
 }

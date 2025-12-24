@@ -688,41 +688,40 @@ class DynamicAcoEngine:
     def _generate_visuals(self, df):
         """
         Visual:
-        - Circle orange (zona) + titik pusat merah
-        - Popup: lokasi, tanggal, M, kedalaman, radius, Risk Score, Risk Index
+        - Circle orange (zona dampak) + titik pusat merah
+        - Popup (TANPA TANGGAL):
+          lokasi estimasi (lat, lon), magnitudo, kedalaman,
+          radius prediksi, Risk Score, Risk Index
         """
         if df.empty or 'Lintang' not in df.columns or 'Bujur' not in df.columns:
-            self.logger.warning("[ACO] Dataframe kosong atau kurang kolom untuk visualisasi.")
+            self.logger.warning("[ACO] Dataframe kosong atau kurang kolom koordinat untuk visualisasi.")
             return
 
         try:
             df = df.copy()
 
-            # koordinat aman
-            df['Lintang'] = pd.to_numeric(df['Lintang'], errors='coerce').fillna(0.0)
-            df['Bujur'] = pd.to_numeric(df['Bujur'], errors='coerce').fillna(0.0)
+            # =========================
+            # NORMALISASI KOORDINAT
+            # =========================
+            df['Lintang'] = pd.to_numeric(df['Lintang'], errors='coerce')
+            df['Bujur'] = pd.to_numeric(df['Bujur'], errors='coerce')
 
-            # === FIX TANGGAL ===
-            if 'Tanggal' in df.columns:
-                df['Tanggal'] = pd.to_datetime(df['Tanggal'], errors='coerce')
-                df['Tanggal'] = df['Tanggal'].dt.strftime('%Y-%m-%d')
-                df['Tanggal'] = df['Tanggal'].fillna('-')
-            elif 'Acquired_Date' in df.columns:
-                df['Tanggal'] = pd.to_datetime(df['Acquired_Date'], errors='coerce')
-                df['Tanggal'] = df['Tanggal'].dt.strftime('%Y-%m-%d')
-                df['Tanggal'] = df['Tanggal'].fillna('-')
-            else:
-                df['Tanggal'] = '-'
+            df = df.dropna(subset=['Lintang', 'Bujur'])
+            if df.empty:
+                self.logger.warning("[ACO] Semua baris koordinat NaN. Visualisasi dibatalkan.")
+                return
 
-            # === FIX LOKASI ===
-            if 'Lokasi' in df.columns:
-                df['Lokasi'] = df['Lokasi'].astype(str).replace(['nan', 'None'], '-')
-            elif 'Nama' in df.columns:
-                df['Lokasi'] = df['Nama'].astype(str).replace(['nan', 'None'], '-')
-            else:
-                df['Lokasi'] = '-'
+            # =========================
+            # LOKASI ESTIMASI (OFFLINE)
+            # =========================
+            df['Lokasi'] = df.apply(
+                lambda r: f"Lat {r['Lintang']:.2f}, Lon {r['Bujur']:.2f}",
+                axis=1
+            )
 
-            # === INIT MAP (WAJIB) ===
+            # =========================
+            # INIT MAP
+            # =========================
             center_lat = float(df['Lintang'].mean())
             center_lon = float(df['Bujur'].mean())
 
@@ -732,41 +731,44 @@ class DynamicAcoEngine:
                 tiles="OpenStreetMap"
             )
 
-            # === LOOP VISUAL ===
+            # =========================
+            # LOOP VISUAL
+            # =========================
             for _, r in df.iterrows():
-                radius_m = float(r['Radius_Visual_KM']) * 1000.0
+                # Radius (km → meter)
+                rad_km = float(r.get('Radius_Visual_KM', 0.0))
+                radius_m = rad_km * 1000.0
 
-                lokasi = r['Lokasi']
-                tanggal = r['Tanggal']
-                mag = r.get('Magnitudo', r.get('Magnitudo_Original', '-'))
-                depth = r.get('Kedalaman', r.get('Kedalaman (km)', r.get('Kedalaman_km', '-')))
-
+                # Magnitudo
+                mag = r.get('Magnitudo', r.get('Magnitudo_Original', None))
                 try:
                     mag = f"{float(mag):.1f}"
-                except:
-                    mag = '-'
+                except Exception:
+                    mag = "-"
 
+                # Kedalaman
+                depth = r.get('Kedalaman', r.get('Kedalaman (km)', r.get('Kedalaman_km', None)))
                 try:
                     depth = f"{float(depth):.0f}"
-                except:
-                    depth = '-'
+                except Exception:
+                    depth = "-"
 
-                rad = float(r['Radius_Visual_KM'])
-                risk = float(r['Pheromone_Score'])
+                # Risk
+                risk = float(r.get('PheromoneScore', r.get('Pheromone_Score', 0.0)))
                 risk_idx = float(r.get('Risk_Index', risk * 100.0))
 
                 popup_html = f"""
-                <b>Lokasi:</b> {lokasi}<br>
-                <b>Tanggal:</b> {tanggal}<br>
+                <b>Lokasi (Estimasi):</b> {r['Lokasi']}<br>
                 <b>Magnitudo:</b> {mag}<br>
                 <b>Kedalaman:</b> {depth} km<br>
-                <b>Radius Prediksi:</b> {rad:.1f} km<br>
+                <b>Radius Prediksi:</b> {rad_km:.2f} km<br>
                 <b>Risk Score (0–1):</b> {risk:.4f}<br>
                 <b>Risk Index (0–100):</b> {risk_idx:.2f}
                 """
 
                 popup = folium.Popup(popup_html, max_width=320)
 
+                # Zona dampak
                 folium.Circle(
                     location=[r['Lintang'], r['Bujur']],
                     radius=radius_m,
@@ -777,6 +779,7 @@ class DynamicAcoEngine:
                     popup=popup
                 ).add_to(m)
 
+                # Titik pusat
                 folium.CircleMarker(
                     location=[r['Lintang'], r['Bujur']],
                     radius=3,
@@ -785,6 +788,9 @@ class DynamicAcoEngine:
                     fill_opacity=1.0
                 ).add_to(m)
 
+            # =========================
+            # SAVE MAP
+            # =========================
             m.save(self.output_paths['aco_impact_html'])
             self.logger.info(f"[ACO] Visual ACO tersimpan → {self.output_paths['aco_impact_html']}")
 

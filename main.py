@@ -26,6 +26,8 @@ from typing import Dict, Optional, Tuple, Any, List
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
+from VolcanoAI.postprocess.cnn_csv_to_json import run as cnn_csv_to_json
+from VolcanoAI.engines.cnn_map_generator import CNNMapGenerator
 
 # ==============================================================================
 # 1. SYSTEM INITIALIZATION & PATH SETUP
@@ -347,11 +349,29 @@ class VolcanoAiPipeline:
 
         self.logger.info(f"✅ CNN latest overwritten: {latest_path}")
 
+
+        # ===============================
+        # 2️⃣ GENERATE CNN JSON (WAJIB)
+        # ===============================
+        try:
+            cnn_json_path = Path(self.config.OUTPUT.directory) / "cnn_results" / "cnn_predictions_latest.json"
+
+            cnn_csv_to_json(
+                csv_path=str(latest_path),
+                out_json=str(cnn_json_path),
+                force=True
+            )
+
+            self.logger.info(f"✅ CNN JSON generated: {cnn_json_path}")
+
+        except Exception as e:
+            self.logger.exception(f"Failed to generate CNN JSON: {e}")
+
+
         # ===============================
         # 3️⃣ GENERATE CNN MAP (FOLIUM)
         # ===============================
         try:
-            cnn_json_path = Path(self.config.OUTPUT.directory) / "cnn_results" / "cnn_predictions_latest.json"
             cnn_output_dir = Path(self.config.OUTPUT.directory) / "cnn_results"
 
             if cnn_json_path.exists():
