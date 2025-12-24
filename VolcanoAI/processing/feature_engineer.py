@@ -349,7 +349,13 @@ class FeatureEngineer:
 
         # 🟢 3. Date Sanitization
         df_clean = DataGuard.sanitize_dates(df_clean, 'Acquired_Date')
-
+        
+        # 🟢 3.5 Sinkronisasi Tanggal (FIX KRITIS)
+        if 'Acquired_Date' in df_clean.columns:
+            df_clean['Tanggal'] = pd.to_datetime(
+                df_clean['Acquired_Date'],
+                errors='coerce'
+            )
         # 🟢 4. Numeric Sanitization
         df_clean = DataGuard.enforce_numeric(df_clean, required_cols)
 
@@ -458,6 +464,8 @@ class FeatureEngineer:
 
         # 1. Basic Cleaning (Memastikan kolom wajib ada, TAPI TIDAK mengisi PheromoneScore)
         df_proc = self.basic_cleanup(df_proc)
+        print(df_proc[['Tanggal', 'Acquired_Date']].head())
+        print(df_proc[['Tanggal', 'Acquired_Date']].dtypes)
 
         # 2. Smart Classification (Rule-based + ML)
         df_proc = self._exec_smart_classification(df_proc, is_training)

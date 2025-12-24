@@ -705,11 +705,53 @@ class DynamicAcoEngine:
             # =========================
             df['Lintang'] = pd.to_numeric(df['Lintang'], errors='coerce')
             df['Bujur'] = pd.to_numeric(df['Bujur'], errors='coerce')
-
             df = df.dropna(subset=['Lintang', 'Bujur'])
             if df.empty:
                 self.logger.warning("[ACO] Semua baris koordinat NaN. Visualisasi dibatalkan.")
                 return
+
+            # =========================
+            # NORMALISASI KOLOM TANGGAL (robust)
+            # =========================
+            date_candidates = [
+                'Tanggal', 'Acquired_Date', 'AcquiredDate', 'Acquired Date',
+                'Acquired_DateTime', 'Acquired_Time', 'Acquired_Timestamp',
+                'EventTime', 'Time_UTC', 'Timestamp', 'Date', 'date', 'Tanggal_Kejadian'
+            ]
+            date_col = next((c for c in date_candidates if c in df.columns), None)
+
+            def parse_date_series(s):
+                # coba langsung -> pandas
+                s_parsed = pd.to_datetime(s, errors='coerce', utc=True)
+                # jika banyak NaT, mungkin kolom berisi epoch integer (deteksi)
+                if s_parsed.isna().sum() > 0 and s.dropna().dtype.kind in ('i','u','f'):
+                    # coba sebagai epoch seconds lalu milliseconds
+                    s_epoch_s = pd.to_datetime(s.dropna().astype('int64'), unit='s', errors='coerce', utc=True)
+                    if s_epoch_s.notna().sum() > 0:
+                        # gabungkan hasil (isi yang ter-parse)
+                        s_parsed = s_parsed.combine_first(s_epoch_s.reindex(s.index))
+                    else:
+                        s_epoch_ms = pd.to_datetime(s.dropna().astype('int64'), unit='ms', errors='coerce', utc=True)
+                        s_parsed = s_parsed.combine_first(s_epoch_ms.reindex(s.index))
+                return s_parsed
+
+            if date_col:
+                df['__Tanggal_parsed__'] = parse_date_series(df[date_col])
+            else:
+                # kalau tidak ada kolom tanggal, coba beberapa kolom lain (nama sebagian)
+                found = None
+                for c in df.columns:
+                    if any(token in c.lower() for token in ['date','time','timestamp','acquired']):
+                        found = c
+                        break
+                if found:
+                    df['__Tanggal_parsed__'] = parse_date_series(df[found])
+                else:
+                    df['__Tanggal_parsed__'] = pd.NaT
+
+            # format string yang ramah (jika datetime valid), else '-'
+            df['__Tanggal__'] = df['__Tanggal_parsed__'].dt.tz_convert(None).dt.strftime('%Y-%m-%d %H:%M:%S')
+            df['__Tanggal__'] = df['__Tanggal__'].fillna('-')
 
             # =========================
             # LOKASI ESTIMASI (OFFLINE)
@@ -735,29 +777,29 @@ class DynamicAcoEngine:
             # LOOP VISUAL
             # =========================
             for _, r in df.iterrows():
-                # Radius (km → meter)
                 rad_km = float(r.get('Radius_Visual_KM', 0.0))
                 radius_m = rad_km * 1000.0
 
-                # Magnitudo
                 mag = r.get('Magnitudo', r.get('Magnitudo_Original', None))
                 try:
                     mag = f"{float(mag):.1f}"
                 except Exception:
                     mag = "-"
 
-                # Kedalaman
                 depth = r.get('Kedalaman', r.get('Kedalaman (km)', r.get('Kedalaman_km', None)))
                 try:
                     depth = f"{float(depth):.0f}"
                 except Exception:
                     depth = "-"
 
-                # Risk
                 risk = float(r.get('PheromoneScore', r.get('Pheromone_Score', 0.0)))
                 risk_idx = float(r.get('Risk_Index', risk * 100.0))
 
+                # ambil tanggal yang sudah diformat
+                tanggal_str = r.get('__Tanggal__', '-') if pd.notna(r.get('__Tanggal__', None)) else '-'
+
                 popup_html = f"""
+                <b>Tanggal Kejadian:</b> {tanggal_str}<br>
                 <b>Lokasi (Estimasi):</b> {r['Lokasi']}<br>
                 <b>Magnitudo:</b> {mag}<br>
                 <b>Kedalaman:</b> {depth} km<br>
@@ -768,7 +810,6 @@ class DynamicAcoEngine:
 
                 popup = folium.Popup(popup_html, max_width=320)
 
-                # Zona dampak
                 folium.Circle(
                     location=[r['Lintang'], r['Bujur']],
                     radius=radius_m,
@@ -779,7 +820,6 @@ class DynamicAcoEngine:
                     popup=popup
                 ).add_to(m)
 
-                # Titik pusat
                 folium.CircleMarker(
                     location=[r['Lintang'], r['Bujur']],
                     radius=3,
@@ -788,9 +828,6 @@ class DynamicAcoEngine:
                     fill_opacity=1.0
                 ).add_to(m)
 
-            # =========================
-            # SAVE MAP
-            # =========================
             m.save(self.output_paths['aco_impact_html'])
             self.logger.info(f"[ACO] Visual ACO tersimpan → {self.output_paths['aco_impact_html']}")
 
