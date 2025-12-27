@@ -2,172 +2,172 @@
 TectonicAI - ACO Engine (Titanium Edition)
 Module: Advanced Ant Colony Optimization for Seismic Risk Zoning
 """
-import os
-import math
-import json
-import pickle
-import time
-import logging
-from typing import List, Optional
+import os # operasi path dan file system
+import math # operasi matematis
+import json # ekspor data ke JSON
+import pickle # simpan dan load state ACO (pheromone memory)
+import time # timing / delay
+import logging # sistem logging terpusat
+from typing import List, Optional # type hinting 
 
-import numpy as np
-import pandas as pd
-import folium
-from folium.plugins import HeatMap
+import numpy as np # kompytasi numerik dan matrix
+import pandas as pd # manipulasi data
+import folium # visualisasi peta interaktif
+from folium.plugins import HeatMap  # plugin heatmap folium
 
 # --- KONSTANTA ---
-R_EARTH_KM = 6371.0
-EPSILON = 1e-12
-DEFAULT_PHEROMONE = 0.1
-MAX_PHEROMONE = 10.0
-MIN_PHEROMONE = 0.01
+R_EARTH_KM = 6371.0 # Jari-jari bumi dalam kilometer -> haversine
+EPSILON = 1e-12 # nilai kecil untuk menghindari pembagian nol
+DEFAULT_PHEROMONE = 0.1 # nilai awal pheromone
+MAX_PHEROMONE = 10.0 # batas maksimum pheromone
+MIN_PHEROMONE = 0.01 # batas minimum pheromone
 
-logger = logging.getLogger("ACO_Engine_Master")
-logger.addHandler(logging.NullHandler())
-logger.setLevel(logging.DEBUG)
+logger = logging.getLogger("ACO_Engine_Master") # logger utama ACO
+logger.addHandler(logging.NullHandler()) # cegah error jika tidak ada handler
+logger.setLevel(logging.DEBUG) # level debug penuh
 
 # ==========================================
 # 1. GEO UTILITIES
 # ==========================================
-class GeoMath:
-    @staticmethod
-    def haversine_vectorized(lat_array, lon_array):
-        lat_rad = np.radians(lat_array)
-        lon_rad = np.radians(lon_array)
-
-        dlat = lat_rad[:, np.newaxis] - lat_rad
-        dlon = lon_rad[:, np.newaxis] - lon_rad
-
+class GeoMath: # kumpulan fungsi geo-matematis
+    @staticmethod # haversine vectorized untuk matriks jarak
+    def haversine_vectorized(lat_array, lon_array): # menghitung jarak Haversine antar titik
+        lat_rad = np.radians(lat_array) # konversi ke derajat ke radian (syarat rumus harversine)
+        lon_rad = np.radians(lon_array) # konversi ke derajat ke radian (syarat rumus harversine)
+        # hitung selisih lat dan lon antar semua pasangan titik
+        dlat = lat_rad[:, np.newaxis] - lat_rad  
+        dlon = lon_rad[:, np.newaxis] - lon_rad 
+        # hitung jarak haversine ( rumus inti jarak bola bumi)
         a = (
             np.sin(dlat / 2.0) ** 2 +
             np.cos(lat_rad[:, np.newaxis]) * np.cos(lat_rad) *
             np.sin(dlon / 2.0) ** 2
-        )
-        a = np.clip(a, 0.0, 1.0)
-        c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1.0 - a))
-        dist_matrix = R_EARTH_KM * c
-        np.fill_diagonal(dist_matrix, 0.0)
-        return dist_matrix + EPSILON  # hindari 0 murni
+        ) 
+        a = np.clip(a, 0.0, 1.0)  # keamanan numerik (floating error)
+        c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1.0 - a))  # Konversi ke jarak permukaan bumi (km)
+        dist_matrix = R_EARTH_KM * c # jarak akhir dalam kilometer 
+        np.fill_diagonal(dist_matrix, 0.0) # jarak ke diri sendiri = 0
+        return dist_matrix + EPSILON  # menambahkan epsilon untuk hindari pembagian nol di heuristic
 
-# ==========================================
+# ============
 # 2. ANT AGENT
-# ==========================================
-class AntAgent:
-    def __init__(self, ant_id: int, start_node: int, alpha: float, beta: float, role: str = "Worker"):
-        self.id = ant_id
-        self.start_node = start_node
-        self.current_node = start_node
-        self.role = role
-        self.alpha = alpha
-        self.beta = beta
-        self.path = [start_node]
-        self.visited_mask = None
-        self.accumulated_risk = 0.0
-
-    def reset(self, new_start_node: int, n_nodes: int):
-        self.start_node = new_start_node
-        self.current_node = new_start_node
-        self.path = [new_start_node]
-        self.visited_mask = np.zeros(n_nodes, dtype=bool)
-        self.visited_mask[new_start_node] = True
-        self.accumulated_risk = 0.0
-
+# ============
+class AntAgent: # representasi satu semut virtual dalam koloni
+    def __init__(self, ant_id: int, start_node: int, alpha: float, beta: float, role: str = "Worker"): # inisialisasi properti dasar semut
+        self.id = ant_id # ID unik semut
+        self.start_node = start_node # node awal semut
+        self.current_node = start_node # node saat ini semut
+        self.role = role # peran semut (explorer/exploiter)
+        self.alpha = alpha # bobot pheromone
+        self.beta = beta # bobot heuristic
+        self.path = [start_node] # jejak perjalanan semut (jalur yang ditempuh))
+        self.visited_mask = None # penanda node yang sudah dikunjungi
+        self.accumulated_risk = 0.0 # total risiko yang dikumpulkan semut
+    # reset status semut untuk iterasi baru
+    def reset(self, new_start_node: int, n_nodes: int): # reset posisi dan status semut
+        self.start_node = new_start_node # set node awal baru
+        self.current_node = new_start_node # set node saat ini ke awal baru
+        self.path = [new_start_node] # reset jejak perjalanan
+        self.visited_mask = np.zeros(n_nodes, dtype=bool) # inisialisasi penanda kunjungan
+        self.visited_mask[new_start_node] = True # tandai node awal sudah dikunjungi
+        self.accumulated_risk = 0.0 # reset risiko terakumulasi
+    # gerakan semut ke node berikutnya
     def move_to(self, next_node: int, risk_val: float):
-        self.path.append(next_node)
-        self.visited_mask[next_node] = True
-        self.current_node = next_node
-        self.accumulated_risk += float(max(risk_val, 0.0))
+        self.path.append(next_node) # tambahkan node berikutnya ke jejak
+        self.visited_mask[next_node] = True # tandai node berikutnya sudah dikunjungi
+        self.current_node = next_node # update node saat ini
+        self.accumulated_risk += float(max(risk_val, 0.0)) # tambahkan risiko ke total (pastikan non-negatif)
 
-# ==========================================
+# =======================
 # 3. ENVIRONMENT MANAGER
-# ==========================================
-class EnvironmentManager:
-    def __init__(self, df: pd.DataFrame, logger_obj):
-        self.df = df.copy()
-        self.logger = logger_obj
-        self.n_nodes = len(df)
+# =======================
+class EnvironmentManager: # manajemen lingkungan ACO (matriks jarak, heuristic, pheromone)
+    def __init__(self, df: pd.DataFrame, logger_obj): # inisialisasi dengan DataFrame gempa
+        self.df = df.copy() # salinan DataFrame input
+        self.logger = logger_obj # logger terpusat
+        self.n_nodes = len(df) # jumlah node (gempa) dalam DataFrame
 
-        self.dist_matrix = None
-        self.heuristic_matrix = None
-        self.pheromone_matrix = None
+        self.dist_matrix = None # matriks jarak antar node
+        self.heuristic_matrix = None # matriks heuristic (daya tarik risiko)
+        self.pheromone_matrix = None # matriks pheromone (jejak semut)
+        
+        if self.n_nodes > 0: 
+            self._normalize_geo_columns() # normaliasi koordinat
+            self._build_distance_matrix() # hitung jarak antar gempa
+            self._build_heuristic_matrix() # bangun heuristic berbasis fisika
+            self._init_pheromone_matrix() # inisialisasi pheromone
 
-        if self.n_nodes > 0:
-            self._normalize_geo_columns()
-            self._build_distance_matrix()
-            self._build_heuristic_matrix()
-            self._init_pheromone_matrix()
-
-    # ----------------------
-    def _normalize_geo_columns(self):
+    # normalisasi kolom koordinat agar ACO selalu punya lintang dan bujur
+    def _normalize_geo_columns(self):  
         # PRIORITAS KERAS: EQ_Lintang & EQ_Bujur (SAFE)
-        if 'EQ_Lintang' in self.df.columns and 'EQ_Bujur' in self.df.columns:
-            self.df['Lintang'] = pd.to_numeric(self.df['EQ_Lintang'], errors='coerce')
-            self.df['Bujur'] = pd.to_numeric(self.df['EQ_Bujur'], errors='coerce')
-            # fill NaN with 0.0 (atau kebijakan lain)
-            if self.df['Lintang'].isna().any() or self.df['Bujur'].isna().any():
-                self.logger.warning("[ACO] NaN pada EQ_Lintang/EQ_Bujur -> diisi 0.0")
+        if 'EQ_Lintang' in self.df.columns and 'EQ_Bujur' in self.df.columns: 
+            self.df['Lintang'] = pd.to_numeric(self.df['EQ_Lintang'], errors='coerce') # konversi kolom EQ_Lintang menjadi numerik lalu simpan ke kolom standar 'Lintang'
+            self.df['Bujur'] = pd.to_numeric(self.df['EQ_Bujur'], errors='coerce') # konversi kolom EQ_Bujur menjadi numerik lalu simpan ke kolom standar 'Bujur'
+            # Jika hasil konversi menghasilkan NaN (data rusak/kosong)
+            if self.df['Lintang'].isna().any() or self.df['Bujur'].isna().any(): # log warning agar mudah terlacak saat debug
+                self.logger.warning("[ACO] NaN pada EQ_Lintang/EQ_Bujur -> diisi 0.0") # isi NaN dengan 0.0 agar proses ACO tidak crash
                 self.df[['Lintang', 'Bujur']] = self.df[['Lintang', 'Bujur']].fillna(0.0)
             return
 
         # fallback lama (jaga kompatibilitas)
-        col_map_lat = ['Lintang', 'Latitude', 'lat']
-        col_map_lon = ['Bujur', 'Longitude', 'lon']
+        col_map_lat = ['Lintang', 'Latitude', 'lat'] # daftar kemungkinan nama kolom lintang (dataset lama/eksternal)
+        col_map_lon = ['Bujur', 'Longitude', 'lon'] # daftar kemungkinan nama kolom bujur (dataset lama/eksternal)
 
-        lat_col = next((c for c in col_map_lat if c in self.df.columns), None)
-        lon_col = next((c for c in col_map_lon if c in self.df.columns), None)
-
+        lat_col = next((c for c in col_map_lat if c in self.df.columns), None) # cari kolom lintang yang ada di DataFrame
+        lon_col = next((c for c in col_map_lon if c in self.df.columns), None) # cari kolom bujur yang ada di DataFrame
+        # jika kolom koordinat tidak ditemukan, lempar error
         if lat_col is None or lon_col is None:
             raise KeyError("[ACO] Kolom koordinat tidak ditemukan")
 
-        self.df['Lintang'] = pd.to_numeric(self.df[lat_col], errors='coerce')
-        self.df['Bujur'] = pd.to_numeric(self.df[lon_col], errors='coerce')
-
+        self.df['Lintang'] = pd.to_numeric(self.df[lat_col], errors='coerce') # konversi kolom lintang menjadi numerik lalu simpan ke kolom standar 'Lintang'
+        self.df['Bujur'] = pd.to_numeric(self.df[lon_col], errors='coerce') # konversi kolom bujur menjadi numerik lalu simpan ke kolom standar 'Bujur'
+        # cek jika ada NaN pada kolom koordinat setelah konversi
         if self.df['Lintang'].isna().any() or self.df['Bujur'].isna().any():
-            self.logger.warning("[ACO] NaN pada koordinat → diisi 0.0")
-            self.df[['Lintang','Bujur']] = self.df[['Lintang','Bujur']].fillna(0.0)
-    # ----------------------
+            self.logger.warning("[ACO] NaN pada koordinat → diisi 0.0") # log warning agar mudah terlacak saat debug
+            self.df[['Lintang','Bujur']] = self.df[['Lintang','Bujur']].fillna(0.0)     # isi NaN dengan 0.0 agar proses ACO tidak crash
+    # Membangun Matriks Jarak menggunakan rumus Haversine
     def _build_distance_matrix(self):
-        lats = self.df['Lintang'].values
-        lons = self.df['Bujur'].values
-        self.dist_matrix = GeoMath.haversine_vectorized(lats, lons)
+        lats = self.df['Lintang'].values # ambil array lintang
+        lons = self.df['Bujur'].values # ambil array bujur
+        self.dist_matrix = GeoMath.haversine_vectorized(lats, lons) # hitung matriks jarak haversine antar semua titik
 
-    # ----------------------
+    # Membangun Matriks Heuristic berbasis Magnitudo dan Kedalaman
     def _build_heuristic_matrix(self):
         """Membangun Matrix Heuristic untuk ACO berbasis Fisika Gempa."""
         mag_col = next((c for c in ['Magnitudo_Original', 'Magnitudo', 'magnitude', 'mag'] if c in self.df.columns), None)
         depth_cols_candidates = ['Kedalaman_Original', 'Kedalaman_km', 'Kedalaman (km)', 'depth', 'depth_km']
         depth_col = next((c for c in ['Kedalaman_Original', 'Kedalaman_km', 'Kedalaman (km)', 'depth', 'depth_km'] if c in self.df.columns), None)
-
+        # jika kolom magnitudo atau kedalaman tidak ditemukan, lempar error
         if mag_col is None or depth_col is None:
             raise KeyError(f"[ACO Error] Kolom Magnitudo ('{mag_col}') atau Kedalaman ('{depth_col}') tidak ditemukan di DataFrame.")
 
         print("[DEBUG ACO] mags:", self.df[mag_col].values)
         print("[DEBUG ACO] depths:", self.df[depth_col].values)
+        # konversi kolom magnitudo dan kedalaman ke numerik, isi NaN dengan nilai default
+        mags_raw = pd.to_numeric(self.df[mag_col], errors='coerce').fillna(0.1) # Magnitudo minimal 0.1
+        depths_raw = pd.to_numeric(self.df[depth_col], errors='coerce').fillna(1.0) # Kedalaman minimal 1.0 km
+        
+        mags = np.clip(mags_raw.values.astype(float), 0.1, None) # pastikan magnitudo minimal 0.1
+        depths = np.clip(depths_raw.values.astype(float), 1.0, None) # pastikan kedalaman minimal 1.0 km
 
-        mags_raw = pd.to_numeric(self.df[mag_col], errors='coerce').fillna(0.1)
-        depths_raw = pd.to_numeric(self.df[depth_col], errors='coerce').fillna(1.0)
-
-        mags = np.clip(mags_raw.values.astype(float), 0.1, None)
-        depths = np.clip(depths_raw.values.astype(float), 1.0, None)
-
-        energy_score = np.clip(np.power(mags, 2.5), 1e-4, None)
-        depth_factor = np.clip(1.0 / np.power(depths, 0.5), 1e-4, None)
-        if np.max(depth_factor) > 0:
-            depth_factor /= np.max(depth_factor)
-
+        energy_score = np.clip(np.power(mags, 2.5), 1e-4, None) # energi gempa berbasis magnitudo
+        depth_factor = np.clip(1.0 / np.power(depths, 0.5), 1e-4, None) # faktor kedalaman (semakin dangkal, semakin besar faktor)
+        if np.max(depth_factor) > 0: # normalisasi faktor kedalaman
+            depth_factor /= np.max(depth_factor) # normalisasi ke [0, 1]
+        # hitung daya tarik gabungan
         attractiveness = energy_score * depth_factor
         attr_matrix = np.tile(attractiveness, (self.n_nodes, 1))
         dist_safe = self.dist_matrix.copy()
         dist_safe[dist_safe < 0.5] = 0.5  # MIN 500 meter
         self.heuristic_matrix = attr_matrix / dist_safe
-
+        # normalisasi matriks heuristic
         np.fill_diagonal(self.heuristic_matrix, 0.0)
         finite_vals = self.heuristic_matrix[np.isfinite(self.heuristic_matrix)]
         max_finite = np.max(finite_vals) if len(finite_vals) > 0 else 1.0
         self.heuristic_matrix[~np.isfinite(self.heuristic_matrix)] = max_finite
-
+        # normalisasi ke [0, 1]
         max_val = np.max(self.heuristic_matrix)
-        if max_val <= 1e-9 or np.isnan(max_val):
+        if max_val <= 1e-9 or np.isnan(max_val): # semua nilai 0 atau NaN
             self.logger.warning("[ACO] Heuristic Matrix kosong/flat/NaN. Menggunakan Fallback uniform.")
             self.heuristic_matrix.fill(1.0)
             np.fill_diagonal(self.heuristic_matrix, 0.0)
@@ -177,59 +177,59 @@ class EnvironmentManager:
         mask_diag = np.eye(self.n_nodes, dtype=bool)
         self.heuristic_matrix[~mask_diag] = np.clip(self.heuristic_matrix[~mask_diag], 1e-4, 1.0)
 
-    # ----------------------
+    # inisialisasi matriks pheromone
     def _init_pheromone_matrix(self):
-        self.pheromone_matrix = np.full((self.n_nodes, self.n_nodes), DEFAULT_PHEROMONE, dtype=float)
-        np.fill_diagonal(self.pheromone_matrix, 0.0)
+        self.pheromone_matrix = np.full((self.n_nodes, self.n_nodes), DEFAULT_PHEROMONE, dtype=float) # inisialisasi pheromone konstan
+        np.fill_diagonal(self.pheromone_matrix, 0.0) 
 
-    # ----------------------
+    # mendapatkan probabilitas transisi untuk semut di node saat ini
     def get_transition_probabilities(self, current_node: int, ant: AntAgent):
-        tau = self.pheromone_matrix[current_node]
-        eta = self.heuristic_matrix[current_node]
-        prob = np.power(tau, ant.alpha) * np.power(eta, ant.beta)
-
+        tau = self.pheromone_matrix[current_node] # ambil pheromone dari node saat ini
+        eta = self.heuristic_matrix[current_node] # ambil heuristic dari node saat ini
+        prob = np.power(tau, ant.alpha) * np.power(eta, ant.beta) # hitung probabilitas transisi
+        # hilangkan node yang sudah dikunjungi
         if ant.visited_mask is not None and len(ant.visited_mask) == len(prob):
             prob[ant.visited_mask] = 0.0
-
+        # sanitasi probabilitas
         if not np.isfinite(prob).any() or np.sum(prob) <= 0:
             prob = np.ones_like(prob, dtype=float)
-        return prob
+        return prob  # kembalikan vektor probabilitas
 
-    # ----------------------
+    # terapkan update global pheromone (evaporasi + deposit baru)
     def apply_global_update(self, evaporation_rate: float, deposit_matrix: np.ndarray):
         self.pheromone_matrix *= (1.0 - evaporation_rate)
         self.pheromone_matrix += deposit_matrix
         self.pheromone_matrix = np.clip(self.pheromone_matrix, MIN_PHEROMONE, MAX_PHEROMONE)
         np.fill_diagonal(self.pheromone_matrix, 0.0)
-
+    # reset pheromone dengan smoothing (mengurangi ekstrem)
     def reset_pheromone_smooth(self):
         avg = float(np.mean(self.pheromone_matrix))
         self.pheromone_matrix = 0.5 * self.pheromone_matrix + 0.5 * avg
         np.fill_diagonal(self.pheromone_matrix, 0.0)
 
-# ==========================================
+# ================
 # 4. MAIN ENGINE
-# ==========================================
-class DynamicAcoEngine:
-    def __init__(self, config):
+# ================
+class DynamicAcoEngine: # mesin utama ACO dengan konfigurasi dinamis
+    def __init__(self, config): 
         self.logger = logging.getLogger("ACO_Engine_Master")
         self.aco_cfg = self._prepare_config(config)
         self._load_parameters()
 
-        base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../output'))
+        base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../output')) # path output dasar
         self.output_paths = {
             'aco_zoning_excel': os.path.join(base_path, 'aco_results/aco_zoning_data_for_lstm.xlsx'),
             'aco_epicenters_csv': os.path.join(base_path, 'aco_results/aco_epicenters.csv'),
             'aco_state_file': os.path.join(base_path, 'aco_results/aco_brain_state.pkl'),
             'aco_impact_html': os.path.join(base_path, 'aco_results/aco_impact_zones.html')
-        }
-        os.makedirs(os.path.dirname(self.output_paths['aco_zoning_excel']), exist_ok=True)
+        } # pastikan direktori output ada
+        os.makedirs(os.path.dirname(self.output_paths['aco_zoning_excel']), exist_ok=True) # buat direktori jika belum ada
 
-        self.env_manager: Optional[EnvironmentManager] = None
-        self.colony: List[AntAgent] = []
-        self.best_global_score = -np.inf
-        self.stagnation_counter = 0
-
+        self.env_manager: Optional[EnvironmentManager] = None # manajer lingkungan ACO
+        self.colony: List[AntAgent] = [] # koloni semut
+        self.best_global_score = -np.inf # skor global terbaik
+        self.stagnation_counter = 0 # counter stagnasi
+    # siapkan konfigurasi ACO dari dict atau object
     def _prepare_config(self, config):
         if isinstance(config, dict):
             return config
@@ -238,7 +238,7 @@ class DynamicAcoEngine:
         else:
             self.logger.warning("[ACO] Config tidak dikenali, memakai config kosong.")
             return {}
-
+    # muat parameter ACO dari konfigurasi
     def _load_parameters(self):
         self.n_ants = int(self.aco_cfg.get('n_ants', 50))
         self.n_iterations = int(self.aco_cfg.get('n_iterations', 100))
@@ -249,64 +249,64 @@ class DynamicAcoEngine:
         self.Q = float(self.aco_cfg.get('pheromone_deposit', 100.0))
         self.risk_threshold = float(self.aco_cfg.get('risk_threshold', 0.7))
 
-    # Selanjutnya semua metode lain (_initialize_colony, _step_ants, _manage_lifecycle, run, dsb) 
-    # bisa ditempatkan di sini tanpa perubahan logika, hanya indentasi dirapikan.
+    
+    
 
-    # ----------------------------------
+    # inisialisasi koloni semut
     def _initialize_colony(self, n_nodes: int):
         self.colony = []
 
-        if n_nodes <= 0:
+        if n_nodes <= 0: # jika tidak ada node, tidak perlu inisialisasi
             return
-
+        # tentukan start node berdasarkan heuristic (semakin berisiko, semakin mungkin jadi start)
         start_scores = self.env_manager.heuristic_matrix.sum(axis=1)
-        # normalisasi aman
-        start_scores = np.clip(start_scores, 0.0, None)
-        total = float(start_scores.sum())
-        if total <= 0 or not np.isfinite(total):
+        # sanitasi skor start (hapus NaN/Negatif)
+        start_scores = np.clip(start_scores, 0.0, None) # pastikan non-negatif
+        total = float(start_scores.sum()) # total skor start
+        if total <= 0 or not np.isfinite(total): # fallback uniform jika semua skor 0 atau NaN
             start_probs = np.ones(n_nodes, dtype=float) / max(n_nodes, 1)
         else:
             start_probs = start_scores / total
-
+        # buat semut dengan peran berbeda (explorer/exploiter)
         for i in range(self.n_ants):
-            if i < int(self.n_ants * 0.2):
-                role = "Explorer"
-                alpha = self.alpha_base * 0.5
-                beta = self.beta_base * 1.5
-            else:
-                role = "Exploiter"
-                alpha = self.alpha_base * 1.2
-                beta = self.beta_base * 0.9
-
+            if i < int(self.n_ants * 0.2): # 20% semut sebagai explorer
+                role = "Explorer" # peran semut
+                alpha = self.alpha_base * 0.5 # bobot pheromone lebih rendah
+                beta = self.beta_base * 1.5 # bobot heuristic lebih tinggi
+            else: # 80% semut sebagai exploiter
+                role = "Exploiter" # peran semut
+                alpha = self.alpha_base * 1.2 # bobot pheromone lebih tinggi
+                beta = self.beta_base * 0.9 # bobot heuristic lebih rendah
+            # pilih start node berdasarkan probabilitas
             start_node = int(np.random.choice(np.arange(n_nodes), p=start_probs))
-            ant = AntAgent(i, start_node, alpha, beta, role)
-            ant.reset(start_node, n_nodes)
-            self.colony.append(ant)
+            ant = AntAgent(i, start_node, alpha, beta, role) # buat semut baru
+            ant.reset(start_node, n_nodes)  # reset status semut
+            self.colony.append(ant) # tambahkan semut ke koloni
 
-    # ----------------------------------
+    # step semut dalam satu iterasi
     def _step_ants(self):
         active_ants = 0
-        for ant in self.colony:
-            if ant.current_node == -1:
+        for ant in self.colony: # loop setiap semut
+            if ant.current_node == -1: 
                 continue
-
+            # dapatkan probabilitas transisi dari node saat ini
             probs = self.env_manager.get_transition_probabilities(ant.current_node, ant)
-            total = float(np.sum(probs))
-
+            total = float(np.sum(probs)) # total probabilitas
+            # jika tidak ada kemungkinan transisi, semut berhenti
             if total <= 0 or not np.isfinite(total):
                 ant.current_node = -1
                 continue
-
+            # pilih node berikutnya berdasarkan probabilitas
             norm = probs / total
             next_node = int(np.random.choice(np.arange(self.env_manager.n_nodes), p=norm))
-
+            # dapatkan nilai risiko dari heuristic matrix
             risk_val = self.env_manager.heuristic_matrix[ant.current_node, next_node]
             ant.move_to(next_node, risk_val)
             active_ants += 1
 
-        return active_ants
+        return active_ants # kembalikan jumlah semut yang masih aktif
 
-    # ----------------------------------
+    # manajemen siklus hidup koloni per iterasi
     def _manage_lifecycle(self, iteration: int):
         """
         Mengelola siklus hidup koloni per iterasi:
@@ -408,37 +408,37 @@ class DynamicAcoEngine:
                 new_start = np.random.randint(0, n_nodes)
                 
             ant.reset(int(new_start), n_nodes)
-
+    # Simpan hasil ACO ke disk (Excel & CSV)
     def _compute_impact_center(self, df):
-        lat_col = None
-        lon_col = None
-
+        lat_col = None # kolom lintang
+        lon_col = None # kolom bujur
+        # deteksi kolom koordinat
         for c in df.columns:
-            c_low = c.lower()
-            if c_low in ['lintang', 'latitude', 'lat']:
+            c_low = c.lower() # nama kolom dalam huruf kecil
+            if c_low in ['lintang', 'latitude', 'lat']: # deteksi kolom lintang
                 lat_col = c
-            if c_low in ['bujur', 'longitude', 'lon']:
+            if c_low in ['bujur', 'longitude', 'lon']: # deteksi kolom bujur
                 lon_col = c
-
+        # jika kolom koordinat tidak ditemukan, lempar error
         if lat_col is None or lon_col is None:
             raise KeyError(f"[ACO] Kolom koordinat tidak ditemukan. Kolom tersedia: {list(df.columns)}")
 
-        # safe numeric conversion
+        # Simpan koordinat sebagai numerik
         coords = df[[lat_col, lon_col]].copy()
         coords[lat_col] = pd.to_numeric(coords[lat_col], errors='coerce')
         coords[lon_col] = pd.to_numeric(coords[lon_col], errors='coerce')
 
         weights = pd.to_numeric(df.get('PheromoneScore', pd.Series(0, index=df.index)), errors='coerce').fillna(0.0).values
         valid_mask = coords[lat_col].notna() & coords[lon_col].notna()
-
+        # jika tidak ada koordinat valid, gunakan mean sederhana
         if valid_mask.sum() == 0:
-            # fallback: mean of numeric-coerced columns (or 0.0)
+            # gunakan mean sederhana
             lat_center = float(coords[lat_col].mean(skipna=True) or 0.0)
             lon_center = float(coords[lon_col].mean(skipna=True) or 0.0)
         else:
-            # use only valid rows for weighted average (weights aligned)
+            # gunakan rata-rata bobot pheromone
             w = weights[valid_mask]
-            # if all weights 0 -> fallback to simple mean of valid coords
+            # jika semua bobot nol, fallback ke mean sederhana
             if np.sum(w) <= 1e-9:
                 lat_center = float(coords.loc[valid_mask, lat_col].mean())
                 lon_center = float(coords.loc[valid_mask, lon_col].mean())
@@ -451,18 +451,18 @@ class DynamicAcoEngine:
             "center_lon": lon_center,
             "lat_column_used": lat_col,
             "lon_column_used": lon_col
-        }
-
+        } # kembalikan info pusat dampak
+    # hitung luas area terdampak berdasarkan radius visual
     def _compute_impact_area(self, df):
         """
         Hitung estimasi luas area terdampak (km²)
         Berdasarkan radius visual hasil ACO
         """
-
+        # Pastikan kolom radius visual ada
         if df.empty or 'Radius_Visual_KM' not in df.columns:
             self.logger.warning("[ACO] Tidak dapat menghitung impact area (data kosong / kolom hilang)")
             return {"impact_area_km2": 0.0}
-
+        # Konversi radius ke numerik
         radius_km = pd.to_numeric(df['Radius_Visual_KM'], errors='coerce').fillna(0.0)
 
         # Area lingkaran: πr²
@@ -474,14 +474,14 @@ class DynamicAcoEngine:
         return {
             "impact_area_km2": round(impact_area, 2)
         }
-
+    # ekspor hasil ACO sebagai input GA
     def _export_for_ga(self, df, center_info):
         """
         Export hasil ACO sebagai input GA
         """
         # Hitung area terdampak
         area_info = self._compute_impact_area(df)
-
+        # Siapkan data input untuk GA
         ga_input = {
             "center_lat": center_info["center_lat"],
             "center_lon": center_info["center_lon"],
@@ -490,10 +490,10 @@ class DynamicAcoEngine:
             "n_events": int(len(df)),
             "impact_area_km2": area_info["impact_area_km2"]  # <<< PENAMBAHAN
         }
-
+        # Simpan sebagai JSON
         output_dir = os.path.dirname(self.output_paths['aco_state_file'])
         ga_path = os.path.join(output_dir, "aco_to_ga.json")
-
+        # pastikan direktori ada
         with open(ga_path, "w") as f:
             json.dump(ga_input, f, indent=2)
 
@@ -502,30 +502,30 @@ class DynamicAcoEngine:
         return ga_input
 
 
-    # ----------------------------------
+    # menjalankan ACO pada DataFrame input
     def run(self, df: pd.DataFrame):
         print(f"[DEBUG] DataFrame masuk: {df.shape[0]} baris, {df.shape[1]} kolom")
         print(f"[DEBUG] Kolom: {list(df.columns)}")
         print(df.head(5))
-        if 'EQ_Lintang' in df.columns and 'EQ_Bujur' in df.columns:
+        if 'EQ_Lintang' in df.columns and 'EQ_Bujur' in df.columns: # cek kolom koordinat
             print("[DEBUG ACO] Kolom koordinat tersedia")
             print(df[['EQ_Lintang', 'EQ_Bujur']].tail(10))
             print("NaN count:", df[['EQ_Lintang', 'EQ_Bujur']].isna().sum())
         else:
             print("[DEBUG ACO] Kolom koordinat EQ_Lintang/EQ_Bujur tidak ditemukan!")
 
-        if df.empty:
+        if df.empty: # cek DataFrame kosong
             print("DEBUG: VRP DF KOSONG, ACO Center = nan")
             return df, {}
-        if df is None or df.empty:
+        if df is None or df.empty: # cek DataFrame kosong
             self.logger.warning("[ACO] DataFrame kosong.")
             return df, {}
-
+        # inisialisasi environment manager
         self.env_manager = EnvironmentManager(df, self.logger)
-
+        # khusus live event dengan 1 node
         if self.env_manager.n_nodes <= 1:
             if os.path.exists(self.output_paths['aco_state_file']):
-                try:
+                try: # coba load state lama
                     with open(self.output_paths['aco_state_file'], 'rb') as f:
                         state = pickle.load(f)
                     
@@ -535,7 +535,7 @@ class DynamicAcoEngine:
                          # Jika ACO dijalankan, skornya pasti sudah ada
                          final_score = df['PheromoneScore'].values 
                          return df, {"pheromone_matrix": state.get('pheromone_matrix')}
-                         
+                # Jika ada state, gunakan untuk hitung skor risiko        
                 except Exception as e:
                     self.logger.warning(f"[ACO] Gagal memproses live event dengan state: {e}. Mengembalikan skor 0.")
                     df['PheromoneScore'] = 1e-4 # Fallback minimal
@@ -561,9 +561,9 @@ class DynamicAcoEngine:
                     self.env_manager.pheromone_matrix = old_matrix
             except Exception as e:
                 self.logger.warning(f"[ACO] Gagal load state lama: {e}")
-
+        # inisialisasi koloni semut
         self._initialize_colony(self.env_manager.n_nodes)
-
+        # loop utama ACO
         for it in range(self.n_iterations):
             for _ in range(max(self.n_steps - 1, 1)):
                 if self._step_ants() == 0:
@@ -576,7 +576,7 @@ class DynamicAcoEngine:
                 pickle.dump({'pheromone_matrix': self.env_manager.pheromone_matrix}, f)
         except Exception as e:
             self.logger.warning(f"[ACO] Gagal simpan brain state: {e}")
-
+        # finalisasi hasil
         df_out, meta = self._finalize_results(df)
         center_info = self._compute_impact_center(df_out)
         self._export_for_ga(df_out, center_info)
@@ -584,7 +584,7 @@ class DynamicAcoEngine:
         self._generate_visuals(df_out)
         return df_out, meta
 
-
+    # finalisasi hasil ACO
     def _finalize_results(self, df: pd.DataFrame):
         """
         Hitung skor risiko node dari matriks pheromone,
@@ -600,13 +600,13 @@ class DynamicAcoEngine:
             q01, q99 = np.quantile(node_importance, [0.01, 0.99])
             q01 = q01 if np.isfinite(q01) else float(node_importance.min())
             q99 = q99 if np.isfinite(q99) else float(node_importance.max())
-
+            # normalisasi ke [0, 1] dengan clipping
             if q99 <= q01 + 1e-9:
                 norm_scores = np.ones_like(node_importance, dtype=float) * 0.5
             else:
                 clipped = np.clip(node_importance, q01, q99)
                 norm_scores = (clipped - q01) / (q99 - q01)
-
+            
             norm_scores = np.clip(norm_scores, 1e-4, 1.0)
             norm_scores = np.nan_to_num(norm_scores, nan=1e-4)
 
@@ -614,7 +614,7 @@ class DynamicAcoEngine:
                 self.logger.warning("[ACO] All pheromone scores zero → fallback uniform")
                 norm_scores[:] = 1.0 / len(norm_scores)
             
-
+        # Siapkan DataFrame output
         df_out = self.env_manager.df.copy() if self.env_manager else df.copy()
         df_out['PheromoneScore'] = norm_scores
         df_out['Pheromone_Score'] = norm_scores
@@ -633,22 +633,22 @@ class DynamicAcoEngine:
         radius_km = base_r * (1.0 + 0.5 * pher)
         radius_km = np.clip(radius_km, 3.0, 80.0)
         df_out['Radius_Visual_KM'] = radius_km
-
+        # Pastikan kolom koordinat ada dan numerik
         for src, dst in [('EQ_Lintang','Lintang'), ('EQ_Bujur','Bujur')]:
             if dst not in df_out.columns or df_out[dst].isna().all():
                 if src in df_out.columns:
                     df_out[dst] = pd.to_numeric(df_out[src], errors='coerce')
-
+        
         df_out[['Lintang','Bujur']] = df_out[['Lintang','Bujur']].fillna(0.0)
 
         return df_out, {
             "pheromone_matrix": self.env_manager.pheromone_matrix if self.env_manager else None
-        }
+        } # kembalikan DataFrame dan metadata
 
-    # ==========================================
+    # ===========
     # SAVE FILES
-    # ==========================================
-
+    # ===========
+    # simpan hasil ACO ke disk
     def _save_to_disk(self, df):
         mag_col = 'Magnitudo_Original' if 'Magnitudo_Original' in df.columns else 'Magnitudo'
         depth_col = 'Kedalaman_Original' if 'Kedalaman_Original' in df.columns else 'Kedalaman_km'
@@ -656,7 +656,7 @@ class DynamicAcoEngine:
         cols = [
             'Tanggal', 'Lintang', 'Bujur', mag_col, depth_col, 'Lokasi',
             'PheromoneScore', 'Risk_Index', 'Status_Zona', 'Radius_Visual_KM'
-        ]
+        ] # kolom output penting
         
         # Tambahkan kolom yang mungkin sudah di-rename oleh FeatureEngineer
         final_df = df.copy()
@@ -672,9 +672,9 @@ class DynamicAcoEngine:
             self.logger.warning("[ACO] final_df belum punya Lintang/Bujur sebelum save; menambahkan default 0.0")
             final_df['Lintang'] = pd.to_numeric(final_df.get('Lintang', 0.0), errors='coerce').fillna(0.0)
             final_df['Bujur'] = pd.to_numeric(final_df.get('Bujur', 0.0), errors='coerce').fillna(0.0)
-
+        # susun ulang dan ganti nama kolom untuk output
         final_df = final_df[[c for c in cols if c in final_df.columns]].rename(columns={mag_col: 'Magnitudo', depth_col: 'Kedalaman'})
-
+        # simpan ke Excel dan CSV
         try:
             final_df.to_excel(self.output_paths['aco_zoning_excel'], index=False)
             final_df.to_csv(self.output_paths['aco_epicenters_csv'], index=False)
@@ -684,7 +684,7 @@ class DynamicAcoEngine:
     # ==========================================
     # VISUAL: CIRCLE KUNING + POPUP LENGKAP
     # ==========================================
-
+    # buat visualisasi peta dampak ACO
     def _generate_visuals(self, df):
         """
         Visual:
@@ -719,7 +719,7 @@ class DynamicAcoEngine:
                 'EventTime', 'Time_UTC', 'Timestamp', 'Date', 'date', 'Tanggal_Kejadian'
             ]
             date_col = next((c for c in date_candidates if c in df.columns), None)
-
+            # fungsi parsing tanggal robust
             def parse_date_series(s):
                 # coba langsung -> pandas
                 s_parsed = pd.to_datetime(s, errors='coerce', utc=True)

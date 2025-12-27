@@ -2,38 +2,38 @@
 # -- coding: utf-8 --
 
 # Di awal main.py
-import warnings
+import warnings #untuk mengontrol peringatan (warning) yang dikeluarkan program.
 # Mengabaikan FutureWarning Pandas dan RuntimeWarning NumPy yang umum
-warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=FutureWarning) # untuk menyembunyikan pesan peringatan yang tidak kritis
 warnings.filterwarnings("ignore", category=UserWarning) 
 warnings.filterwarnings("ignore", message="X does not have valid feature names")
 # Non-aktifkan pesan diagnostik internal TF yang sudah usang
-import os
+import os # Mengatur variabel lingkungan sistem operasi.
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-import os
-import sys
-import time
-import json
-import logging
-import argparse
-import platform
-import traceback
-import functools
-from datetime import datetime
-from typing import Dict, Optional, Tuple, Any, List
+import os 
+import sys # untuk menambahkan folder proyek ke jalur pencarian Python
+import time # Menghitung durasi proses (uptime), atau melakukan jeda (time.sleep) saat looping pemantauan realtime.
+import json # Membaca/menyimpan konfigurasi, menyimpan state pipeline, atau menyimpan hasil prediksi agar bisa dibaca oleh Dashboard/Web.
+import logging # Mencatat aktivitas program (logging)
+import argparse # Memungkinkan menjalankan program dengan opsi tambahan, misal: python main.py --skip-training
+import platform # untuk penyesuaian path file yang berbeda antar OS
+import traceback #  Mencetak stack trace saat error terjadi.
+import functools # igunakan untuk @functools.wraps dalam decorator pipeline_guard, agar metadata fungsi asli tidak hilang saat dibungkus wrapper anti-crash.
+from datetime import datetime # Manipulasi tanggal dan jam. 
+from typing import Dict, Optional, Tuple, Any, List # Membantu developer (dan IDE) memahami tipe data apa yang diharapkan (misal: List, Dict, Optional) agar kode lebih rapi dan minim bug.
 
-import pandas as pd
-import numpy as np
-from sklearn.model_selection import train_test_split
-from VolcanoAI.postprocess.cnn_csv_to_json import run as cnn_csv_to_json
-from VolcanoAI.engines.cnn_map_generator import CNNMapGenerator
+import pandas as pd # Analisis dan manipulasi data tabular.
+import numpy as np # untuk operasi matematika vektor, perhitungan jarak Haversine, atau manipulasi array sebelum masuk ke Neural Network.
+from sklearn.model_selection import train_test_split # Membagi dataset
+from VolcanoAI.postprocess.cnn_csv_to_json import run as cnn_csv_to_json # Mengonversi hasil prediksi CNN (CSV) menjadi format JSON agar mudah dibaca oleh peta interaktif atau dashboard web.
+from VolcanoAI.engines.cnn_map_generator import CNNMapGenerator # Membuat peta visualisasi (biasanya file HTML) berdasarkan hasil prediksi spasial CNN.
 
 # ==============================================================================
 # 1. SYSTEM INITIALIZATION & PATH SETUP
 # ==============================================================================
 
-def setup_project_path():
+def setup_project_path(): 
     """Memastikan root project terdaftar di sys.path."""
     try:
         project_root = os.path.dirname(os.path.abspath(__file__))
@@ -56,27 +56,27 @@ setup_project_path()
 SYSTEM_READY = False
 
 try:
-    from VolcanoAI.config.config import CONFIG, ProjectConfig
-    from VolcanoAI.utils.setup_logging import setup_logging
+    from VolcanoAI.config.config import CONFIG, ProjectConfig # Memuat konfigurasi proyek dari file config.py
+    from VolcanoAI.utils.setup_logging import setup_logging # Mengatur logging ke file dan console
     
-    from VolcanoAI.processing.data_loader import DataLoader
-    from VolcanoAI.processing.feature_engineer import FeatureEngineer, FeaturePreprocessor
+    from VolcanoAI.processing.data_loader import DataLoader # Memuat dan menggabungkan data dari berbagai sumber (BMKG, Mirova, Excel Injection)
+    from VolcanoAI.processing.feature_engineer import FeatureEngineer, FeaturePreprocessor # Melakukan feature engineering pada data (scaling, encoding, rolling stats, dll)
     
     # Realtime manager baru (BMKG + Mirova + Injection Excel)
-    from VolcanoAI.processing.realtime_sensor_manager import RealtimeSensorManager
-    from VolcanoAI.processing.realtime_buffer_manager import RealtimeBufferManager
+    from VolcanoAI.processing.realtime_sensor_manager import RealtimeSensorManager # Mengelola pengambilan data realtime dari berbagai sumber sensor
+    from VolcanoAI.processing.realtime_buffer_manager import RealtimeBufferManager # Mengelola buffer data realtime untuk inference
 
-    from VolcanoAI.engines.aco_engine import DynamicAcoEngine
-    from VolcanoAI.engines.ga_engine import GaEngine
-    from VolcanoAI.engines.lstm_engine import LstmEngine
-    from VolcanoAI.engines.cnn_engine import CnnEngine
-    from VolcanoAI.engines.naive_bayes_engine import NaiveBayesEngine
-    from VolcanoAI.engines.cnn_map_generator import CNNMapGenerator
-    from VolcanoAI.reporting.comprehensive_reporter import ComprehensiveReporter, GraphVisualizer 
+    from VolcanoAI.engines.aco_engine import DynamicAcoEngine # Mesin ACO untuk optimasi jalur dampak vulkanik
+    from VolcanoAI.engines.ga_engine import GaEngine # Mesin GA untuk optimasi jalur evakuasi
+    from VolcanoAI.engines.lstm_engine import LstmEngine # Mesin LSTM untuk prediksi deret waktu gempa
+    from VolcanoAI.engines.cnn_engine import CnnEngine # Mesin CNN untuk prediksi spasial gempa
+    from VolcanoAI.engines.naive_bayes_engine import NaiveBayesEngine # Mesin Naive Bayes untuk klasifikasi akhir
+    from VolcanoAI.engines.cnn_map_generator import CNNMapGenerator # Menghasilkan peta interaktif dari hasil prediksi CNN
+    from VolcanoAI.reporting.comprehensive_reporter import ComprehensiveReporter, GraphVisualizer # Laporan komprehensif dan visualisasi hasil
 
-    SYSTEM_READY = True
+    SYSTEM_READY = True # untuk memastikan apakah semua modul berhasil diload
 
-except ImportError as e:
+except ImportError as e: # 
     print(f"\n[CRITICAL IMPORT ERROR] {e}")
     print("Sistem tidak dapat dijalankan karena modul hilang.\n")
 
@@ -85,15 +85,15 @@ except ImportError as e:
 # 3. GLOBAL CONSTANTS & HELPER METHODS
 # ==============================================================================
 
-SYSTEM_VERSION = "5.2.0-TITAN-EXCEL"
+SYSTEM_VERSION = "5.2.0-TITAN-EXCEL" # Konstanta global untuk menandai versi sistem saat ini
 
-def pipeline_guard(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        logger = logging.getLogger("PipelineGuard") if SYSTEM_READY else None
+def pipeline_guard(func): # Decorator: Fungsi pembungkus untuk menangani error otomatis
+    @functools.wraps(func) # Menyalin metadata (nama/docstring) fungsi asli ke wrapper
+    def wrapper(*args, **kwargs): # Fungsi pengganti yang menerima argumen apa saja
+        logger = logging.getLogger("PipelineGuard") if SYSTEM_READY else None # logger jika sistem siap
         try:
-            return func(*args, **kwargs)
-        except Exception as e:
+            return func(*args, **kwargs) # coba jalankan fungsi asli yang dilindungi
+        except Exception as e: 
             if logger:
                 logger.critical(f"CRASH di {func.__name__}: {str(e)}")
                 logger.debug(traceback.format_exc())
@@ -103,57 +103,56 @@ def pipeline_guard(func):
     return wrapper
 
 
-class SystemHealthMonitor:
+class SystemHealthMonitor: # Kelas untuk memantau kesehatan hardware (RAM/CPU)
     @staticmethod
     def check_resources():
         if not SYSTEM_READY:
             return
         logger = logging.getLogger("SystemMonitor")
         try:
-            import psutil
-            mem = psutil.virtual_memory()
-            logger.info(f"RAM Usage: {mem.percent}%")
-        except ImportError:
+            import psutil # Import library pemantau sistem (jika terinstall)
+            mem = psutil.virtual_memory() # Ambil statistik memori (RAM) saat ini
+            logger.info(f"RAM Usage: {mem.percent}%") # Catat persentase pemakaian RAM ke log
+        except ImportError: # Tangkap error jika library 'psutil' tidak ada
             pass
 
-
-class PipelineStateManager:
+class PipelineStateManager: # Kelas untuk mencatat status tahapan pipeline ke file JSON
     def __init__(self, output_dir: str):
-        self.state_file = os.path.join(output_dir, "pipeline_state.json")
+        self.state_file = os.path.join(output_dir, "pipeline_state.json") # Tentukan lokasi file 'pipeline_state.json' di folder output
 
-    def update_stage(self, stage_name: str, status: str):
-        state = self.load_state()
+    def update_stage(self, stage_name: str, status: str): # Update status tahapan tertentu
+        state = self.load_state() # Baca dulu state yang sudah ada
         state[stage_name] = {"status": status, "timestamp": datetime.now().isoformat()}
         try:
-            with open(self.state_file, "w") as f:
-                json.dump(state, f, indent=4)
+            with open(self.state_file, "w") as f: # Buka file JSON mode tulis (write)
+                json.dump(state, f, indent=4) # Simpan dictionary ke file JSON dengan indentasi
         except Exception:
             pass
 
-    def load_state(self) -> Dict:
-        if os.path.exists(self.state_file):
+    def load_state(self) -> Dict: # Membaca file status pipeline
+        if os.path.exists(self.state_file): # Cek apakah file JSON sudah ada
             try:
-                with open(self.state_file, "r") as f:
-                    return json.load(f)
-            except Exception:
-                return {}
-        return {}
+                with open(self.state_file, "r") as f: # Buka file mode baca (read)
+                    return json.load(f) # Parsing isi JSON menjadi Dictionary
+            except Exception: # Jika file rusak/korup
+                return {} # Kembalikan dictionary kosong
+        return {} # Kembalikan kosong jika file belum ada
 
 
 # ======================================================================
 # 4. SAFE LOAD / SAVE CSV (GLOBAL — WAJIB DI LUAR CLASS)
 # ======================================================================
 
-def safe_load_csv(path: str):
+def safe_load_csv(path: str):  # Fungsi untuk membaca file CSV dengan penanganan error
     try:
-        if os.path.exists(path):
+        if os.path.exists(path): # Cek apakah file benar-benar ada di folder
             return pd.read_csv(path, parse_dates=["Acquired_Date"])
     except Exception as e:
         logging.error(f"[SAFE LOAD ERROR] {path} → {e}")
     return pd.DataFrame()
 
 
-def safe_save_csv(path: str, df: pd.DataFrame):
+def safe_save_csv(path: str, df: pd.DataFrame):# Fungsi untuk menyimpan DataFrame ke file CSV
     try:
         df.to_csv(path, index=False)
         logging.info(f"[BUFFER SAVED] {path}")
@@ -165,27 +164,27 @@ def safe_save_csv(path: str, df: pd.DataFrame):
 # 5. MAIN PIPELINE CLASS
 # ==============================================================================
 
-class VolcanoAiPipeline:
-    def __init__(self, config):
-        if not SYSTEM_READY:
+class VolcanoAiPipeline: # Kelas utama pengatur seluruh alur kerja AI
+    def __init__(self, config): # Constructor: Dijalankan pertama kali saat class dipanggil
+        if not SYSTEM_READY: # Cek flag global apakah semua library berhasil di-import
             return
 
-        self.config = config
+        self.config = config # Simpan konfigurasi project ke variabel class
         self.logger = logging.getLogger(self.__class__.__name__)
         self.state_mgr = PipelineStateManager(self.config.OUTPUT.directory)
+        # Inisialisasi variabel penampung data (masih kosong)
+        self.df_train = None # Tempat data latih
+        self.df_test = None # Tempat data uji
+        self.feature_preprocessor = None # Tempat preprocessor hasil FE
+        # Inisialisasi variabel penampung Engine AI (masih kosong)
+        self.trained_aco_engine = None # Engine Ant Colony (Risk Zoning)
+        self.trained_ga_engine = None # Engine GA (Evacuation Path)
+        self.trained_lstm_engine = None # Engine LSTM (Time Series Prediction)
+        self.trained_cnn_engine = None # Engine CNN (Spatial Prediction)
+        self.trained_nb_engine = None # Engine Naive Bayes (Final Classifier)
 
-        self.df_train = None
-        self.df_test = None
-        self.feature_preprocessor = None
-
-        self.trained_aco_engine = None
-        self.trained_ga_engine = None
-        self.trained_lstm_engine = None
-        self.trained_cnn_engine = None
-        self.trained_nb_engine = None
-
-        self._init_subsystems()
-        self._init_paths()
+        self._init_subsystems() # Panggil fungsi untuk menyiapkan/mengisi engine di atas
+        self._init_paths() # Panggil fungsi untuk menyiapkan path cache data
 
         self.logger.info(f"Pipeline VolcanoAI {SYSTEM_VERSION} initialized successfully.")
 
@@ -193,144 +192,144 @@ class VolcanoAiPipeline:
     # INIT SYSTEM
     # ----------------------------------------------------------------------
 
-    def _init_subsystems(self):
-        self.data_loader = DataLoader(self.config.DATA_LOADER)
-        self.feature_engineer = FeatureEngineer(self.config.FEATURE_ENGINEERING, self.config.ACO_ENGINE)
+    def _init_subsystems(self): # Fungsi privat untuk menginstansiasi semua sub-modul
+        self.data_loader = DataLoader(self.config.DATA_LOADER) # Siapkan modul pemuat data
+        self.feature_engineer = FeatureEngineer(self.config.FEATURE_ENGINEERING, self.config.ACO_ENGINE) # Siapkan modul rekayasa fitur (Feature Engineering)
+        # Siapkan Engine AI satu per satu menggunakan config masing-masing
+        self.aco_engine = DynamicAcoEngine(self.config.ACO_ENGINE) # Engine ACO
+        self.ga_engine = GaEngine(self.config.GA_ENGINE) # Engine GA
+        self.lstm_engine = LstmEngine(self.config.LSTM_ENGINE) # Engine LSTM
+        self.cnn_engine = CnnEngine(self.config.CNN_ENGINE) # Engine CNN
+        self.nb_engine = NaiveBayesEngine(self.config.NAIVE_BAYES_ENGINE) # Engine Naive Bayes
 
-        self.aco_engine = DynamicAcoEngine(self.config.ACO_ENGINE)
-        self.ga_engine = GaEngine(self.config.GA_ENGINE)
-        self.lstm_engine = LstmEngine(self.config.LSTM_ENGINE)
-        self.cnn_engine = CnnEngine(self.config.CNN_ENGINE)
-        self.nb_engine = NaiveBayesEngine(self.config.NAIVE_BAYES_ENGINE)
-
-        self.reporter = ComprehensiveReporter(self.config)
+        self.reporter = ComprehensiveReporter(self.config) # Siapkan modul pelaporan komprehensif
 
         # Realtime Sensor Manager (BMKG + MIROVA + Injection Excel)
         # Sesuaikan path log MIROVA kalau perlu
         self.sensor_manager = RealtimeSensorManager(
-            mirova_log_path="output/realtime/"
+            mirova_log_path="output/realtime/" # lokasi log Mirova disimpan
         )
 
-    def _init_paths(self):
-        self.data_cache_path = self.config.DATA_LOADER.merged_output_path.replace(".xlsx", ".pkl")
-        self.preprocessor_cache_path = self.config.FEATURE_ENGINEERING.preprocessor_output_path
+    def _init_paths(self): # Fungsi untuk menyiapkan path (lokasi file) cache
+        self.data_cache_path = self.config.DATA_LOADER.merged_output_path.replace(".xlsx", ".pkl") # Path cache data gabungan (pickle)
+        self.preprocessor_cache_path = self.config.FEATURE_ENGINEERING.preprocessor_output_path # Path cache preprocessor FE
 
 
     # ----------------------------------------------------------------------
     # PHASE 1 — LOAD & SPLIT DATA
     # ----------------------------------------------------------------------
 
-    @pipeline_guard
-    def _step_load_and_split_data(self) -> bool:
+    @pipeline_guard # Decorator untuk menangani error otomatis
+    def _step_load_and_split_data(self) -> bool: # Fungsi untuk memuat dan membagi data
         self.logger.info("\n========== PHASE 1: DATA LOADING ==========")
-        SystemHealthMonitor.check_resources()
+        SystemHealthMonitor.check_resources() # Cek kesehatan sistem (RAM/CPU)
         self.state_mgr.update_stage("DataLoading", "Running")
 
-        df_full = None
-        cache_exists = os.path.exists(self.data_cache_path)
+        df_full = None # Tempat data gabungan penuh
+        cache_exists = os.path.exists(self.data_cache_path) # Cek apakah file cache data gabungan sudah ada
 
-        if self.config.PIPELINE.run_data_loading:
-            if not cache_exists:
-                df_full = self.data_loader.run()
-                if df_full is None or df_full.empty:
-                    return False
-                from VolcanoAI.processing.preprocess_eq import preprocess_earthquake_data
-                df_full = preprocess_earthquake_data(df_full)
-                df_full.to_pickle(self.data_cache_path)
-            else:
-                df_full = pd.read_pickle(self.data_cache_path)
+        if self.config.PIPELINE.run_data_loading: # Cek apakah konfigurasi mengizinkan pemuatan data
+            if not cache_exists: # Jika cache belum ada, lakukan pemuatan data penuh
+                df_full = self.data_loader.run() # Panggil modul pemuat data untuk mendapatkan data gabungan
+                if df_full is None or df_full.empty: # Cek apakah data gabungan kosong
+                    return False # Jika kosong, hentikan proses dan kembalikan False
+                from VolcanoAI.processing.preprocess_eq import preprocess_earthquake_data # Import fungsi pra-pemrosesan data gempa
+                df_full = preprocess_earthquake_data(df_full) # Lakukan pra-pemrosesan pada data gabungan
+                df_full.to_pickle(self.data_cache_path) # Simpan data gabungan ke file cache (pickle)
+            else: # Jika cache sudah ada, muat data dari file cache
+                df_full = pd.read_pickle(self.data_cache_path) # Baca data gabungan dari file cache (pickle)
 
-        if df_full is None or df_full.empty:
-            return False
+        if df_full is None or df_full.empty: # Cek lagi apakah data gabungan kosong
+            return False # Jika kosong, hentikan proses dan kembalikan False
 
         self.df_train, self.df_test = train_test_split(
-            df_full,
+            df_full, 
             test_size=self.config.DATA_SPLIT.test_size,
             random_state=self.config.DATA_SPLIT.random_state,
-        )
+        ) # Bagi data gabungan menjadi data latih dan data uji berdasarkan konfigurasi
 
-        self.state_mgr.update_stage("DataLoading", "Success")
-        return True
+        self.state_mgr.update_stage("DataLoading", "Success") # Update status tahapan pemuatan data menjadi sukses
+        return True # Kembalikan True menandakan proses berhasil
 
 
     # ----------------------------------------------------------------------
     # PHASE 2 — FEATURE ENGINEERING
     # ----------------------------------------------------------------------
 
-    @pipeline_guard
-    def _step_feature_engineering(self, is_training: bool) -> bool:
+    @pipeline_guard # Decorator untuk menangani error otomatis
+    def _step_feature_engineering(self, is_training: bool) -> bool: # Fungsi untuk melakukan rekayasa fitur (feature engineering)
         self.logger.info("\n========== PHASE 2: FEATURE ENGINEERING ==========")
-        self.state_mgr.update_stage("FeatureEngineering", "Running")
+        self.state_mgr.update_stage("FeatureEngineering", "Running") # Update status tahapan FE menjadi berjalan
 
-        if is_training:
-            self.df_train, self.feature_preprocessor = self.feature_engineer.run(self.df_train)
+        if is_training: # Jika dalam mode pelatihan
+            self.df_train, self.feature_preprocessor = self.feature_engineer.run(self.df_train) # Lakukan FE pada data latih dan dapatkan preprocessor
 
-            if self.df_test is not None:
-                self.df_test, _ = self.feature_engineer.run(self.df_test, preprocessor=self.feature_preprocessor)
+            if self.df_test is not None: # Jika data uji ada
+                self.df_test, _ = self.feature_engineer.run(self.df_test, preprocessor=self.feature_preprocessor) # Lakukan FE pada data uji menggunakan preprocessor dari data latih
+                 
+        else: # Jika dalam mode inferensi (bukan pelatihan)
+            if self.feature_preprocessor is None: # Jika preprocessor belum ada
+                if os.path.exists(self.preprocessor_cache_path): # Cek apakah file cache preprocessor sudah ada
+                    self.feature_preprocessor = FeaturePreprocessor.load(self.preprocessor_cache_path) # Muat preprocessor dari file cache
+                else: # Jika file cache preprocessor tidak ada
+                    return False # Hentikan proses dan kembalikan False
 
-        else:
-            if self.feature_preprocessor is None:
-                if os.path.exists(self.preprocessor_cache_path):
-                    self.feature_preprocessor = FeaturePreprocessor.load(self.preprocessor_cache_path)
-                else:
-                    return False
+            if self.df_test is not None: # Jika data uji ada
+                self.df_test, _ = self.feature_engineer.run(self.df_test, preprocessor=self.feature_preprocessor) # Lakukan FE pada data uji menggunakan preprocessor yang dimuat
+            if self.df_train is not None: # Jika data latih ada
+                self.df_train, _ = self.feature_engineer.run(self.df_train, preprocessor=self.feature_preprocessor) # Lakukan FE pada data latih menggunakan preprocessor yang dimuat
 
-            if self.df_test is not None:
-                self.df_test, _ = self.feature_engineer.run(self.df_test, preprocessor=self.feature_preprocessor)
-            if self.df_train is not None:
-                self.df_train, _ = self.feature_engineer.run(self.df_train, preprocessor=self.feature_preprocessor)
-
-        self.state_mgr.update_stage("FeatureEngineering", "Success")
-        return True
+        self.state_mgr.update_stage("FeatureEngineering", "Success") # Update status tahapan FE menjadi sukses
+        return True # Kembalikan True menandakan proses berhasil
 
 
     # ----------------------------------------------------------------------
     # PHASE 3 — TRAINING FLOW (FINAL VERSION)
     # ----------------------------------------------------------------------
 
-    @pipeline_guard
-    def _run_training_flow(self):
+    @pipeline_guard # Decorator untuk menangani error otomatis
+    def _run_training_flow(self): # Fungsi untuk menjalankan alur pelatihan model
         self.logger.info("\n========== PHASE 3: MODEL TRAINING ==========")
 
-        df_processed = self.df_train.copy()
+        df_processed = self.df_train.copy() # Salin data latih yang sudah di-FE
 
         # 1️⃣ ACO selalu dijalankan ulang — tidak memakai cache
-        df_processed, _ = self.aco_engine.run(df_processed)
-        self.trained_aco_engine = self.aco_engine
+        df_processed, _ = self.aco_engine.run(df_processed) # Jalankan engine ACO pada data yang sudah di-FE
+        self.trained_aco_engine = self.aco_engine # Simpan instance engine ACO yang sudah dilatih
 
         # 2️⃣ GA selalu run
-        best_path, graphs_result = self.ga_engine.run(df_processed)
-        self.trained_ga_engine = self.ga_engine
+        best_path, graphs_result = self.ga_engine.run(df_processed) # Jalankan engine GA pada data yang sudah di-FE
+        self.trained_ga_engine = self.ga_engine # Simpan instance engine GA yang sudah dilatih
 
         # 3️⃣ LSTM
-        self.lstm_engine.train(df_processed)
-        self.trained_lstm_engine = self.lstm_engine
+        self.lstm_engine.train(df_processed) # Latih engine LSTM pada data yang sudah di-FE
+        self.trained_lstm_engine = self.lstm_engine # Simpan instance engine LSTM yang sudah dilatih
 
-        df_processed, _ = self.lstm_engine.predict_on_static(df_processed)
+        df_processed, _ = self.lstm_engine.predict_on_static(df_processed) # Lakukan prediksi statis menggunakan engine LSTM
 
         # 4️⃣ CNN
-        self.cnn_engine.train(df_processed, self.lstm_engine)
-        self.trained_cnn_engine = self.cnn_engine
+        self.cnn_engine.train(df_processed, self.lstm_engine) # Latih engine CNN pada data yang sudah di-FE
+        self.trained_cnn_engine = self.cnn_engine # Simpan instance engine CNN yang sudah dilatih
 
-        df_processed = self.cnn_engine.predict(df_processed, self.lstm_engine)
+        df_processed = self.cnn_engine.predict(df_processed, self.lstm_engine) # Lakukan prediksi menggunakan engine CNN
 
         # =========================
         # CNN ERROR CHECK (TRAINING)
         # =========================
-        if hasattr(self.cnn_engine, "evaluate_error"):
-            cnn_error = self.cnn_engine.evaluate_error(df_processed)
-            self.logger.info(f"[CNN] Training error: {cnn_error:.4f}")
+        if hasattr(self.cnn_engine, "evaluate_error"): # Cek apakah engine CNN memiliki metode evaluasi error
+            cnn_error = self.cnn_engine.evaluate_error(df_processed) # Evaluasi error CNN pada data yang sudah diproses
+            self.logger.info(f"[CNN] Training error: {cnn_error:.4f}") # Catat error CNN ke log
 
-            if cnn_error > self.config.CNN_ENGINE.max_error_threshold:
-                self.logger.warning("[CNN] Error tinggi, retraining CNN...")
-                self.cnn_engine.train(df_processed, self.lstm_engine)
+            if cnn_error > self.config.CNN_ENGINE.max_error_threshold: # Jika error melebihi ambang batas yang ditentukan
+                self.logger.warning("[CNN] Error tinggi, retraining CNN...") # Catat peringatan ke log
+                self.cnn_engine.train(df_processed, self.lstm_engine) # Latih ulang engine CNN
 
 
-        from datetime import datetime
-        from pathlib import Path
+        from datetime import datetime # manipulasi tanggal dan waktu
+        from pathlib import Path # manipulasi path file dan direktori
 
-        out_dir = Path(self.config.OUTPUT.directory) / "cnn_results" / "results"
-        out_dir.mkdir(parents=True, exist_ok=True)
+        out_dir = Path(self.config.OUTPUT.directory) / "cnn_results" / "results" # Tentukan direktori output untuk hasil CNN
+        out_dir.mkdir(parents=True, exist_ok=True) # Buat direktori output jika belum ada
 
         export_cols = [
             'cluster_id',
@@ -338,112 +337,112 @@ class VolcanoAiPipeline:
             'luas_cnn',
             'cnn_angle_deg',
             'cnn_distance_km'
-        ]
-        export_cols = [c for c in export_cols if c in df_processed.columns]
+        ] # Daftar kolom yang akan diekspor
+        export_cols = [c for c in export_cols if c in df_processed.columns] # Filter kolom yang benar-benar ada di DataFrame
 
         # ===============================
         # 1️⃣ FILE TERKINI (UNTUK TML)
         # ===============================
-        latest_path = out_dir / "cnn_predictions_latest.csv"
-        df_processed[export_cols].to_csv(latest_path, index=False)
+        latest_path = out_dir / "cnn_predictions_latest.csv" # Tentukan path untuk file prediksi CNN terbaru
+        df_processed[export_cols].to_csv(latest_path, index=False) # Simpan DataFrame yang sudah diproses ke file CSV
 
-        self.logger.info(f"✅ CNN latest overwritten: {latest_path}")
+        self.logger.info(f"✅ CNN latest overwritten: {latest_path}") # Catat keberhasilan penyimpanan file terbaru ke log
 
 
         # ===============================
         # 2️⃣ GENERATE CNN JSON (WAJIB)
         # ===============================
-        try:
-            cnn_json_path = Path(self.config.OUTPUT.directory) / "cnn_results" / "cnn_predictions_latest.json"
+        try: # Blok try untuk menangani potensi error saat generate JSON
+            cnn_json_path = Path(self.config.OUTPUT.directory) / "cnn_results" / "cnn_predictions_latest.json" # Tentukan path untuk file JSON hasil prediksi CNN
 
             cnn_csv_to_json(
                 csv_path=str(latest_path),
                 out_json=str(cnn_json_path),
                 force=True
-            )
+            ) # Panggil fungsi untuk mengonversi CSV ke JSON
 
-            self.logger.info(f"✅ CNN JSON generated: {cnn_json_path}")
+            self.logger.info(f"✅ CNN JSON generated: {cnn_json_path}") # Catat keberhasilan pembuatan file JSON ke log
 
-        except Exception as e:
-            self.logger.exception(f"Failed to generate CNN JSON: {e}")
+        except Exception as e: # Tangkap error jika terjadi masalah saat generate JSON
+            self.logger.exception(f"Failed to generate CNN JSON: {e}") # Catat error ke log
 
 
         # ===============================
         # 3️⃣ GENERATE CNN MAP (FOLIUM)
         # ===============================
-        try:
-            cnn_output_dir = Path(self.config.OUTPUT.directory) / "cnn_results"
+        try: # Blok try untuk menangani potensi error saat generate peta
+            cnn_output_dir = Path(self.config.OUTPUT.directory) / "cnn_results" / "maps" # Tentukan direktori output untuk peta CNN
 
-            if cnn_json_path.exists():
-                cnn_map_gen = CNNMapGenerator(output_dir=cnn_output_dir)
-                map_path = cnn_map_gen.generate(json_path=cnn_json_path)
+            if cnn_json_path.exists(): # Cek apakah file JSON hasil prediksi CNN ada
+                cnn_map_gen = CNNMapGenerator(output_dir=cnn_output_dir)  # Inisialisasi generator peta CNN
+                map_path = cnn_map_gen.generate(json_path=cnn_json_path)   # Hasilkan peta dari file JSON
 
-                if map_path:
-                    self.logger.info(f"🗺️ CNN map generated: {map_path}")
-                else:
-                    self.logger.warning("CNN map not generated (next_event missing)")
-            else:
-                self.logger.warning(f"CNN JSON not found: {cnn_json_path}")
+                if map_path: # Cek apakah peta berhasil dibuat
+                    self.logger.info(f"🗺️ CNN map generated: {map_path}") # Catat keberhasilan pembuatan peta ke log
+                else:  # Jika peta gagal dibuat
+                    self.logger.warning("CNN map not generated (next_event missing)") # Catat peringatan ke log
+            else: # Jika file JSON tidak ditemukan
+                self.logger.warning(f"CNN JSON not found: {cnn_json_path}") # Catat peringatan ke log
 
-        except Exception as e:
-            self.logger.exception(f"Failed to generate CNN map: {e}")
+        except Exception as e: # Tangkap error jika terjadi masalah saat generate peta
+            self.logger.exception(f"Failed to generate CNN map: {e}") # Catat error ke log
 
         
         # ===============================
         # 2️⃣ FILE ARSIP (HISTORI)
         # ===============================
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        archive_path = out_dir / f"cnn_predictions_{ts}.csv"
-        df_processed[export_cols].to_csv(archive_path, index=False)
-        self.logger.info(f" CNN archive saved: {archive_path}")
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S") # Dapatkan timestamp saat ini untuk penamaan file arsip
+        archive_path = out_dir / f"cnn_predictions_{ts}.csv" # Tentukan path untuk file arsip prediksi CNN dengan timestamp
+        df_processed[export_cols].to_csv(archive_path, index=False) # Simpan DataFrame yang sudah diproses ke file CSV arsip
+        self.logger.info(f" CNN archive saved: {archive_path}") # Catat keberhasilan penyimpanan file arsip ke log
 
                 # 5️⃣ Naive Bayes
-        self.nb_engine.train(df_processed)
-        self.trained_nb_engine = self.nb_engine
+        self.nb_engine.train(df_processed) # Latih engine Naive Bayes pada data yang sudah di-FE
+        self.trained_nb_engine = self.nb_engine # Simpan instance engine Naive Bayes yang sudah dilatih
 
-        self.state_mgr.update_stage("Training", "Success")
+        self.state_mgr.update_stage("Training", "Success") # Update status tahapan pelatihan menjadi sukses
 
 
     # ----------------------------------------------------------------------
     # PHASE 4 — EVALUATION
     # ----------------------------------------------------------------------
 
-    @pipeline_guard
-    def _run_evaluation_flow(self):
+    @pipeline_guard # Decorator untuk menangani error otomatis
+    def _run_evaluation_flow(self): # Fungsi untuk menjalankan alur evaluasi model
         self.logger.info("\n========== PHASE 4: MODEL EVALUATION ==========")
 
-        df_eval = self.df_test.copy()
+        df_eval = self.df_test.copy() # Salin data uji yang sudah di-FE
 
-        df_eval, _ = DynamicAcoEngine(self.config.ACO_ENGINE).run(df_eval)
+        df_eval, _ = DynamicAcoEngine(self.config.ACO_ENGINE).run(df_eval) # Jalankan engine ACO pada data uji yang sudah di-FE
 
-        lstm = self.trained_lstm_engine
-        cnn = self.trained_cnn_engine
-        nb = self.trained_nb_engine
-
-        df_eval, anomalies = lstm.predict_on_static(df_eval)
-        df_eval = cnn.predict(df_eval, lstm)
-        df_final, metrics = nb.evaluate(df_eval)
-        self.state_mgr.update_stage("Evaluation", "Success")
-        return df_final, metrics, anomalies
-
-        self.state_mgr.update_stage("Evaluation", "Success")
-        return df_final, metrics, anomalies
+        lstm = self.trained_lstm_engine # Ambil instance engine LSTM yang sudah dilatih
+        cnn = self.trained_cnn_engine # Ambil instance engine CNN yang sudah dilatih
+        nb = self.trained_nb_engine     # Ambil instance engine Naive Bayes yang sudah dilatih
+         
+        df_eval, anomalies = lstm.predict_on_static(df_eval) # Lakukan prediksi statis menggunakan engine LSTM
+        df_eval = cnn.predict(df_eval, lstm) # Lakukan prediksi menggunakan engine CNN
+        df_final, metrics = nb.evaluate(df_eval) # Lakukan evaluasi menggunakan engine Naive Bayes
+        self.state_mgr.update_stage("Evaluation", "Success") # Update status tahapan evaluasi menjadi sukses
+        return df_final, metrics, anomalies # Kembalikan DataFrame hasil akhir, metrik evaluasi, dan anomali yang terdeteksi
+     
+        self.state_mgr.update_stage("Evaluation", "Success") # Update status tahapan evaluasi menjadi sukses
+        return df_final, metrics, anomalies # Kembalikan DataFrame hasil akhir, metrik evaluasi, dan anomali yang terdeteksi
 
 
     # ----------------------------------------------------------------------
     # PHASE X — REALTIME INFERENCE (BUFFER + INJECTION + FE)
     # ----------------------------------------------------------------------
 
-    @pipeline_guard
-    def run_realtime_inference(self):
-        self.logger.info("\n========== REALTIME INFERENCE MODE ==========")
+    @pipeline_guard # Decorator untuk menangani error otomatis
+    def run_realtime_inference(self): # Fungsi untuk menjalankan inferensi realtime
+        self.logger.info("\n========== REALTIME INFERENCE MODE ==========") 
 
-        buffer = RealtimeBufferManager(buffer_days=90)
+        buffer = RealtimeBufferManager(buffer_days=90) # Inisialisasi manajer buffer realtime dengan kapasitas 90 hari
 
         # Load buffer lama (kalau ada)
-        buffer.raw_realtime = safe_load_csv("output/realtime/raw_realtime.csv")
-        buffer.raw_injection = safe_load_csv("output/realtime/raw_injection.csv")
-        buffer.processed = safe_load_csv("output/realtime/processed.csv")
+        buffer.raw_realtime = safe_load_csv("output/realtime/raw_realtime.csv") # Muat data mentah realtime dari file CSV
+        buffer.raw_injection = safe_load_csv("output/realtime/raw_injection.csv") # Muat data mentah injection dari file CSV
+        buffer.processed = safe_load_csv("output/realtime/processed.csv") # Muat data terproses dari file CSV
 
         # Ambil data realtime dari sensor manager (BMKG + Mirova + Injection)
         try:
@@ -455,78 +454,78 @@ class VolcanoAiPipeline:
 
         # Pisahkan BMKG dan Injection sebelum append (agar data mentah tersimpan terpisah)
         # Asumsi: df_raw_new_stream mengandung kedua sumber, dan kita perlu memisahkannya 
-        df_bmkg = df_raw_new_stream[df_raw_new_stream['Sumber'] == 'BMKG'].copy()
+        df_bmkg = df_raw_new_stream[df_raw_new_stream['Sumber'] == 'BMKG'].copy() 
         df_inj = df_raw_new_stream[df_raw_new_stream['Sumber'] == 'InjectedExcel'].copy()
 
         # Simpan BMKG ke buffer realtime
-        if df_bmkg is not None and not df_bmkg.empty:
-            buffer.append_raw_realtime(df_bmkg)
+        if df_bmkg is not None and not df_bmkg.empty: # Cek apakah data BMKG tidak kosong
+            buffer.append_raw_realtime(df_bmkg) # Tambahkan data BMKG ke buffer realtime
 
         # Simpan data suntik ke buffer injection
-        if df_inj is not None and not df_inj.empty:
-            buffer.append_raw_injection(df_inj)
+        if df_inj is not None and not df_inj.empty: # Cek apakah data injection tidak kosong
+            buffer.append_raw_injection(df_inj) # Tambahkan data injection ke buffer injection
 
         # df_raw sekarang adalah gabungan dari data mentah baru dan data mentah historis
-        df_raw = buffer.get_merged_raw()
-        if df_raw.empty:
-            self.logger.warning("Tidak ada data inference.")
-            return
+        df_raw = buffer.get_merged_raw() # Gabungkan data mentah realtime dan injection dari buffer
+        if df_raw.empty: # Cek apakah data mentah gabungan kosong
+            self.logger.warning("Tidak ada data inference.") # Catat peringatan ke log
+            return # Hentikan proses jika tidak ada data untuk inferensi
 
         # FE untuk realtime (pakai preprocessor hasil training)
         df_processed, _ = self.feature_engineer.run(
             df_raw,
             is_training=False,
             preprocessor=self.feature_preprocessor,
-        )
+        ) # Lakukan feature engineering pada data mentah gabungan menggunakan preprocessor yang sudah dilatih
 
-        buffer.append_processed(df_processed)
+        buffer.append_processed(df_processed) # Tambahkan data terproses ke buffer
 
         # Simpan balik buffer ke disk
-        safe_save_csv("output/realtime/raw_realtime.csv", buffer.raw_realtime)
-        safe_save_csv("output/realtime/raw_injection.csv", buffer.raw_injection)
-        safe_save_csv("output/realtime/processed.csv", buffer.processed)
+        safe_save_csv("output/realtime/raw_realtime.csv", buffer.raw_realtime) # Simpan data mentah realtime ke file CSV
+        safe_save_csv("output/realtime/raw_injection.csv", buffer.raw_injection) # Simpan data mentah injection ke file CSV
+        safe_save_csv("output/realtime/processed.csv", buffer.processed) # Simpan data terproses ke file CSV
 
-        self.logger.info("Realtime inference complete.")
+        self.logger.info("Realtime inference complete.") # Catat keberhasilan inferensi realtime ke log
 
 
     # ----------------------------------------------------------------------
     # PHASE 5 — LIVE MONITORING LOOP
     # ----------------------------------------------------------------------
 
-    def start_monitoring_loop(self):
+    def start_monitoring_loop(self): # Fungsi untuk memulai loop pemantauan realtime
         self.logger.info("\n========== PHASE 5: LIVE MONITORING ==========")
 
-        if self.df_train is not None:
-            self.lstm_engine.load_buffer(self.df_train)
+        if self.df_train is not None: # Pastikan data latih sudah ada
+            self.lstm_engine.load_buffer(self.df_train) # Muat buffer LSTM dari data latih
+             
+        interval = self.config.REALTIME.check_interval_seconds # Ambil interval pengecekan dari konfigurasi      
 
-        interval = self.config.REALTIME.check_interval_seconds
-
-        try:
-            while True:
+        try: 
+            while True: 
                 # 1. AMBIL SEMUA DATA MENTAH BARU (BMKG + VRP + INJECT)
                 # Dapatkan data mentah dari semua sumber (sudah di-VRP-merge di StreamManager)
                 df_mirova_raw, df_bmkg_synced, df_inj_synced = self.sensor_manager.get_realtime_data()
                 
                 # Gabungkan hanya BMKG dan INJECTION (karena Mirova sudah di-merge)
                 frames = []
-                if not df_bmkg_synced.empty: frames.append(df_bmkg_synced)
-                if not df_inj_synced.empty: frames.append(df_inj_synced)
+                if not df_bmkg_synced.empty: frames.append(df_bmkg_synced) # Tambahkan data BMKG jika tidak kosong
+                if not df_inj_synced.empty: frames.append(df_inj_synced) # Tambahkan data injection jika tidak kosong
+                 
+                if not frames: # Jika tidak ada data baru dari kedua sumber
+                    time.sleep(interval) # Tunggu sesuai interval sebelum pengecekan berikutnya
+                    continue # Lanjutkan ke iterasi berikutnya
                 
-                if not frames:
-                    time.sleep(interval)
-                    continue
-                
-                df_raw_new_stream = pd.concat(frames, ignore_index=True)
+                df_raw_new_stream = pd.concat(frames, ignore_index=True) # Gabungkan data mentah baru dari kedua sumber
                 
                 # ----------------------------------------------------
                 # 1. GABUNGKAN DENGAN HISTORY UNTUK KONTEKS FE (LAG/ROLLING)
-                df_hist = self.lstm_engine.get_buffer()
-                df_combined_for_fe = pd.concat([df_hist, df_raw_new_stream], ignore_index=True)
+                df_hist = self.lstm_engine.get_buffer() # Ambil data historis dari buffer LSTM
+                df_combined_for_fe = pd.concat([df_hist, df_raw_new_stream], ignore_index=True) # Gabungkan data historis dengan data mentah baru untuk konteks FE
                 
                 # 2. FEATURE ENGINEERING (pada seluruh combined data)
-                df_proc, _ = self.feature_engineer.run(
-                    df_combined_for_fe, is_training=False, preprocessor=self.feature_preprocessor
-                )
+                df_proc, _ = self.feature_engineer.run( 
+                    df_combined_for_fe, is_training=False, preprocessor=self.feature_preprocessor 
+                ) # Lakukan feature engineering pada data gabungan menggunakan preprocessor yang sudah dilatih
                 
                 # 3. FILTER HANYA EVENT BARU (TIDAK ADA LAG) & LOKASI
                 
@@ -535,300 +534,300 @@ class VolcanoAiPipeline:
                 # Kita harus mencari baris yang memiliki Acquired_Date yang lebih besar dari history TERAKHIR
                 df_target_raw = df_proc[df_proc['Acquired_Date'] > last_hist_date].copy()
                 
-                if df_target_raw.empty:
-                    self.logger.info("Tidak ada gempa baru teridentifikasi (atau sudah ada di buffer).")
-                    time.sleep(interval)
-                    continue
+                if df_target_raw.empty: # Jika tidak ada data baru setelah filter tanggal
+                    self.logger.info("Tidak ada gempa baru teridentifikasi (atau sudah ada di buffer).") # Catat info ke log
+                    time.sleep(interval) # Tunggu sesuai interval sebelum pengecekan berikutnya
+                    continue # Lanjutkan ke iterasi berikutnya
                     
                 # Filter B: Geografis (Hanya Cluster Aktif)
-                valid_clusters = self.lstm_engine.vault.list_clusters()
-                df_target = df_target_raw[df_target_raw['cluster_id'].isin(valid_clusters)]
+                valid_clusters = self.lstm_engine.vault.list_clusters() # Dapatkan daftar cluster valid dari LSTM engine
+                df_target = df_target_raw[df_target_raw['cluster_id'].isin(valid_clusters)] .copy() # Filter hanya baris dengan cluster_id yang valid
                 
-                if df_target.empty:
-                    self.logger.info("Gempa baru terdeteksi, tetapi di luar area fokus yang dilatih. Skip prediksi.")
-                    time.sleep(interval)
-                    continue
+                if df_target.empty: # Jika tidak ada data baru setelah filter cluster
+                    self.logger.info("Gempa baru terdeteksi, tetapi di luar area fokus yang dilatih. Skip prediksi.") # Catat info ke log
+                    time.sleep(interval) # Tunggu sesuai interval sebelum pengecekan berikutnya
+                    continue # Lanjutkan ke iterasi berikutnya
 
-                self.logger.info(f"🚨 GEMPA BARU TERDETEKSI: {len(df_target)}")
+                self.logger.info(f"🚨 GEMPA BARU TERDETEKSI: {len(df_target)}") # Catat jumlah gempa baru yang terdeteksi ke log
 
                 # 4. PREDICION FLOW 
-                df_pred, anomalies = self.lstm_engine.process_live_stream(df_target)
-                df_pred = self.cnn_engine.predict(df_pred, self.lstm_engine)
-                df_pred, _ = self.nb_engine.evaluate(df_pred)
+                df_pred, anomalies = self.lstm_engine.process_live_stream(df_target) # Proses aliran data baru menggunakan engine LSTM
+                df_pred = self.cnn_engine.predict(df_pred, self.lstm_engine) # Lakukan prediksi menggunakan engine CNN
+                df_pred, _ = self.nb_engine.evaluate(df_pred) # Lakukan evaluasi menggunakan engine Naive Bayes
 
                 # =========================
                 # SEMI-HYBRID FEEDBACK LOOP
                 # =========================
 
-                if 'actual_event' in df_pred.columns:
-                    df_actual = df_pred[df_pred['actual_event'] == 1].copy()
+                if 'actual_event' in df_pred.columns: # Cek apakah kolom actual_event ada di DataFrame prediksi
+                    df_actual = df_pred[df_pred['actual_event'] == 1].copy() # Filter hanya baris yang merupakan actual event
 
-                    if not df_actual.empty:
-                        self.logger.info(f"[FEEDBACK] Actual events detected: {len(df_actual)}")
+                    if not df_actual.empty: # Jika ada actual event yang terdeteksi
+                        self.logger.info(f"[FEEDBACK] Actual events detected: {len(df_actual)}") # Catat jumlah actual event ke log
 
                         # 1️⃣ RECORD ACTUAL KE LSTM (INI WAJIB ADA)
-                        self.lstm_engine.record_actual_events(df_actual)
+                        self.lstm_engine.record_actual_events(df_actual) # Rekam actual event ke dalam engine LSTM
 
                         # 2️⃣ EVALUASI ERROR CNN
-                        if hasattr(self.cnn_engine, "evaluate_error"):
-                            cnn_error = self.cnn_engine.evaluate_error(df_actual)
-                            self.logger.info(f"[CNN] Live error: {cnn_error:.4f}")
+                        if hasattr(self.cnn_engine, "evaluate_error"): # Cek apakah engine CNN memiliki metode evaluasi error
+                            cnn_error = self.cnn_engine.evaluate_error(df_actual) # Evaluasi error CNN pada actual event
+                            self.logger.info(f"[CNN] Live error: {cnn_error:.4f}") # Catat error CNN pada actual event ke log
 
                             # 3️⃣ RETRAIN JIKA SALAH
-                            if cnn_error > self.config.CNN_ENGINE.max_error_threshold:
-                                self.logger.warning("[CNN] Retraining due to live mismatch...")
-                                self.cnn_engine.train(
+                            if cnn_error > self.config.CNN_ENGINE.max_error_threshold: # Jika error melebihi ambang batas yang ditentukan
+                                self.logger.warning("[CNN] Retraining due to live mismatch...") # Catat peringatan ke log
+                                self.cnn_engine.train( 
                                     self.lstm_engine.get_buffer(),
                                     self.lstm_engine
-                                )
+                                ) # Latih ulang engine CNN menggunakan buffer LSTM
 
                # =====================================
                 # 5. UPDATE BUFFER (CONFIRMED ONLY)
                 # =====================================
 
                 # Update buffer hanya event yang cukup valid
-                confirmed_cols = ['actual_event', 'confidence']
+                confirmed_cols = ['actual_event', 'confidence'] # Kolom yang diperlukan untuk validasi
 
-                if all(c in df_pred.columns for c in confirmed_cols):
-                    df_confirmed = df_pred[df_pred['confidence'] >= 0.7].copy()
+                if all(c in df_pred.columns for c in confirmed_cols): # Cek apakah semua kolom konfirmasi ada di DataFrame prediksi
+                    df_confirmed = df_pred[df_pred['confidence'] >= 0.7].copy() # Filter hanya baris dengan confidence >= 0.7
                     self.logger.info(
                         f"[BUFFER] Confirmed events: {len(df_confirmed)} / {len(df_pred)}"
-                    )
+                    ) # Catat jumlah event terkonfirmasi ke log
                 else:
                     # Fallback: jika belum ada mekanisme confidence
                     self.logger.warning(
                         "[BUFFER] Kolom confidence belum tersedia → fallback update semua (TEMP)"
-                    )
-                    df_confirmed = df_pred.copy()
+                    ) # Catat peringatan ke log
+                    df_confirmed = df_pred.copy() # Salin semua baris sebagai fallback
 
                 # Update buffer LSTM dengan data terkonfirmasi
-                if not df_confirmed.empty:
-                    self.lstm_engine.update_buffer(df_confirmed)
+                if not df_confirmed.empty: # Jika ada data terkonfirmasi
+                    self.lstm_engine.update_buffer(df_confirmed) # Perbarui buffer LSTM dengan data terkonfirmasi
 
                 # Persist buffer
-                df_current_buffer = self.lstm_engine.get_buffer()
-                safe_save_csv("output/realtime/processed.csv", df_current_buffer)
+                df_current_buffer = self.lstm_engine.get_buffer() # Ambil data buffer LSTM saat ini
+                safe_save_csv("output/realtime/processed.csv", df_current_buffer) # Simpan data buffer LSTM ke file CSV
 
-                time.sleep(interval)
+                time.sleep(interval) # Tunggu sesuai interval sebelum pengecekan berikutnya
 
 
-        except KeyboardInterrupt:
-            self.logger.info("Monitoring dihentikan. Melakukan penyimpanan akhir...")
+        except KeyboardInterrupt: # Tangkap interupsi keyboard (Ctrl+C)
+            self.logger.info("Monitoring dihentikan. Melakukan penyimpanan akhir...") # Catat info penghentian ke log
             
             # Simpan buffer akhir saat dihentikan
-            df_final_buffer = self.lstm_engine.get_buffer()
-            safe_save_csv("output/realtime/processed.csv", df_final_buffer)
+            df_final_buffer = self.lstm_engine.get_buffer() # Ambil data buffer LSTM saat ini
+            safe_save_csv("output/realtime/processed.csv", df_final_buffer) # Simpan data buffer LSTM ke file CSV
             
-            self.logger.info("Penyimpanan buffer live selesai.")
+            self.logger.info("Penyimpanan buffer live selesai.") # Catat keberhasilan penyimpanan buffer ke log
 
 
     # ----------------------------------------------------------------------
     # MAIN PIPELINE RUN WRAPPER
     # ----------------------------------------------------------------------
 
-    def run(self):
-        start_ts = time.time()
-        self.logger.info("Starting Pipeline Execution...")
+    def run(self): # Fungsi utama untuk menjalankan seluruh alur kerja pipeline
+        start_ts = time.time() # Catat waktu mulai eksekusi
+        self.logger.info("Starting Pipeline Execution...") # Catat info mulai eksekusi ke log
 
-        try:
-            if self.config.PIPELINE.run_data_loading:
-                if not self._step_load_and_split_data():
-                    return
+        try: # Blok try untuk menangani potensi error selama eksekusi
+            if self.config.PIPELINE.run_data_loading: # Cek apakah konfigurasi mengizinkan pemuatan data
+                if not self._step_load_and_split_data(): # Panggil fungsi untuk memuat dan membagi data
+                    return # Hentikan proses jika gagal
 
-            if self.config.PIPELINE.run_feature_engineering:
-                if not self._step_feature_engineering(is_training=True):
-                    return
+            if self.config.PIPELINE.run_feature_engineering: # Cek apakah konfigurasi mengizinkan rekayasa fitur
+                if not self._step_feature_engineering(is_training=True): # Panggil fungsi untuk melakukan rekayasa fitur
+                    return # Hentikan proses jika gagal
 
-            if self.config.PIPELINE.run_model_training:
-                self._run_training_flow()
+            if self.config.PIPELINE.run_model_training:  # Cek apakah konfigurasi mengizinkan pelatihan model
+                self._run_training_flow() # Panggil fungsi untuk menjalankan alur pelatihan model
 
-            if getattr(self.config.PIPELINE, "run_model_evaluation", True):
-                df_final, metrics, anomalies = self._run_evaluation_flow()
+            if getattr(self.config.PIPELINE, "run_model_evaluation", True): # Cek apakah konfigurasi mengizinkan evaluasi model
+                df_final, metrics, anomalies = self._run_evaluation_flow() # Panggil fungsi untuk menjalankan alur evaluasi model
             else:
-                df_final, metrics, anomalies = None, {}, None
+                df_final, metrics, anomalies = None, {}, None # Jika tidak, set variabel hasil evaluasi ke None atau kosong
 
 
             # 🔥 BARU REPORTING
-            if self.config.PIPELINE.run_reporting and df_final is not None:
-                from pathlib import Path
-                outdir = Path(self.config.OUTPUT.directory)
+            if self.config.PIPELINE.run_reporting and df_final is not None: # Cek apakah konfigurasi mengizinkan pelaporan dan hasil evaluasi ada
+                from pathlib import Path # manipulasi path file dan direktori
+                outdir = Path(self.config.OUTPUT.directory) # Tentukan direktori output utama
 
-                normalized = {}
+                normalized = {} # Tempat penyimpanan metrik terstandarisasi
 
-                aco_json = outdir / "aco_results" / "aco_to_ga.json"
-                if aco_json.exists():
-                    try:
-                        j = json.loads(aco_json.read_text(encoding="utf-8"))
-                        lat = j.get("center_lat")
-                        lon = j.get("center_lon")
-                        if lat is not None and lon is not None:
-                            normalized["aco_center"] = f"{lat}, {lon}"
-                        normalized["aco_area"] = j.get("impact_area_km2")
-                        normalized["aco_map"] = str(outdir / "aco_results" / "aco_impact_zones.html")
-                    except Exception:
-                        pass
+                aco_json = outdir / "aco_results" / "aco_to_ga.json" # Path ke file JSON hasil ACO
+                if aco_json.exists(): # Cek apakah file JSON hasil ACO ada
+                    try: # Blok try untuk menangani potensi error saat membaca file JSON
+                        j = json.loads(aco_json.read_text(encoding="utf-8")) # Baca dan parse file JSON
+                        lat = j.get("center_lat") # Dapatkan nilai latitude dari JSON
+                        lon = j.get("center_lon") # Dapatkan nilai longitude dari JSON
+                        if lat is not None and lon is not None: # Cek apakah latitude dan longitude tidak None
+                            normalized["aco_center"] = f"{lat}, {lon}" # Simpan koordinat pusat ACO dalam format string
+                        normalized["aco_area"] = j.get("impact_area_km2") # Simpan area dampak ACO
+                        normalized["aco_map"] = str(outdir / "aco_results" / "aco_impact_zones.html") # Simpan path ke peta ACO
+                    except Exception: # Jika terjadi error saat membaca atau parsing JSON
+                        pass # Abaikan error dan lanjutkan
 
                     # 2) GA map
-                    ga_map = outdir / "ga_results" / "ga_path_map.html"
-                    if ga_map.exists():
-                        normalized["ga_map"] = str(ga_map)
+                    ga_map = outdir / "ga_results" / "ga_path_map.html" # Path ke file peta hasil GA
+                    if ga_map.exists(): # Cek apakah file peta hasil GA ada
+                        normalized["ga_map"] = str(ga_map) # Simpan path ke peta GA
 
-                    # 3) LSTM CSV files (look for common filenames)
-                    lstm_dir = outdir / "lstm_results"
-                    if lstm_dir.exists():
-                        for f in ["lstm_records_2y_20241230.csv", "master.csv"]:
-                            p = lstm_dir / f
-                            if p.exists():
-                                normalized["lstm_master_csv"] = str(p)
-                                break
-                        for f in ["lstm_recent_15d_20241230.csv", "recent.csv"]:
+                    # 3) LSTM CSV files (look for common filenames) 
+                    lstm_dir = outdir / "lstm_results" # Direktori hasil LSTM
+                    if lstm_dir.exists(): # Cek apakah direktori hasil LSTM ada 
+                        for f in ["lstm_records_2y_20241230.csv", "master.csv"]: # Cari file master LSTM
+                            p = lstm_dir / f # Path ke file master LSTM
+                            if p.exists(): # Cek apakah file master LSTM ada
+                                normalized["lstm_master_csv"] = str(p) # Simpan path ke file master LSTM
+                                break # Hentikan pencarian setelah menemukan file pertama yang ada
+                        for f in ["lstm_recent_15d_20241230.csv", "recent.csv"]: # Cari file recent LSTM
                             p = lstm_dir / f
                             if p.exists():
                                 normalized["lstm_recent_csv"] = str(p)
                                 break
-                        for f in ["lstm_anomalies_20241230.csv", "anomalies.csv"]:
+                        for f in ["lstm_anomalies_20241230.csv", "anomalies.csv"]: # Cari file anomali LSTM
                             p = lstm_dir / f
                             if p.exists():
                                 normalized["lstm_anomalies_csv"] = str(p)
                                 break
 
                     # 4) CNN outputs
-                    cnn_latest = outdir / "cnn_results" / "results" / "cnn_predictions_latest.csv"
+                    cnn_latest = outdir / "cnn_results" / "results" / "cnn_predictions_latest.csv" # Path ke file CSV prediksi CNN terbaru
                     if cnn_latest.exists():
                         normalized["cnn_pred_csv"] = str(cnn_latest)
-                    cnn_json = outdir / "cnn_results" / "cnn_predictions_latest.json"
+                    cnn_json = outdir / "cnn_results" / "cnn_predictions_latest.json" # Path ke file JSON prediksi CNN terbaru
                     if cnn_json.exists():
-                        normalized["cnn_pred_json"] = str(cnn_json)
+                        normalized["cnn_pred_json"] = str(cnn_json) # Simpan path ke file JSON prediksi CNN
 
                     # 5) NaiveBayes outputs (support multiple candidate dirs & files)
                     nb_candidates = [
                                 outdir / "naive_bayes",           # legacy
                                 outdir / "naive_bayes_results",
                                 outdir / "naive_bayes_outputs"
-                    ]
-                    nb_found = None
-                    for d in nb_candidates:
-                        if d.exists():
-                            nb_found = d
-                            break
+                    ] # Daftar direktori kandidat untuk hasil Naive Bayes
+                    nb_found = None # Tempat penyimpanan direktori hasil Naive Bayes yang ditemukan
+                    for d in nb_candidates: # Iterasi melalui direktori kandidat
+                        if d.exists(): # Cek apakah direktori kandidat ada
+                            nb_found = d # Simpan direktori yang ditemukan
+                            break # Hentikan pencarian setelah menemukan direktori pertama yang ada
 
-                    if nb_found:
-                        p1 = nb_found / "confusion_matrix.png"
-                        p2 = nb_found / "roc_curves.png"
-                        p_csv = nb_found / "naive_bayes_predictions.csv"
-                        p_json = nb_found / "naive_bayes_metrics.json"
-                        if p1.exists(): normalized["nb_confusion_png"] = str(p1)
-                        if p2.exists(): normalized["nb_roc_png"] = str(p2)
-                        if p_csv.exists(): normalized["nb_pred_csv"] = str(p_csv)
-                        if p_json.exists(): normalized["nb_metrics_json"] = str(p_json)
+                    if nb_found: # Jika direktori hasil Naive Bayes ditemukan
+                        p1 = nb_found / "confusion_matrix.png" # Path ke file gambar confusion matrix
+                        p2 = nb_found / "roc_curves.png" # Path ke file gambar ROC curves
+                        p_csv = nb_found / "naive_bayes_predictions.csv" # Path ke file CSV prediksi Naive Bayes
+                        p_json = nb_found / "naive_bayes_metrics.json" # Path ke file JSON metrik Naive Bayes
+                        if p1.exists(): normalized["nb_confusion_png"] = str(p1) # Simpan path ke file gambar confusion matrix
+                        if p2.exists(): normalized["nb_roc_png"] = str(p2) # Simpan path ke file gambar ROC curves
+                        if p_csv.exists(): normalized["nb_pred_csv"] = str(p_csv) # Simpan path ke file CSV prediksi Naive Bayes
+                        if p_json.exists(): normalized["nb_metrics_json"] = str(p_json) # Simpan path ke file JSON metrik Naive Bayes
 
 
                     # 6) combine: normalized keys override only when not present in original metrics
-                    final_metrics = {}
-                    if isinstance(metrics, dict):
-                        final_metrics.update(metrics)
-                    # set defaults where missing
-                    for k, v in normalized.items():
-                        final_metrics.setdefault(k, v)
+                    final_metrics = {} # Tempat penyimpanan metrik akhir untuk pelaporan
+                    if isinstance(metrics, dict): # Pastikan metrics adalah dictionary
+                        final_metrics.update(metrics) # Salin metrik asli ke metrik akhir
+                    # set defaults where missing 
+                    for k, v in normalized.items(): # Iterasi melalui metrik terstandarisasi
+                        final_metrics.setdefault(k, v) # Set metrik terstandarisasi hanya jika kunci belum ada di metrik akhir
 
                     # optional: log keys for debug
-                    self.logger.info(f"Reporter metrics keys being passed: {list(final_metrics.keys())}")
+                    self.logger.info(f"Reporter metrics keys being passed: {list(final_metrics.keys())}") # Catat kunci metrik yang akan dikirim ke reporter
 
                     # main.py sebelum self.reporter.run()
-                    print("=== COLUMNS df_final ===")
-                    print(df_final.columns)
+                    print("=== COLUMNS df_final ===") 
+                    print(df_final.columns) 
                     print("=== LAST ROW df_final ===")
                     print(df_final.tail(1))
 
                     # 7) run reporter
-                    self.reporter.run(df_final, final_metrics, anomalies)
+                    self.reporter.run(df_final, final_metrics, anomalies) # Panggil fungsi pelaporan dengan DataFrame hasil akhir, metrik akhir, dan anomali yang terdeteksi
 
 
 
             # NEW: Realtime inference pipeline (opsional, tergantung config)
             if hasattr(self.config.REALTIME, "enable_realtime_inference") and \
                self.config.REALTIME.enable_realtime_inference:
-                self.run_realtime_inference()
+                self.run_realtime_inference() # Panggil fungsi untuk menjalankan inferensi realtime
 
-            if self.config.REALTIME.enable_monitoring:
-                self.start_monitoring_loop()
+            if self.config.REALTIME.enable_monitoring: # Cek apakah konfigurasi mengizinkan pemantauan realtime
+                self.start_monitoring_loop() # Panggil fungsi untuk memulai loop pemantauan realtime
 
-        except Exception as e:
-            self.logger.critical(f"PIPELINE FAILED: {e}", exc_info=True)
-        finally:
-            end_ts = time.time()
-            self.logger.info(f"System shutdown. Uptime: {end_ts - start_ts:.2f}s")
+        except Exception as e: # Tangkap error jika terjadi masalah selama eksekusi
+            self.logger.critical(f"PIPELINE FAILED: {e}", exc_info=True) # Catat error kritis ke log dengan informasi traceback
+        finally: # Blok finally untuk eksekusi kode pembersihan
+            end_ts = time.time() # Catat waktu selesai eksekusi
+            self.logger.info(f"System shutdown. Uptime: {end_ts - start_ts:.2f}s") # Catat info waktu eksekusi ke log
 
 
 # ==============================================================================
 # CLI ARGUMENT SETUP
 # ==============================================================================
 
-def create_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="VolcanoAI Titan System")
-    parser.add_argument("--skip-training", action="store_true")
-    parser.add_argument("--eval-only", action="store_true")
-    parser.add_argument("--no-ga", action="store_true")
-    parser.add_argument("--no-aco", action="store_true")
-    parser.add_argument("--no-reporting", action="store_true")
-    return parser
+def create_arg_parser() -> argparse.ArgumentParser: # Fungsi untuk membuat parser argumen CLI
+    parser = argparse.ArgumentParser(description="VolcanoAI Titan System") # Inisialisasi parser argumen dengan deskripsi
+    parser.add_argument("--skip-training", action="store_true") # Argumen untuk melewati pelatihan model
+    parser.add_argument("--eval-only", action="store_true") # Argumen untuk hanya menjalankan evaluasi model
+    parser.add_argument("--no-ga", action="store_true") # Argumen untuk menonaktifkan engine GA
+    parser.add_argument("--no-aco", action="store_true") # Argumen untuk menonaktifkan engine ACO
+    parser.add_argument("--no-reporting", action="store_true") # Argumen untuk menonaktifkan pelaporan
+    return parser # Kembalikan parser argumen yang sudah dibuat
 
 
-def configure_pipeline_from_args(args: argparse.Namespace, config: ProjectConfig):
-    if args.skip_training:
-        config.PIPELINE.run_model_training = False
-    if args.eval_only:
-        config.PIPELINE.run_model_training = False
-        config.PIPELINE.run_data_loading = False
-        config.PIPELINE.run_feature_engineering = False
-    if args.no_ga:
-        config.PIPELINE.run_ga_engine = False
-    if args.no_aco:
-        config.PIPELINE.run_aco_engine = False
-    if args.no_reporting:
-        config.PIPELINE.run_reporting = False
+def configure_pipeline_from_args(args: argparse.Namespace, config: ProjectConfig): # Fungsi untuk mengonfigurasi pipeline berdasarkan argumen CLI
+    if args.skip_training: # Jika argumen --skip-training diberikan
+        config.PIPELINE.run_model_training = False # Nonaktifkan pelatihan model
+    if args.eval_only: # Jika argumen --eval-only diberikan
+        config.PIPELINE.run_model_training = False # Nonaktifkan pelatihan model
+        config.PIPELINE.run_data_loading = False # Nonaktifkan pemuatan data
+        config.PIPELINE.run_feature_engineering = False # Nonaktifkan rekayasa fitur
+    if args.no_ga: # Jika argumen --no-ga diberikan
+        config.PIPELINE.run_ga_engine = False # Nonaktifkan engine GA
+    if args.no_aco: # Jika argumen --no-aco diberikan
+        config.PIPELINE.run_aco_engine = False # Nonaktifkan engine ACO
+    if args.no_reporting: # Jika argumen --no-reporting diberikan
+        config.PIPELINE.run_reporting = False # Nonaktifkan pelaporan
 
 
 # ==============================================================================
 # MAIN ENTRY POINT
 # ==============================================================================
 
-def main():
-    parser = create_arg_parser()
-    args = parser.parse_args()
-
-    if not SYSTEM_READY:
-        print("System tidak siap. Ada modul yang hilang.")
+def main(): # Fungsi utama sebagai titik masuk program
+    parser = create_arg_parser() # Buat parser argumen CLI
+    args = parser.parse_args() # Parse argumen dari command line
+     
+    if not SYSTEM_READY: # Cek apakah sistem siap dijalankan
+        print("System tidak siap. Ada modul yang hilang.") # Tampilkan pesan error
         return
 
-    os.makedirs(CONFIG.OUTPUT.directory, exist_ok=True)
-    setup_logging(CONFIG.OUTPUT.directory)
+    os.makedirs(CONFIG.OUTPUT.directory, exist_ok=True) # Buat direktori output jika belum ada
+    setup_logging(CONFIG.OUTPUT.directory) # Atur logging ke direktori output
 
-    logging.info("=" * 80)
+    logging.info("=" * 80) 
     logging.info("  VOLCANOAI SYSTEM STARTUP  ".center(80))
     logging.info("=" * 80)
 
-    configure_pipeline_from_args(args, CONFIG)
+    configure_pipeline_from_args(args, CONFIG) # Konfigurasikan pipeline berdasarkan argumen CLI
 
-    pipeline = VolcanoAiPipeline(CONFIG)
-    pipeline.run()
+    pipeline = VolcanoAiPipeline(CONFIG) # Inisialisasi instance pipeline dengan konfigurasi proyek
+    pipeline.run() # Jalankan pipeline
 
 # === START: Flask dashboard integration (paste di akhir main.py) ===
-import threading
-import webbrowser
-from pathlib import Path
-from flask import Flask, send_from_directory, Response
-from jinja2 import Template
+import threading # Untuk menjalankan server Flask di thread terpisah
+import webbrowser # Untuk membuka browser web secara otomatis
+from pathlib import Path # manipulasi path file dan direktori
+from flask import Flask, send_from_directory, Response # framework web ringan
+from jinja2 import Template # untuk rendering template HTML
 
 # konfigurasi default
-FLASK_HOST = "127.0.0.1"
-FLASK_PORT = 5000
+FLASK_HOST = "127.0.0.1" # localhost
+FLASK_PORT = 5000 # port default
 # lokasi template file kamu (sudah kamu sebutkan)
-TEMPLATE_PATH = Path("VolcanoAI/reporting/templates/monitor_live_template.html")
-PROJECT_ROOT = Path.cwd()
+TEMPLATE_PATH = Path("VolcanoAI/reporting/templates/monitor_live_template.html") # path ke template HTML
+PROJECT_ROOT = Path.cwd() # root project saat ini
 
-def _file_url_for(path: Path) -> str:
-    """
+def _file_url_for(path: Path) -> str: 
+    """ 
     Convert file-system path to URL served by /files/... route.
     keeps path relative to project root.
     """
@@ -873,59 +872,59 @@ def build_dashboard_context(output_dir: Path) -> dict:
     out = output_dir
 
     # ACO json
-    aco_json = out / "aco_results" / "aco_to_ga.json"
-    if aco_json.exists():
-        try:
-            j = json.loads(aco_json.read_text(encoding="utf-8"))
-            lat = j.get("center_lat")
-            lon = j.get("center_lon")
-            if lat is not None and lon is not None:
-                ctx["ACO_IMPACT_CENTER"] = f"{lat}, {lon}"
-            ctx["ACO_IMPACT_AREA"] = j.get("impact_area_km2", ctx["ACO_IMPACT_AREA"])
-            aco_map_file = out / "aco_results" / "aco_impact_zones.html"
-            if aco_map_file.exists():
-                ctx["ACO_MAP"] = _file_url_for(aco_map_file)
+    aco_json = out / "aco_results" / "aco_to_ga.json" # Path ke file JSON hasil ACO
+    if aco_json.exists(): # Cek apakah file JSON hasil ACO ada
+        try: # Blok try untuk menangani potensi error saat membaca file JSON
+            j = json.loads(aco_json.read_text(encoding="utf-8")) # Baca dan parse file JSON
+            lat = j.get("center_lat")   # Dapatkan nilai latitude dari JSON
+            lon = j.get("center_lon")  # Dapatkan nilai longitude dari JSON
+            if lat is not None and lon is not None: # Cek apakah latitude dan longitude tidak None
+                ctx["ACO_IMPACT_CENTER"] = f"{lat}, {lon}"  # Simpan koordinat pusat ACO dalam format string
+            ctx["ACO_IMPACT_AREA"] = j.get("impact_area_km2", ctx["ACO_IMPACT_AREA"]) # Simpan area dampak ACO
+            aco_map_file = out / "aco_results" / "aco_impact_zones.html" # ACO map (HTML)
+            if aco_map_file.exists():  # Cek apakah file peta ACO ada
+                ctx["ACO_MAP"] = _file_url_for(aco_map_file) # Simpan path ke peta ACO
         except Exception:
             pass
 
     # GA map (path json produced earlier)
-    ga_map = out / "ga_results" / "ga_path_map.html"
-    if ga_map.exists():
-        ctx["GA_MAP"] = _file_url_for(ga_map)
+    ga_map = out / "ga_results" / "ga_path_map.html" # Path ke file peta hasil GA
+    if ga_map.exists(): # Cek apakah file peta hasil GA ada 
+        ctx["GA_MAP"] = _file_url_for(ga_map) # Simpan path ke peta GA
 
     # try to read GA predicted fields (if aco_to_ga.json contains next_event)
     try:
         if aco_json.exists():
-            j = json.loads(aco_json.read_text(encoding="utf-8"))
-            nxt = j.get("next_event") or {}
-            ctx["GA_PRED_LAT"] = nxt.get("lat", ctx["GA_PRED_LAT"])
-            ctx["GA_PRED_LON"] = nxt.get("lon", ctx["GA_PRED_LON"])
-            ctx["GA_BEARING"] = nxt.get("direction_deg", ctx["GA_BEARING"])
-            ctx["GA_DISTANCE"] = nxt.get("distance_km", ctx["GA_DISTANCE"])
-            ctx["GA_CONFIDENCE"] = nxt.get("confidence", ctx["GA_CONFIDENCE"])
-    except Exception:
+            j = json.loads(aco_json.read_text(encoding="utf-8")) # Baca dan parse file JSON
+            nxt = j.get("next_event") or {} # get next_event dict
+            ctx["GA_PRED_LAT"] = nxt.get("lat", ctx["GA_PRED_LAT"]) # get lat
+            ctx["GA_PRED_LON"] = nxt.get("lon", ctx["GA_PRED_LON"]) # get lon
+            ctx["GA_BEARING"] = nxt.get("direction_deg", ctx["GA_BEARING"]) # get bearing
+            ctx["GA_DISTANCE"] = nxt.get("distance_km", ctx["GA_DISTANCE"]) # get distance
+            ctx["GA_CONFIDENCE"] = nxt.get("confidence", ctx["GA_CONFIDENCE"]) # get confidence
+    except Exception:  
         pass
 
     # LSTM CSVs
-    lstm_dir = out / "lstm_results"
-    if lstm_dir.exists():
-        for f in ["lstm_records_2y_20241230.csv", "master.csv"]:
-            p = lstm_dir / f
-            if p.exists():
-                ctx["LSTM_MASTER_CSV"] = _file_url_for(p)
-                ctx["LSTM_MASTER_FILENAME"] = p.name
+    lstm_dir = out / "lstm_results" # Direktori hasil LSTM
+    if lstm_dir.exists(): # Cek apakah direktori hasil LSTM ada
+        for f in ["lstm_records_2y_20241230.csv", "master.csv"]: # Cari file master LSTM
+            p = lstm_dir / f # Path ke file master LSTM
+            if p.exists(): # Cek apakah file master LSTM ada
+                ctx["LSTM_MASTER_CSV"] = _file_url_for(p) # Simpan path ke file master LSTM
+                ctx["LSTM_MASTER_FILENAME"] = p.name # Simpan nama file master LSTM
+                break # Hentikan pencarian setelah menemukan file pertama yang ada
+        for f in ["lstm_recent_15d_20241230.csv", "recent.csv"]:    # Cari file recent LSTM
+            p = lstm_dir / f # Path ke file recent LSTM
+            if p.exists(): # Cek apakah file recent LSTM ada
+                ctx["LSTM_RECENT_CSV"] = _file_url_for(p) # Simpan path ke file recent LSTM
+                ctx["LSTM_RECENT_FILENAME"] = p.name # Simpan nama file recent LSTM
                 break
-        for f in ["lstm_recent_15d_20241230.csv", "recent.csv"]:
-            p = lstm_dir / f
-            if p.exists():
-                ctx["LSTM_RECENT_CSV"] = _file_url_for(p)
-                ctx["LSTM_RECENT_FILENAME"] = p.name
-                break
-        for f in ["lstm_anomalies_20241230.csv", "anomalies.csv"]:
-            p = lstm_dir / f
-            if p.exists():
-                ctx["LSTM_ANOMALIES_CSV"] = _file_url_for(p)
-                ctx["LSTM_ANOMALIES_FILENAME"] = p.name
+        for f in ["lstm_anomalies_20241230.csv", "anomalies.csv"]:  # Cari file anomali LSTM
+            p = lstm_dir / f # Path ke file anomali LSTM
+            if p.exists(): # Cek apakah file anomali LSTM ada
+                ctx["LSTM_ANOMALIES_CSV"] = _file_url_for(p) # Simpan path ke file anomali LSTM
+                ctx["LSTM_ANOMALIES_FILENAME"] = p.name # Simpan nama file anomali LSTM
                 break
 
     # CNN predictions latest CSV / JSON and latest row for LATEST_ROW_HTML
@@ -933,7 +932,7 @@ def build_dashboard_context(output_dir: Path) -> dict:
     if cnn_latest.exists():
         ctx["CNN_PRED_CSV"] = _file_url_for(cnn_latest)
         try:
-            df = pd.read_csv(cnn_latest, parse_dates=["Acquired_Date"])
+            df = pd.read_csv(cnn_latest, parse_dates=["Acquired_Date"]) # read CSV with date parsing
             if not df.empty:
                 last = df.tail(1)
                 # render a small HTML table with last row
@@ -941,56 +940,56 @@ def build_dashboard_context(output_dir: Path) -> dict:
         except Exception:
             pass
 
-    cnn_json = out / "cnn_results" / "cnn_predictions_latest.json"
-    if cnn_json.exists():
-        ctx["CNN_PRED_JSON"] = _file_url_for(cnn_json)
+    cnn_json = out / "cnn_results" / "cnn_predictions_latest.json" # latest JSON
+    if cnn_json.exists(): # check exists
+        ctx["CNN_PRED_JSON"] = _file_url_for(cnn_json) # set URL
     
-    cnn_img = out / "cnn_results" / "cnn_prediction_map.png"
+    cnn_img = out / "cnn_results" / "cnn_prediction_map.png" # CNN IMAGE LIST
 
-    if cnn_img.exists():
-        ctx["CNN_IMAGE_LIST_HTML"] = f"""
+    if cnn_img.exists(): # check exists
+        ctx["CNN_IMAGE_LIST_HTML"] = f""" 
             <img src="{_file_url_for(cnn_img)}"
                  class="plot"
                  alt="CNN Prediction Map">
-        """
-    else:
-        ctx["CNN_IMAGE_LIST_HTML"] = "<p class='muted'></p>"
+        """  # set HTML
+    else:  # default empty
+        ctx["CNN_IMAGE_LIST_HTML"] = "<p class='muted'></p>" # no image
 
     # CNN MAP (HTML)
-    cnn_map = out / "cnn_results" / "cnn_prediction_map.html"
-    if cnn_map.exists():
-        ctx["CNN_MAP"] = _file_url_for(cnn_map)
-    else:
-        ctx["CNN_MAP"] = "#"
+    cnn_map = out / "cnn_results" / "cnn_prediction_map.html" # CNN MAP HTML
+    if cnn_map.exists(): # check exists 
+        ctx["CNN_MAP"] = _file_url_for(cnn_map)  # set URL
+    else: # default
+        ctx["CNN_MAP"] = "#" # no map
 
     # NaiveBayes outputs (support multiple candidate dirs & files)
     nb_candidates = [
         out / "naive_bayes",           # legacy
         out / "naive_bayes_results",   # earlier assistant default
         out / "naive_bayes_outputs"    # any other naming variant
-    ]
+    ] # Daftar direktori kandidat untuk hasil Naive Bayes
 
-    nb_found = None
-    for cand in nb_candidates:
-        if cand.exists():
-            nb_found = cand
-            break
+    nb_found = None # Tempat penyimpanan direktori hasil Naive Bayes yang ditemukan
+    for cand in nb_candidates: # Iterasi melalui direktori kandidat
+        if cand.exists(): # Cek apakah direktori kandidat ada
+            nb_found = cand # Simpan direktori yang ditemukan
+            break # Hentikan pencarian setelah menemukan direktori pertama yang ada
 
-    if nb_found:
+    if nb_found: # Jika direktori hasil Naive Bayes ditemukan
         p1 = nb_found / "confusion_matrix.png"
         p2 = nb_found / "roc_curves.png"
         p_csv = nb_found / "naive_bayes_predictions.csv"
         p_json = nb_found / "naive_bayes_metrics.json"
         p_report = nb_found / "classification_report.txt"
 
-        if p1.exists():
-            ctx["NB_CONFUSION_PNG"] = _file_url_for(p1)
-        if p2.exists():
-            ctx["NB_ROC_PNG"] = _file_url_for(p2)
-        if p_csv.exists():
+        if p1.exists(): # set URL
+            ctx["NB_CONFUSION_PNG"] = _file_url_for(p1) # set URL
+        if p2.exists(): # set URL
+            ctx["NB_ROC_PNG"] = _file_url_for(p2) # set URL
+        if p_csv.exists(): # set URL
             ctx["CNN_PRED_CSV"] = ctx.get("CNN_PRED_CSV", "#")  # avoid clobbering CNN keys
             # add a separate key for NB predictions if you want:
-            ctx["NB_PRED_CSV"] = _file_url_for(p_csv)
+            ctx["NB_PRED_CSV"] = _file_url_for(p_csv) # set URL
         if p_json.exists():
             try:
                 mj = json.loads(p_json.read_text(encoding="utf-8"))
@@ -1010,26 +1009,26 @@ def build_dashboard_context(output_dir: Path) -> dict:
 
 
     # If reporter generated textual metrics in a JSON, try reading it (optional)
-    metrics_json = output_dir / "report_metrics.json"
-    if metrics_json.exists():
+    metrics_json = output_dir / "report_metrics.json" # optional reporter metrics JSON
+    if metrics_json.exists(): # check exists
         try:
-            mj = json.loads(metrics_json.read_text(encoding="utf-8"))
+            mj = json.loads(metrics_json.read_text(encoding="utf-8")) # read JSON
             # simple conversion to small HTML table
             rows = ["<table>"]
             for k, v in mj.items():
                 rows.append(f"<tr><th style='text-align:left;padding:6px'>{k}</th><td style='padding:6px'>{v}</td></tr>")
-            rows.append("</table>")
-            ctx["NB_METRICS_HTML"] = "\n".join(rows)
+            rows.append("</table>") # close table
+            ctx["NB_METRICS_HTML"] = "\n".join(rows) # set HTML
         except Exception:
             pass
 
     return ctx
 
 # Flask app and routes
-def create_flask_app(output_dir: Path, template_path: Path) -> Flask:
+def create_flask_app(output_dir: Path, template_path: Path) -> Flask: # Fungsi untuk membuat aplikasi Flask
     app = Flask(__name__)
 
-    @app.route("/")
+    @app.route("/") # route utama
     def index():
         ctx = build_dashboard_context(output_dir=output_dir)
         # load template file as raw HTML with placeholders
@@ -1041,7 +1040,7 @@ def create_flask_app(output_dir: Path, template_path: Path) -> Flask:
         else:
             return "<h3>Template not found</h3><p>Check TEMPLATE_PATH setting.</p>", 404
 
-    @app.route("/files/<path:filename>")
+    @app.route("/files/<path:filename>") # route untuk melayani file statis
     def serve_file(filename):
         # Serve files from project root to allow iframe loading of output HTML/CSV/PNG
         safe_path = Path(filename)
@@ -1057,7 +1056,7 @@ def create_flask_app(output_dir: Path, template_path: Path) -> Flask:
 
     return app
 
-def start_flask_in_thread(app: Flask, host="127.0.0.1", port=5000, open_browser=True):
+def start_flask_in_thread(app: Flask, host="127.0.0.1", port=5000, open_browser=True): # Fungsi untuk menjalankan server Flask di thread terpisah
     def _run():
         # disable debug + reloader for thread-safety
         if open_browser:
@@ -1072,7 +1071,7 @@ def start_flask_in_thread(app: Flask, host="127.0.0.1", port=5000, open_browser=
     return th
 
 # Modify main() behavior: start flask either before pipeline (when enable_monitoring) or after
-def main_with_dashboard():
+def main_with_dashboard(): # Fungsi utama dengan integrasi dashboard Flask
     parser = create_arg_parser()
     args = parser.parse_args()
 
@@ -1080,11 +1079,11 @@ def main_with_dashboard():
         print("System tidak siap. Ada modul yang hilang.")
         return
 
-    os.makedirs(CONFIG.OUTPUT.directory, exist_ok=True)
-    setup_logging(CONFIG.OUTPUT.directory)
+    os.makedirs(CONFIG.OUTPUT.directory, exist_ok=True) # pastikan folder output ada
+    setup_logging(CONFIG.OUTPUT.directory) # atur logging ke folder output
 
-    from pathlib import Path
-    out = Path(CONFIG.OUTPUT.directory)
+    from pathlib import Path # manipulasi path file dan direktori
+    out = Path(CONFIG.OUTPUT.directory) # output directory
     out.mkdir(parents=True, exist_ok=True)  # pastikan folder utama ada
 
 
@@ -1098,8 +1097,8 @@ def main_with_dashboard():
     app = create_flask_app(output_dir=Path(CONFIG.OUTPUT.directory), template_path=TEMPLATE_PATH)
 
     # If monitoring loop will run (blocking), start Flask in background first
-    enable_monitoring = getattr(CONFIG.REALTIME, "enable_monitoring", False)
-    if enable_monitoring:
+    enable_monitoring = getattr(CONFIG.REALTIME, "enable_monitoring", False) 
+    if enable_monitoring: # 
         logging.info("[Dashboard] Starting Flask server in background thread (monitoring enabled)...")
         start_flask_in_thread(app, host=FLASK_HOST, port=FLASK_PORT, open_browser=True)
 

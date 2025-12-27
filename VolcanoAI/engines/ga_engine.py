@@ -3,48 +3,48 @@
 # GA Engine + Vector Prediction + Map Popup
 # ============================================
 
-import os
-import sys
-import json
-import time
-import math
-import random
-import shutil
-import pickle
-import functools
-import logging
-import warnings
-import uuid
-from datetime import datetime
-from typing import Dict, Any, List, Tuple, Optional, Union, Callable, Iterable
+import os # operating system
+import sys # system
+import json # JSON handling
+import time # time measurement
+import math # mathematical functions
+import random # random number generation
+import shutil # file operations
+import pickle # object serialization
+import functools # function tools
+import logging # logging
+import warnings # warnings management
+import uuid # unique identifiers
+from datetime import datetime # date and time handling
+from typing import Dict, Any, List, Tuple, Optional, Union, Callable, Iterable # type hints
 
-import numpy as np
-import pandas as pd
-import networkx as nx
-import folium
-from folium import plugins
-from folium.plugins import AntPath, HeatMap, Fullscreen, MiniMap, MeasureControl
+import numpy as np # numerical computing
+import pandas as pd # data manipulation
+import networkx as nx # graph algorithms
+import folium # interactive maps
+from folium import plugins # folium plugins
+from folium.plugins import AntPath, HeatMap, Fullscreen, MiniMap, MeasureControl # folium extras
 
-from deap import base, creator, tools, algorithms
+from deap import base, creator, tools, algorithms # DEAP evolutionary algorithms
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import seaborn as sns
-from scipy.spatial.distance import pdist, squareform
+import matplotlib # plotting
+matplotlib.use("Agg") # non-GUI backend
+import matplotlib.pyplot as plt # plotting
+import seaborn as sns # statistical data visualization
+from scipy.spatial.distance import pdist, squareform # distance computations
 
 
-# ===========================
+# =======
 # Logging
-# ===========================
+# =======
 logger = logging.getLogger("VolcanoAI.GaEngine")
 logger.addHandler(logging.NullHandler())
 
 
-# ========================================================
-# 🔥 FIX: Prevent DEAP Creator Crash (REQUIRED)
-# ========================================================
-if not hasattr(creator, "FitnessMin"):
+# ==========================================
+# FIX: Prevent DEAP Creator Crash (REQUIRED)
+# ==========================================
+if not hasattr(creator, "FitnessMin"): 
     creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
 
 if not hasattr(creator, "Individual"):
@@ -54,9 +54,9 @@ if not hasattr(creator, "Individual"):
 # ===========================
 # Utility Decorators
 # ===========================
-def execution_monitor(func):
+def execution_monitor(func): # decorator untuk monitor eksekusi fungsi
     @functools.wraps(func)
-    def wrapper(*args, **kwargs):
+    def wrapper(*args, **kwargs): # wrapper function untuk mengukur waktu eksekusi
         start_ts = time.perf_counter()
         try:
             return func(*args, **kwargs)
@@ -71,18 +71,18 @@ def execution_monitor(func):
     return wrapper
 
 
-# ===========================
+# =============
 # GEO MATH CORE
-# ===========================
-class GeoMathCore:
-    R_EARTH_KM = 6371.0088
+# =============
+class GeoMathCore: # Kelas utilitas untuk perhitungan geodesik
+    R_EARTH_KM = 6371.0088 # radius bumi dalam kilometer
+
+    @staticmethod # konversi derajat ke radian
+    def to_radians(array_like): # mengonversi array derajat ke radian
+        return np.radians(array_like) # menggunakan numpy untuk konversi
 
     @staticmethod
-    def to_radians(array_like):
-        return np.radians(array_like)
-
-    @staticmethod
-    def calculate_bearing(lat1, lon1, lat2, lon2):
+    def calculate_bearing(lat1, lon1, lat2, lon2): # menghitung bearing antara dua titik
         """Bearing (sudut) dari titik 1 → titik 2 dalam derajat 0-360 (geodesic)."""
         lat1_rad = math.radians(lat1)
         lat2_rad = math.radians(lat2)
@@ -96,7 +96,7 @@ class GeoMathCore:
         return (bearing + 360.0) % 360.0
 
     @classmethod
-    def haversine(cls, lat1, lon1, lat2, lon2):
+    def haversine(cls, lat1, lon1, lat2, lon2): # menghitung jarak haversine antara dua titik
         """Jarak permukaan bumi (km) antar dua koordinat (great-circle)."""
         lat1_rad = math.radians(lat1)
         lon1_rad = math.radians(lon1)
@@ -113,7 +113,7 @@ class GeoMathCore:
         return cls.R_EARTH_KM * c
 
     @classmethod
-    def destination_point(cls, lat1, lon1, bearing_deg, distance_km):
+    def destination_point(cls, lat1, lon1, bearing_deg, distance_km): # menghitung titik tujuan berdasarkan bearing dan jarak
         """
         Hitung titik tujuan (lat2, lon2) dari lat1,lon1, bearing (deg) dan distance (km).
         Rumus spherial: lat2 = asin(sin(lat1)*cos(d/R) + cos(lat1)*sin(d/R)*cos(brng))
@@ -140,19 +140,19 @@ class GeoMathCore:
         return float(lat2), float(lon2)
 
 
-# =====================================
+# ==============
 # DATA SANITIZER
-# =====================================
-class DataSanitizer:
+# ==============
+class DataSanitizer: # Kelas untuk membersihkan dan memvalidasi data input
     def __init__(self):
         self.required_columns = [
             'EQ_Lintang', 'EQ_Bujur', 'Acquired_Date',
             'PheromoneScore', 'Magnitudo', 'Kedalaman (km)'
-        ]
+        ] # kolom yang diperlukan dalam DataFrame
         self.min_rows = 5
 
-    @execution_monitor
-    def execute(self, df: pd.DataFrame) -> pd.DataFrame:
+    @execution_monitor # dekorator untuk memonitor eksekusi
+    def execute(self, df: pd.DataFrame) -> pd.DataFrame: # metode utama untuk membersihkan data
         if df is None:
             raise ValueError("Input DataFrame cannot be None")
         if df.empty:
@@ -177,10 +177,10 @@ class DataSanitizer:
         return df
 
 
-# =====================================
+# ======================
 # PHYSICS FITNESS ENGINE
-# =====================================
-class PhysicsFitnessEngine:
+# ======================
+class PhysicsFitnessEngine: # Kelas untuk menghitung fungsi fitness berdasarkan fisika
     def __init__(self, df: pd.DataFrame, weight_config: Dict[str, float]):
         self.df = df
         self.weights = weight_config
@@ -196,16 +196,16 @@ class PhysicsFitnessEngine:
         self.eps = 1e-6
         self.penalty = 1e15
 
-        # Extract weights
+        # ekstrak bobot dari konfigurasi
         self.w_time = weight_config.get("time", 10000)
         self.w_space = weight_config.get("space", 1)
         self.w_mag = weight_config.get("mag", 50)
         self.w_depth = weight_config.get("depth", 10)
         self.w_risk = weight_config.get("risk", 500)
 
-    # ---------------------------
+    # ------------
     # FITNESS FUNCTION
-    # ---------------------------
+    # ------------
     def evaluate(self, individual: List[int]) -> Tuple[float]:
         """
         Fungsi Evaluasi (Fitness Function) untuk Algoritma Genetika.
@@ -293,17 +293,17 @@ class PhysicsFitnessEngine:
         # Formula: Cost = Sum(1 / Risk)
         risk_cost = self.w_risk * np.sum(1.0 / clipped_risk)
 
-        # -------------------------------------------------------------
+        # --------------------------
         # 4. TOTAL COST CALCULATION
-        # -------------------------------------------------------------
+        # --------------------------
         total_cost = (
             temporal_cost +
             spatial_cost +
             mag_cost +
             depth_cost +
             risk_cost
-        )
-
+        ) # total cost sebagai agregat semua komponen
+        
         # Pastikan return value aman untuk dikonsumsi algoritma
         if np.isnan(total_cost) or np.isinf(total_cost):
             return (self.penalty, )
@@ -311,7 +311,7 @@ class PhysicsFitnessEngine:
         return (total_cost, )
 
     # -------------------------------------------------------------
-    # 🔥 PREDIKSI NEXT EVENT (berdasarkan 3 titik terakhir)
+    # PREDIKSI NEXT EVENT (berdasarkan 3 titik terakhir)
     # -------------------------------------------------------------
     def predict_next_event(
         self,
@@ -344,7 +344,7 @@ class PhysicsFitnessEngine:
         df_seg = df_path.iloc[-n_seg:].reset_index(drop=True)
 
         return self.compute_vector_from_segment(df_seg)
-
+    # komputasi vektor dari segmen data
     def compute_vector_from_segment(self, df_seg: pd.DataFrame) -> Dict[str, float]:
         """
         Hitung bearing rata-rata (circular mean) dan distance rata-rata (weighted),
@@ -361,21 +361,21 @@ class PhysicsFitnessEngine:
         mags = df_seg['Magnitudo'].astype(float).values if 'Magnitudo' in df_seg.columns else np.ones(len(df_seg))
         risks = df_seg['PheromoneScore'].astype(float).values if 'PheromoneScore' in df_seg.columns else np.ones(len(df_seg)) * 0.1
 
-        # compute bearings & distances for each consecutive pair
+        # komputasi jarak & bearing antar titik segmen
         bearings = []
         distances = []
         weights = []
-        for i in range(len(lats) - 1):
-            lat_a, lon_a = lats[i], lons[i]
+        for i in range(len(lats) - 1): # loop antar segmen
+            lat_a, lon_a = lats[i], lons[i] 
             lat_b, lon_b = lats[i + 1], lons[i + 1]
             dkm = GeoMathCore.haversine(lat_a, lon_a, lat_b, lon_b)
             bdeg = GeoMathCore.calculate_bearing(lat_a, lon_a, lat_b, lon_b)
-            # weight by mean magnitude * mean risk for the segment
+            # bobot berdasarkan magnitudo & risiko (rata-rata segmen)
             w = ((mags[i] + mags[i + 1]) / 2.0) * ((risks[i] + risks[i + 1]) / 2.0) + 1e-9
             distances.append(float(dkm))
             bearings.append(float(bdeg))
             weights.append(float(w))
-
+        # jarak, bobot sebagai numpy array
         distances = np.array(distances, dtype=float)
         weights = np.array(weights, dtype=float)
         # normalize weights
@@ -383,11 +383,11 @@ class PhysicsFitnessEngine:
 
         # --- Circular mean for bearings ---
         # convert deg->rad
-        thetas = np.radians(np.array(bearings))
+        thetas = np.radians(np.array(bearings)) # radian
         # weighted vector sum
-        x = np.sum(weights * np.cos(thetas))
-        y = np.sum(weights * np.sin(thetas))
-        if x == 0 and y == 0:
+        x = np.sum(weights * np.cos(thetas)) # komponen x
+        y = np.sum(weights * np.sin(thetas)) # komponen y
+        if x == 0 and y == 0: 
             mean_theta = 0.0
         else:
             mean_theta = math.atan2(y, x)  # rad
@@ -404,12 +404,12 @@ class PhysicsFitnessEngine:
         ang_std_deg = math.degrees(ang_std_rad)
 
         # --- Weighted average distance (km) ---
-        mean_distance_km = float(np.sum(distances * weights)) if len(distances) > 0 else 0.0
-        dist_std_km = float(np.sqrt(np.sum(weights * (distances - mean_distance_km) ** 2))) if len(distances) > 0 else 0.0
+        mean_distance_km = float(np.sum(distances * weights)) if len(distances) > 0 else 0.0 # rata-rata jarak berbobot
+        dist_std_km = float(np.sqrt(np.sum(weights * (distances - mean_distance_km) ** 2))) if len(distances) > 0 else 0.0 # std dev jarak
 
         # scaling factor (influences how far we project next point)
-        last_mag = float(mags[-1]) if len(mags) > 0 else 1.0
-        last_risk = float(risks[-1]) if len(risks) > 0 else 0.1
+        last_mag = float(mags[-1]) if len(mags) > 0 else 1.0 # gunakan magnitudo terakhir
+        last_risk = float(risks[-1]) if len(risks) > 0 else 0.1 # gunakan risiko terakhir
         scale = 0.5 + (last_mag / 10.0) + float(last_risk)
 
         # predicted distance = mean_distance_km * scale
@@ -447,10 +447,10 @@ class PhysicsFitnessEngine:
             "vector_lon": float(dx_east_km),    # east km
             "movement_direction": self.bearing_to_compass(mean_bearing_deg),
             "confidence": float(combined_conf)
-        }
+        } # dict hasil prediksi
 
     @staticmethod
-    def bearing_to_compass(bearing: float) -> str:
+    def bearing_to_compass(bearing: float) -> str: # konversi bearing ke arah kompas
         """
         Konversi 0-360 derajat ke 8 arah kompas.
         """
@@ -458,37 +458,37 @@ class PhysicsFitnessEngine:
         ix = int((bearing + 22.5) // 45) % 8
         return dirs[ix]
 
-
+    # komputasi confidence berdasarkan pheromone score
     def compute_confidence(self, df_seg: pd.DataFrame) -> float:
         try:
             risks = df_seg['PheromoneScore'].astype(float).values
-
+            # jika semua risiko nol, kembalikan confidence minimal
             if np.all(risks == 0):
                 return 0.4  # fallback confidence minimal
-
+            # komputasi mean & std dev
             mean_r = float(np.mean(risks))
             std_r = float(np.std(risks)) + 1e-6
-
+            # confidence formula (0.3 .. 1.0) berbasis rasio mean/std 
             conf = mean_r / (mean_r + std_r)
-            return max(0.3, min(conf, 1.0))
-
-        except Exception:
+            return max(0.3, min(conf, 1.0)) # clamp ke [0.3, 1.0] 
+        # selainnya, kembalikan confidence default
+        except Exception: 
             return 0.4
 
 # ============================================
 # BLOCK 2/3 — Evolutionary Controller + Checkpoint
 # ============================================
-
+# Checkpoint System
 class CheckpointSystem:
-    def __init__(self, directory: str, filename: str = "ga_state.pkl"):
-        self.directory = os.path.join(directory, "checkpoints")
-        self.filename = filename
-        self.filepath = os.path.join(self.directory, filename)
-        os.makedirs(self.directory, exist_ok=True)
-
-    def save_state(self, population, generation, stats, filename=None):
-        fname = filename if filename else self.filename
-        fpath = os.path.join(self.directory, fname)
+    def __init__(self, directory: str, filename: str = "ga_state.pkl"): # inisialisasi sistem checkpoint
+        self.directory = os.path.join(directory, "checkpoints") # direktori penyimpanan checkpoint
+        self.filename = filename # nama file checkpoint default
+        self.filepath = os.path.join(self.directory, filename) # path lengkap file checkpoint 
+        os.makedirs(self.directory, exist_ok=True) # buat direktori jika belum ada
+    # simpan state ke file checkpoint
+    def save_state(self, population, generation, stats, filename=None): # simpan state ke file checkpoint
+        fname = filename if filename else self.filename # gunakan nama file khusus jika diberikan
+        fpath = os.path.join(self.directory, fname) # path lengkap file checkpoint
 
         payload = {
             "version": "6.0",
@@ -496,14 +496,14 @@ class CheckpointSystem:
             "generation": generation,
             "population": population,
             "stats": stats
-        }
-
+        } # data yang akan disimpan
+        # simpan ke file menggunakan pickle
         try:
             with open(fpath, "wb") as f:
                 pickle.dump(payload, f)
         except Exception as e:
             logger.error(f"Failed to save checkpoint: {e}")
-
+    # muat state dari file checkpoint
     def load_state(self):
         if not os.path.exists(self.filepath):
             return None
@@ -514,35 +514,35 @@ class CheckpointSystem:
             logger.error(f"Failed to load checkpoint: {e}")
             return None
 
-
+# Statistics Collector untuk GA Engine 
 class StatisticsCollector:
     def __init__(self):
-        self.stats = tools.Statistics(lambda ind: ind.fitness.values)
-        self.stats.register("avg", np.mean)
-        self.stats.register("std", np.std)
-        self.stats.register("min", np.min)
-        self.stats.register("max", np.max)
-
+        self.stats = tools.Statistics(lambda ind: ind.fitness.values) # mengumpulkan nilai fitness individu
+        self.stats.register("avg", np.mean) # rata-rata fitness
+        self.stats.register("std", np.std)# standar deviasi fitness
+        self.stats.register("min", np.min) # nilai fitness minimum
+        self.stats.register("max", np.max)  # nilai fitness maksimum
+    # dapatkan objek statistik
     def get(self):
         return self.stats
 
-
+# Evolutionary Controller untuk menjalankan GA
 class EvolutionaryController:
-    def __init__(self, config, fitness_engine, checkpoint_mgr):
-        self.cfg = config
-        self.fitness_engine = fitness_engine
-        self.checkpoint_mgr = checkpoint_mgr
+    def __init__(self, config, fitness_engine, checkpoint_mgr): # inisialisasi controller evolusi
+        self.cfg = config # konfigurasi GA
+        self.fitness_engine = fitness_engine # engine fitness
+        self.checkpoint_mgr = checkpoint_mgr # manajer checkpoint
 
-        self.toolbox = base.Toolbox()
-        self.stats_col = StatisticsCollector()
-        self.stats = self.stats_col.get()
-
+        self.toolbox = base.Toolbox() # toolbox DEAP untuk operator GA
+        self.stats_col = StatisticsCollector() # kolektor statistik
+        self.stats = self.stats_col.get() # objek statistik
+        # daftarkan operator GA
         self._register_operators()
-
+    # daftarkan operator GA
     def _register_operators(self):
-        problem_size = self.fitness_engine.num_nodes
+        problem_size = self.fitness_engine.num_nodes # ukuran masalah (jumlah node)
 
-        # Gene generator → a permutation
+        # Index Generator (Perumutan) untuk kromosom permutasi 
         self.toolbox.register("indices", np.random.permutation, problem_size)
 
         # Chromosome Initialization
@@ -565,18 +565,18 @@ class EvolutionaryController:
         self.toolbox.register("select", tools.selTournament,
                               tournsize=self.cfg.tournament_size)
 
-    @execution_monitor
-    def run(self):
-        pop_size = self.cfg.population_size
-        n_gen = self.cfg.n_generations
-        cx_prob = self.cfg.crossover_prob
-        mut_prob = self.cfg.mutation_prob
-
+    @execution_monitor # dekorator untuk memonitor eksekusi
+    def run(self): # metode utama untuk menjalankan evolusi GA
+        pop_size = self.cfg.population_size # ukuran populasi
+        n_gen = self.cfg.n_generations # jumlah generasi
+        cx_prob = self.cfg.crossover_prob # probabilitas crossover
+        mut_prob = self.cfg.mutation_prob # probabilitas mutasi
+        # Logging awal
         logger.info(f"GA Evolution Start → Pop={pop_size}, Gen={n_gen}")
 
-        # Initial population
-        pop = self.toolbox.population(n=pop_size)
-        hof = tools.HallOfFame(self.cfg.hall_of_fame_size)
+        
+        pop = self.toolbox.population(n=pop_size) # inisialisasi populasi
+        hof = tools.HallOfFame(self.cfg.hall_of_fame_size) # hall of fame untuk individu terbaik
 
         # Load checkpoint if exists
         state = self.checkpoint_mgr.load_state()
@@ -673,21 +673,21 @@ class EvolutionaryController:
 # ============================================
 # BLOCK 3/3 — Visualizer + Exporter + GA Engine Wrapper
 # ============================================
-
+# Multi-Layer Visualizer untuk peta interaktif
 class MultiLayerVisualizer:
-    def __init__(self, output_dir: str):
+    def __init__(self, output_dir: str): # inisialisasi visualizer
         self.output_dir = output_dir
         self.viz_dir = os.path.join(output_dir, "visuals")
         os.makedirs(self.viz_dir, exist_ok=True)
 
-    def clamp_to_east_java(self, lat: float, lon: float) -> Tuple[float, float]:
-        LAT_MIN, LAT_MAX = -9.5, -5.5
-        LON_MIN, LON_MAX = 110.0, 116.0
-
+    def clamp_to_east_java(self, lat: float, lon: float) -> Tuple[float, float]: # membatasi koordinat ke wilayah Jawa Timur
+        LAT_MIN, LAT_MAX = -9.5, -5.5 # batas lintang Jawa Timur
+        LON_MIN, LON_MAX = 110.0, 116.0 # batas bujur Jawa Timur
+        # clamp lat & lon ke dalam batas tertentu 
         clamped_lat = max(min(lat, LAT_MAX), LAT_MIN)
         clamped_lon = max(min(lon, LON_MAX), LON_MIN)
 
-        return clamped_lat, clamped_lon
+        return clamped_lat, clamped_lon # kembalikan koordinat yang sudah di-clamp
 
     def generate_map(
         self,
@@ -695,21 +695,21 @@ class MultiLayerVisualizer:
         df: pd.DataFrame,
         pred_info: Dict[str, float],
         out_path: str
-    ):
+    ): # metode utama untuk menghasilkan peta interaktif
         if not best_path:
             logger.warning("GA Visualizer: best_path kosong, map tidak dibuat.")
             return
 
-        center_lat = df['EQ_Lintang'].mean()
-        center_lon = df['EQ_Bujur'].mean()
-
+        center_lat = df['EQ_Lintang'].mean() # pusat peta berdasarkan rata-rata koordinat
+        center_lon = df['EQ_Bujur'].mean() # pusat peta berdasarkan rata-rata koordinat
+        # buat objek peta folium
         m = folium.Map(location=[center_lat, center_lon], zoom_start=8, tiles=None)
         folium.TileLayer('CartoDB positron', name='Light').add_to(m)
         folium.TileLayer('CartoDB dark_matter', name='Dark').add_to(m)
 
         # CHAOS LAYER
         chaos = folium.FeatureGroup(name="Chaos Connectivity", show=False)
-
+        # sample 400 titik acak untuk visualisasi garis konektivitas
         coords = df[['EQ_Lintang', 'EQ_Bujur']].values
         if len(coords) > 0:
             sample = coords[: min(400, len(coords))]
@@ -908,12 +908,12 @@ class MultiLayerVisualizer:
         m.save(out_path)
         logger.info(f"GA Map saved → {out_path}")
 
-
+# Excel Data Exporter
 class DataExporter:
-    def __init__(self, output_dir: str):
-        self.output_dir = output_dir
-        self.excel_path = os.path.join(output_dir, "ga_report.xlsx")
-
+    def __init__(self, output_dir: str): # inisialisasi exporter
+        self.output_dir = output_dir # direktori output
+        self.excel_path = os.path.join(output_dir, "ga_report.xlsx") # path file excel output
+    # metode utama untuk mengekspor data ke file excel
     def export(self, df_original: pd.DataFrame, df_optimal: pd.DataFrame, meta: Dict[str, Any]):
         try:
             with pd.ExcelWriter(self.excel_path, engine="openpyxl") as writer:
@@ -929,11 +929,11 @@ class DataExporter:
 # ==================================================
 # GA ENGINE WRAPPER (Dipanggil Pipeline)
 # ==================================================
-class GaEngine:
-    def __init__(self, config: Any):
-        self.cfg = config
-        self.output_dir = getattr(config, "output_dir", "output/ga_results")
-        os.makedirs(self.output_dir, exist_ok=True)
+class GaEngine: # GA Engine utama
+    def __init__(self, config: Any): # inisialisasi GA Engine
+        self.cfg = config # konfigurasi GA
+        self.output_dir = getattr(config, "output_dir", "output/ga_results") # direktori output
+        os.makedirs(self.output_dir, exist_ok=True) # buat direktori output jika belum ada
 
         # MAPS directory (UNTUK FOLIUM MAP)
         self.maps_dir = os.path.join(self.output_dir, "maps")
@@ -942,14 +942,14 @@ class GaEngine:
         # Path FINAL map
         self.map_path = os.path.join(self.maps_dir, "ga_path_map.html")
 
-        self.sanitizer = DataSanitizer()
-        self.checkpoint_mgr = CheckpointSystem(self.output_dir)
-        self.visualizer = MultiLayerVisualizer(self.output_dir)
+        self.sanitizer = DataSanitizer() # inisialisasi data sanitizer
+        self.checkpoint_mgr = CheckpointSystem(self.output_dir) # inisialisasi manajer checkpoint
+        self.visualizer = MultiLayerVisualizer(self.output_dir) # inisialisasi visualizer peta
         self.exporter = DataExporter(self.output_dir)
 
         self.map_path = os.path.join(self.output_dir, "ga_path_map.html")
         self.log_path = os.path.join(self.output_dir, "ga_log.csv")
-
+    # Tulis hasil prediksi ke aco_to_ga.json
     def _write_back_to_aco_json(self, pred: Dict[str, Any]):
         """
         Menulis hasil prediksi GA ke aco_to_ga.json agar dashboard bisa membaca next_event.
@@ -977,15 +977,15 @@ class GaEngine:
 
         # Build next_event payload from pred (with safe conversions)
         next_event = {
-            "lat": safe_float(pred.get("pred_lat", None), 0.0),
-            "lon": safe_float(pred.get("pred_lon", None), 0.0),
-            "direction_deg": safe_float(pred.get("bearing_degree", None), 0.0),
-            "distance_km": safe_float(pred.get("distance_km", None), 0.0),
-            "confidence": max(0.0, min(1.0, float(pred.get("confidence", 0.0) or 0.0)))
+            "lat": safe_float(pred.get("pred_lat", None), 0.0), # latitude prediksi
+            "lon": safe_float(pred.get("pred_lon", None), 0.0), # longitude prediksi
+            "direction_deg": safe_float(pred.get("bearing_degree", None), 0.0), # arah prediksi dalam derajat
+            "distance_km": safe_float(pred.get("distance_km", None), 0.0), # jarak prediksi dalam km
+            "confidence": max(0.0, min(1.0, float(pred.get("confidence", 0.0) or 0.0))) # confidence (0..1)
         }
 
-        # If pred seems empty or invalid (all zeros) -> don't overwrite to meaningless zeros,
-        # but still attempt to write an explicit marker so dashboard can show "0.00" instead of N/A if desired.
+        # jika semua field invalid (0.0), anggap prediksi tidak valid 
+        # tapi tetap tulis next_event sebagai placeholder
         pred_is_valid = any([
             np.isfinite(next_event["lat"]) and abs(next_event["lat"]) > 1e-9,
             np.isfinite(next_event["lon"]) and abs(next_event["lon"]) > 1e-9,
@@ -1005,10 +1005,10 @@ class GaEngine:
                 data = {}
 
             # attach next_event only if pred dict non-empty; otherwise still write placeholder
-            data.setdefault("center_lat", data.get("center_lat", None))
-            data.setdefault("center_lon", data.get("center_lon", None))
-            data["next_event"] = next_event
-            data["_ga_generated_at"] = datetime.now().isoformat()
+            data.setdefault("center_lat", data.get("center_lat", None)) # latitude pusat peta
+            data.setdefault("center_lon", data.get("center_lon", None)) # longitude pusat peta
+            data["next_event"] = next_event # hasil prediksi event selanjutnya
+            data["_ga_generated_at"] = datetime.now().isoformat() # timestamp generasi
 
             # dump (use allow_nan=False to prevent invalid JSON if NaN sneaks in)
             with open(aco_json_path, "w") as f:
@@ -1018,7 +1018,7 @@ class GaEngine:
         except Exception as e:
             logger.error(f"[GA] Gagal menulis next_event: {e}", exc_info=True)
 
-
+    # Metode utama untuk menjalankan GA Engine
     def run(self, df_train: pd.DataFrame) -> Tuple[List[int], Dict[str, Any]]:
         logger.info("\n" + "=" * 80)
         logger.info("=== GA ENGINE START ===".center(80))
@@ -1033,7 +1033,7 @@ class GaEngine:
         # 3. Evolution Process
         evo = EvolutionaryController(self.cfg, fit_engine, self.checkpoint_mgr)
         best_idx, log_df, hof = evo.run()
-
+        
         if isinstance(best_idx, tuple):
             best_idx = list(best_idx)
 
@@ -1051,7 +1051,7 @@ class GaEngine:
         safe_idx = [
             i for i in best_idx
             if isinstance(i, int) and 0 <= i <= max_idx
-        ]
+        ] 
 
         if not safe_idx:
             self.logger.warning(

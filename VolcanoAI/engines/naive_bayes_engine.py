@@ -234,7 +234,7 @@ class NaiveBayesEngine:
     ACO → GA → LSTM → CNN → Naive Bayes
     """
 
-    def __init__(self, config: Any):
+    def __init__(self, config:d Any):
         self.config = config.__dict__ if not isinstance(config, dict) else config
 
         self.output_dir = self.config.get("output_dir", "output/naive_bayes_results")

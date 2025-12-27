@@ -16,72 +16,72 @@ Mengimplementasikan arsitektur Deep Learning Hybrid yang menggabungkan:
 Copyright (c) 2025 VolcanoAI Team.
 """
 
-import os
-import sys
-import time
-import json
-import math
-import shutil
-import random
-import logging
-import pickle
-import functools
-import uuid
-from pathlib import Path
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, Union
-
-import numpy as np
-import pandas as pd
-import matplotlib
+import os # untuk operasi file dan direktori
+import sys # untuk manipulasi path sistem
+import time # untuk pengukuran waktu eksekusi
+import json # untuk serialisasi metadata
+import math # untuk fungsi matematika dasar
+import shutil # untuk operasi file tingkat lanjut
+import random # untuk sampling acak dalam hyperparameter tuning
+import logging # untuk logging sistem
+import pickle # untuk serialisasi objek
+import functools # untuk dekorator fungsi
+import uuid # untuk pembuatan UUID unik
+from pathlib import Path # untuk manipulasi path yang lebih baik
+from datetime import datetime # untuk operasi tanggal dan waktu
+from typing import Any, Dict, List, Optional, Tuple, Union # untuk anotasi tipe
+# Data Science Libs
+import numpy as np # untuk operasi array dan tensor
+import pandas as pd # untuk manipulasi data tabular
+import matplotlib # untuk visualisasi data
 matplotlib.use("Agg") # Backend non-interaktif untuk server
-import matplotlib.pyplot as plt
-import seaborn as sns
+import matplotlib.pyplot as plt # untuk plotting
+import seaborn as sns # untuk visualisasi statistik
 
 # Machine Learning Libs
-from joblib import dump, load
-from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
-from sklearn.cluster import DBSCAN
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-from scipy.spatial.distance import mahalanobis
-from sklearn.impute import KNNImputer
+from joblib import dump, load # untuk serialisasi model dan scaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler # untuk scaling fitur
+from sklearn.cluster import DBSCAN # untuk clustering spasial
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score # untuk evaluasi model
+from scipy.spatial.distance import mahalanobis # untuk perhitungan jarak Mahalanobis
+from sklearn.impute import KNNImputer # untuk imputasi data hilang
 
 # Deep Learning Libs (TensorFlow/Keras)
-import tensorflow as tf
-from keras import backend as K
-from keras.models import Model, load_model
+import tensorflow as tf # untuk operasi tensor dan model DL
+from keras import backend as K # untuk fungsi backend Keras
+from keras.models import Model, load_model # untuk definisi dan pemuatan model
 from keras.layers import (
     Input, LSTM, Dense, Dropout, RepeatVector, TimeDistributed, 
     Bidirectional, Concatenate, Conv1D, GlobalAveragePooling1D, 
     Layer, Dot, Activation, BatchNormalization, Add, Multiply, 
     Lambda, Reshape, Permute, Flatten, GaussianNoise
-)
+) # untuk lapisan neural network
 from keras.callbacks import (
     EarlyStopping, ModelCheckpoint, ReduceLROnPlateau, 
     CSVLogger, TensorBoard, LearningRateScheduler
-)
-from keras.optimizers import Adam, RMSprop
+) # untuk callback pelatihan
+from keras.optimizers import Adam, RMSprop # untuk optimizers
 
 # Config Imports (Safe Loader)
 try:
-    from ..config.lstm_config import LstmPipelineConfig
+    from ..config.lstm_config import LstmPipelineConfig # Konfigurasi Pipeline LSTM
 except ImportError:
     pass
 
 try:
-    from ..processing.feature_engineer import FeatureEngineer
-    from ..config.config import CONFIG
+    from ..processing.feature_engineer import FeatureEngineer # Feature Engineering Module
+    from ..config.config import CONFIG # Global Config
 except ImportError:
     pass
 
 # Setup Logger
-logger = logging.getLogger("VolcanoAI.LstmEngine")
-logger.addHandler(logging.NullHandler())
+logger = logging.getLogger("VolcanoAI.LstmEngine") # Nama logger spesifik
+logger.addHandler(logging.NullHandler()) # Hindari duplikasi handler
 
 # =============================================================================
 # SECTION 1: MATH KERNEL & UTILITIES (THE FOUNDATION)
 # =============================================================================
-
+# Modul matematika kustom untuk operasi tensor tingkat rendah
 def execution_telemetry(func):
     """Decorator untuk memantau kinerja setiap fungsi kritis."""
     @functools.wraps(func)
@@ -93,14 +93,14 @@ def execution_telemetry(func):
             t1 = time.perf_counter()
             # logger.debug(f"[Telemetry] {func.__name__} executed in {t1-t0:.4f}s")
     return wrapper
-
+# class untuk mengelompokkan fungsi matematika kustom
 class MathKernel:
     """
     Kernel matematika kustom untuk operasi tensor tingkat rendah.
     Menangani fungsi kerugian probabilistik (Probabilistic Loss Functions).
     """
     @staticmethod
-    def gaussian_nll(y_true, y_pred):
+    def gaussian_nll(y_true, y_pred): # fungsi untuk Negative Log-Likelihood Gaussian
         # Pisahkan output model: [Mean, Variance]
         mu = y_pred[..., 0:1]
         sigma = y_pred[..., 1:2]
@@ -115,20 +115,20 @@ class MathKernel:
         return tf.reduce_mean(nll)
 
     @staticmethod
-    def uncertainty_metric(y_true, y_pred):
+    def uncertainty_metric(y_true, y_pred): # fungsi metrik ketidakpastian
         """Metrik pemantau: Rata-rata ketidakpastian (sigma) yang diprediksi model."""
         sigma = y_pred[..., 1:2]
         # [FIX] Clip sigma untuk mencegah nilai ekstrem negatif
         return tf.reduce_mean(tf.clip_by_value(sigma, 1e-6, 1e6))
 
     @staticmethod
-    def mean_absolute_error_mu(y_true, y_pred):
+    def mean_absolute_error_mu(y_true, y_pred): # fungsi MAE khusus
         """[FIX KRITIS] Metrik MAE yang hanya membandingkan Y_true dengan Mean (kolom 0) dari Y_pred."""
         mu = y_pred[..., 0:1] # Ambil hanya kolom Mean (Mu)
         return tf.reduce_mean(tf.abs(y_true - mu))
 
     @staticmethod
-    def calculate_z_score(value, mean, std):
+    def calculate_z_score(value, mean, std): # fungsi Z-Score
         """Hitung Z-Score untuk deteksi outlier standar."""
         if std < 1e-9: return 0.0
         return (value - mean) / std
@@ -136,18 +136,18 @@ class MathKernel:
 # =============================================================================
 # SECTION 2: DATA MANAGEMENT & CLUSTERING (THE ORGANIZER)
 # =============================================================================
-
+# class untuk menjaga integritas data
 class DataGuard:
     """Penjaga integritas data sebelum masuk ke neural network."""
-    def __init__(self, required_columns: List[str]):
+    def __init__(self, required_columns: List[str]): # kolom wajib
         self.required_columns = required_columns
-
+    # fungsi validasi struktur data
     def validate_structure(self, df: pd.DataFrame) -> bool:
         if df is None or df.empty: return False
         missing = [c for c in self.required_columns if c not in df.columns]
         if missing: return False
         return True
-
+    # fungsi sanitasi kolom temporal
     def sanitize_temporal(self, df: pd.DataFrame, date_col: str) -> pd.DataFrame:
         df_clean = df.copy()
         if date_col in df_clean.columns:
@@ -156,63 +156,63 @@ class DataGuard:
             # PENTING: Reset index agar urut 0..N untuk slicing tensor
             df_clean = df_clean.sort_values(date_col).reset_index(drop=True)
         return df_clean
-
+    # fungsi sanitasi kolom numerik
     def sanitize_numeric(self, df: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
         for c in cols:
             if c in df.columns:
                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0.0)
         return df
-
+# class untuk mengelompokkan data gempa berdasarkan lokasi
 class GeoClusterer:
     """
     Mengelompokkan gempa berdasarkan kedekatan spasial.
     Setiap cluster (misal: Gunung Semeru, Gunung Raung) akan punya 'Otak' (Model) sendiri.
     """
-    def __init__(self, eps: float, min_samples: int, metric: str = "haversine"):
-        self.eps = eps
-        self.min_samples = min_samples
-        self.metric = metric
-        self.model = DBSCAN(eps=eps, min_samples=min_samples, metric=metric)
-
+    def __init__(self, eps: float, min_samples: int, metric: str = "haversine"): # inisialisasi DBSCAN
+        self.eps = eps # radius epsilon
+        self.min_samples = min_samples # jumlah minimum sampel
+        self.metric = metric # metrik jarak
+        self.model = DBSCAN(eps=eps, min_samples=min_samples, metric=metric) # model DBSCAN
+    # fungsi fit dan prediksi cluster
     def fit_predict(self, df: pd.DataFrame, lat_col="EQ_Lintang", lon_col="EQ_Bujur") -> pd.Series:
-        if lat_col not in df.columns or lon_col not in df.columns:
-            return pd.Series([-1] * len(df), index=df.index, name='cluster_id')
+        if lat_col not in df.columns or lon_col not in df.columns: # jika kolom tidak ada
+            return pd.Series([-1] * len(df), index=df.index, name='cluster_id') # kembalikan -1 semua
         
-        valid = df[[lat_col, lon_col]].dropna()
-        if valid.empty: return pd.Series([-1]*len(df), index=df.index, name='cluster_id')
+        valid = df[[lat_col, lon_col]].dropna() # ambil data valid
+        if valid.empty: return pd.Series([-1]*len(df), index=df.index, name='cluster_id') # jika kosong kembalikan -1 semua 
         
         # DBSCAN Haversine butuh radian
-        coords = np.radians(valid.values)
-        labels = self.model.fit_predict(coords)
-        
-        full_labels = pd.Series(-1, index=df.index, name='cluster_id')
-        full_labels.loc[valid.index] = labels
-        
-        n_c = len(set(labels)) - (1 if -1 in labels else 0)
-        logger.info(f"[GeoClusterer] Teridentifikasi {n_c} cluster spasial aktif.")
+        coords = np.radians(valid.values) # konversi ke radian
+        labels = self.model.fit_predict(coords) # fit dan prediksi
+        # Buat Series lengkap dengan -1 untuk data invalid
+        full_labels = pd.Series(-1, index=df.index, name='cluster_id') # inisialisasi -1
+        full_labels.loc[valid.index] = labels # isi label valid
+        # Logging jumlah cluster teridentifikasi
+        n_c = len(set(labels)) - (1 if -1 in labels else 0) # hitung cluster valid
+        logger.info(f"[GeoClusterer] Teridentifikasi {n_c} cluster spasial aktif.") # log info
         return full_labels
 
 # =============================================================================
 # SECTION 3: TENSOR FACTORY (SEQUENCE GENERATION)
 # =============================================================================
-
+# class untuk membuat tensor input/output untuk LSTM
 class TensorFactory:
     """
     Pabrik Tensor: Mengubah data tabular 2D menjadi Array 3D [Samples, TimeSteps, Features].
     Menangani logika Sliding Window dan Teacher Forcing untuk arsitektur Seq2Seq.
     """
-    def __init__(self, features: List[str], target: str, seq_len: int, pred_len: int):
-        self.features = features
-        self.target = target
-        self.seq_len = seq_len
-        self.pred_len = pred_len
+    def __init__(self, features: List[str], target: str, seq_len: int, pred_len: int): # inisialisasi pabrik tensor
+        self.features = features # daftar fitur
+        self.target = target # target prediksi
+        self.seq_len = seq_len # panjang urutan input
+        self.pred_len = pred_len # panjang urutan prediksi
         
         # Pastikan target ada dalam daftar fitur
-        if target not in features:
-            self.features.append(target)
-        self.target_idx = self.features.index(target)
-        self.num_features = len(self.features)
-
+        if target not in features: # jika target tidak ada
+            self.features.append(target) # tambahkan target ke fitur
+        self.target_idx = self.features.index(target) # indeks target
+        self.num_features = len(self.features) # jumlah fitur total
+    # fungsi membuat tensor untuk training
     def construct_training_tensors(self, data: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Membuat tensor untuk Training Sequence-to-Sequence (Encoder-Decoder).
@@ -225,7 +225,7 @@ class TensorFactory:
             X_decoder (Batch, Pred_Len, Features) -> Digunakan untuk Teacher Forcing
             Y_target  (Batch, Pred_Len, 1)        -> Target Prediksi
         """
-        n_rows = len(data)
+        n_rows = len(data) # jumlah baris data
         
         # Window = (Input Sequence) + (Prediction Horizon)
         window_size = self.seq_len + self.pred_len
@@ -277,7 +277,7 @@ class TensorFactory:
             Y_list.append(y_sample)
             
         return np.array(X_enc_list), np.array(X_dec_list), np.array(Y_list)
-
+    # fungsi membuat tensor untuk inferensi
     def construct_inference_tensor(self, data: np.ndarray) -> np.ndarray:
         """Membuat tensor X_encoder saja untuk prediksi."""
         n = len(data)
@@ -290,15 +290,15 @@ class TensorFactory:
         return np.array(X_enc)
 
     @property
-    def input_seq_len(self): return self.seq_len
+    def input_seq_len(self): return self.seq_len # panjang urutan input
 
     @property
-    def target_seq_len(self): return self.pred_len
+    def target_seq_len(self): return self.pred_len # panjang urutan prediksi
 
 # =============================================================================
 # SECTION 4: DEEP LEARNING ARCHITECTURE (THE BRAIN)
 # =============================================================================
-
+# class untuk membangun arsitektur neural network LSTM dengan attention dan probabilistic output 
 class DeepProbabilisticArchitecture:
     """
     Arsitektur Neural Network V6.0 Titan.
@@ -309,7 +309,7 @@ class DeepProbabilisticArchitecture:
     """
     def __init__(self, config: LstmPipelineConfig):
         self.cfg = config
-
+    # fungsi membangun model LSTM dengan attention dan output probabilistik 
     def build_model(self, num_features: int, params: Dict[str, Any] = None) -> Model:
         """
         Membangun Arsitektur Sequence-to-Sequence (Seq2Seq) dengan:
@@ -318,13 +318,13 @@ class DeepProbabilisticArchitecture:
         3. Attention Mechanism (Bahdanau/Luong style)
         4. Probabilistic Output (Gaussian Layer: Mu & Sigma)
         """
-        import tensorflow as tf
+        import tensorflow as tf # untuk operasi tensor
         from keras.layers import (Input, Dense, LSTM, Bidirectional, Conv1D, 
                                              BatchNormalization, Concatenate, Dropout, 
-                                             TimeDistributed, Attention, Lambda)
-        from keras.models import Model
-        from keras.optimizers import Adam
-        import keras.backend as K
+                                             TimeDistributed, Attention, Lambda) # untuk lapisan neural network
+        from keras.models import Model # untuk definisi model
+        from keras.optimizers import Adam # untuk optimizer
+        import keras.backend as K # untuk fungsi backend Keras
 
         # Config Setup
         hp = params if params else {}
@@ -336,10 +336,10 @@ class DeepProbabilisticArchitecture:
         dropout = hp.get('dropout_rate', getattr(self.cfg, 'dropout_rate', 0.2))
         lr = hp.get('learning_rate', getattr(self.cfg, 'learning_rate', 0.001))
         
-        # ---------------------------------------------------------
+        # -----------------
         # 1. ENCODER BLOCK
-        # ---------------------------------------------------------
-        encoder_inputs = Input(shape=(input_len, num_features), name='encoder_input')
+        # -----------------
+        encoder_inputs = Input(shape=(input_len, num_features), name='encoder_input') # input encoder
         
         # Feature Extraction (1D Conv) - Optional, bagus untuk menangkap pola lokal/noise
         x = Conv1D(filters=latent_dim, kernel_size=3, padding='same', activation='relu')(encoder_inputs)
@@ -417,7 +417,7 @@ class DeepProbabilisticArchitecture:
             raise RuntimeError(f"LSTM Compilation Failed: {e}")
             
         return model
-
+# class untuk optimasi hyperparameter sederhana
 class BayesianLikeOptimizer:
     """
     Sistem pencarian hyperparameter sederhana.
@@ -430,7 +430,7 @@ class BayesianLikeOptimizer:
             'learning_rate': [5e-4, 1e-4, 5e-5], 
             'dropout_rate': [0.1, 0.2]
         }
-
+    # fungsi pencarian hyperparameter
     def search(self, X_enc, X_dec, Y, trials=3):
         if len(X_enc) < 50: 
             return {'latent_dim': 64, 'learning_rate': 1e-3, 'dropout_rate': 0.2}
@@ -439,7 +439,7 @@ class BayesianLikeOptimizer:
         best_params = {}
         
         logger.info(f"    [Tuner] Menjalankan {trials} trial optimasi...")
-        
+        # Loop pencarian hyperparameter
         for i in range(trials):
             params = {k: random.choice(v) for k, v in self.space.items()}
             K.clear_session() # Bersihkan memori GPU
@@ -460,7 +460,7 @@ class BayesianLikeOptimizer:
 # =============================================================================
 # SECTION 5: ARTIFACT & VISUALIZATION MANAGEMENT
 # =============================================================================
-
+# class untuk menyimpan dan memuat model, scaler, dan metadata
 class ArtifactVault:
     """Menyimpan dan memuat model, scaler, dan metadata dengan aman."""
     def __init__(self, model_dir, visual_dir):
@@ -468,25 +468,25 @@ class ArtifactVault:
         self.visual_dir = Path(visual_dir)
         self.model_dir.mkdir(parents=True, exist_ok=True)
         self.visual_dir.mkdir(parents=True, exist_ok=True)
-
+    # fungsi menyimpan state cluster
     def save_cluster_state(self, cid, model, scaler, meta):
         try:
-            model.save(self.model_dir / f"lstm_model_c{cid}.keras")
-            dump(scaler, self.model_dir / f"scaler_c{cid}.joblib")
-            with open(self.model_dir / f"meta_c{cid}.json", 'w') as f:
+            model.save(self.model_dir / f"lstm_model_c{cid}.keras") # Simpan model
+            dump(scaler, self.model_dir / f"scaler_c{cid}.joblib")  # Simpan scaler
+            with open(self.model_dir / f"meta_c{cid}.json", 'w') as f: 
                 json.dump(meta, f, indent=4)
         except Exception as e:
             logger.error(f"Save failed c{cid}: {e}")
-
+    # fungsi memuat state cluster
     def load_cluster_state(self, cid):
-        m_path = self.model_dir / f"lstm_model_c{cid}.keras"
-        s_path = self.model_dir / f"scaler_c{cid}.joblib"
-        if not m_path.exists():
-            return None, None
+        m_path = self.model_dir / f"lstm_model_c{cid}.keras" # path model
+        s_path = self.model_dir / f"scaler_c{cid}.joblib" # path scaler
+        if not m_path.exists(): # jika model tidak ada
+            return None, None # kembalikan None
 
         try:
-            import absl.logging
-            absl.logging.set_verbosity(absl.logging.ERROR)
+            import absl.logging # untuk menonaktifkan logging TF yang berlebihan
+            absl.logging.set_verbosity(absl.logging.ERROR) # hanya error serius yang ditampilkan 
 
             # Define custom objects for loading model
             cust = {
@@ -498,13 +498,13 @@ class ArtifactVault:
             # Safe loading: compile=False (jika versi TF lama/baru, opsi safe_mode mungkin tidak ada)
             model = load_model(m_path, custom_objects=cust, compile=False)
             scaler = load(s_path)
-
+            
             logger.info(f"[Vault] Model Cluster {cid} berhasil dimuat.")
             return model, scaler
         except Exception as e:
             logger.error(f"[Vault] GAGAL memuat model c{cid}: {e}. File mungkin corrupt atau TF version mismatch.")
             return None, None
-
+    # fungsi mendaftar cluster yang ada 
     def list_clusters(self):
         import re
         files = list(self.model_dir.glob("lstm_model_c*.keras"))
@@ -513,14 +513,14 @@ class ArtifactVault:
             m = re.search(r'c(\d+)\.keras$', f.name)
             if m: clusters.append(int(m.group(1)))
         return sorted(list(set(clusters)))
-    
+    # fungsi untuk alias kompatibilitas lama 
     def load_all(self, cid): return self.load_cluster_state(cid)
-
+# class untuk visualisasi hasil prediksi dan pelatihan
 class AdvancedVisualizer:
     """Generator grafik canggih untuk analisis probabilitas."""
     def __init__(self, output_dir):
         self.out = output_dir
-
+    # fungsi plot forecast dengan interval ketidakpastian
     def plot_probabilistic_forecast(self, actual, pred_mu, pred_sigma, cid, suffix=""):
         try:
             plt.figure(figsize=(12, 6))
@@ -529,9 +529,9 @@ class AdvancedVisualizer:
             plt.plot(x, pred_mu, 'r--', label='Predicted Mean', linewidth=1.5)
             
             # Plot Uncertainty Interval (95% Confidence)
-            lower = pred_mu - 1.96 * pred_sigma
-            upper = pred_mu + 1.96 * pred_sigma
-            plt.fill_between(x, lower, upper, color='red', alpha=0.2, label='Uncertainty (95% CI)')
+            lower = pred_mu - 1.96 * pred_sigma # 95% CI Lower Bound
+            upper = pred_mu + 1.96 * pred_sigma # 95% CI Upper Bound
+            plt.fill_between(x, lower, upper, color='red', alpha=0.2, label='Uncertainty (95% CI)') # Area ketidakpastian
             
             plt.title(f"Probabilistic Forecast - Cluster {cid} {suffix}", fontsize=14)
             plt.legend()
@@ -540,7 +540,7 @@ class AdvancedVisualizer:
             plt.close()
         except Exception as e:
             logger.warning(f"Gagal plot forecast: {e}")
-
+    # fungsi plot kurva loss selama pelatihan
     def plot_loss_curves(self, history: Dict, cid: int):
         try:
             plt.figure(figsize=(8, 5))
@@ -554,7 +554,7 @@ class AdvancedVisualizer:
             plt.savefig(self.out / f"loss_c{cid}.png", dpi=300)
             plt.close()
         except Exception: pass
-        
+    # fungsi plot distribusi residual error 
     def plot_residuals(self, errors: np.ndarray, cid: int):
         try:
             plt.figure(figsize=(8, 5))
@@ -573,7 +573,7 @@ class AdvancedVisualizer:
 # =============================================================================
 # SECTION 6: REALTIME BUFFER & DRIFT MONITOR
 # =============================================================================
-
+# class untuk memantau pergeseran data (data drift)
 class DriftMonitor:
     """
     Memantau pergeseran data (Data Drift).
@@ -583,7 +583,7 @@ class DriftMonitor:
     def __init__(self, threshold=3.0):
         self.threshold = threshold
         self.baseline_stats = {}
-
+    # fungsi memperbarui baseline statistik
     def update_baseline(self, df_train: pd.DataFrame, features: List[str]):
         for f in features:
             if f in df_train:
@@ -592,18 +592,18 @@ class DriftMonitor:
                     'std': df_train[f].std()
                 }
 
-    def check_drift(self, df_new: pd.DataFrame) -> bool:
+    def check_drift(self, df_new: pd.DataFrame) -> bool: # fungsi cek drift
         """Cek apakah data baru menyimpang jauh (Z-Score check)."""
-        drift_detected = False
-        for f, stats in self.baseline_stats.items():
-            if f in df_new:
-                val = df_new[f].mean()
-                z = abs(val - stats['mean']) / (stats['std'] + 1e-9)
-                if z > self.threshold:
-                    logger.warning(f"Data Drift Detected on {f} (Z={z:.2f})")
-                    drift_detected = True
-        return drift_detected
-
+        drift_detected = False # inisialisasi deteksi drift
+        for f, stats in self.baseline_stats.items(): # iterasi fitur
+            if f in df_new: # jika fitur ada di data baru
+                val = df_new[f].mean() # ambil mean data baru
+                z = abs(val - stats['mean']) / (stats['std'] + 1e-9) # hitung Z-Score
+                if z > self.threshold: # jika Z-Score melebihi threshold
+                    logger.warning(f"Data Drift Detected on {f} (Z={z:.2f})") # log peringatan
+                    drift_detected = True # set deteksi drift
+        return drift_detected # kembalikan hasil deteksi
+# class untuk buffer memori jangka pendek (sliding window)
 class InferenceBuffer:
     """
     Buffer Memori Jangka Pendek (Sliding Window).
@@ -612,7 +612,7 @@ class InferenceBuffer:
     def __init__(self, window_size):
         self.window_size = window_size
         self.buffer_df = pd.DataFrame()
-        
+    # fungsi memperbarui buffer dengan data baru
     def update(self, df_new):
         if df_new.empty: return
         self.buffer_df = pd.concat([self.buffer_df, df_new], ignore_index=True)
@@ -623,10 +623,10 @@ class InferenceBuffer:
         limit = self.window_size * 3
         if len(self.buffer_df) > limit:
             self.buffer_df = self.buffer_df.iloc[-limit:]
-            
+     # fungsi mendapatkan salinan buffer saat ini       
     def get_context(self):
         return self.buffer_df.copy()
-
+# class untuk memproses data (feature engineering dan clustering)
 class DataProcessor:
     """Wrapper untuk Feature Engineering di dalam LSTM."""
     def __init__(self, config):
@@ -635,7 +635,7 @@ class DataProcessor:
         self.fe = FeatureEngineer(CONFIG.FEATURE_ENGINEERING, CONFIG.ACO_ENGINE)
         self.guard = DataGuard(['Acquired_Date', 'Magnitudo'])
         self.clusterer = GeoClusterer(config.clustering_eps, config.clustering_min_samples)
-        
+    # fungsi persiapan data standar 
     def prepare(self, df):
         """Pipeline preprocessing standar."""
         df = self.guard.sanitize_temporal(df, 'Acquired_Date')
@@ -651,7 +651,7 @@ class DataProcessor:
 # =============================================================================
 # SECTION 7: MAIN ENGINE FACADE (THE INTERFACE)
 # =============================================================================
-
+# class utama untuk menghubungkan semua komponen LSTM menjadi satu kesatuan cerdas 
 class LstmEngine:
     """
     Engine Utama LSTM V6.0 TITAN.
@@ -659,27 +659,27 @@ class LstmEngine:
     """
     def __init__(self, config):
         self.cfg = config
-        self.vault = ArtifactVault(self.cfg.model_dir, self.cfg.visuals_dir)
-        self.processor = DataProcessor(self.cfg)
-        self.architect = DeepProbabilisticArchitecture(self.cfg)
-        self.tuner = BayesianLikeOptimizer(self.architect)
-        self.viz_manager = AdvancedVisualizer(Path(self.cfg.visuals_dir))
-        self.buffer = InferenceBuffer(self.cfg.input_seq_len)
-        self.drift_mon = DriftMonitor()
+        self.vault = ArtifactVault(self.cfg.model_dir, self.cfg.visuals_dir) # manajer artefak
+        self.processor = DataProcessor(self.cfg) # prosesor data
+        self.architect = DeepProbabilisticArchitecture(self.cfg) # arsitektur neural network
+        self.tuner = BayesianLikeOptimizer(self.architect) # optimizer hyperparameter
+        self.viz_manager = AdvancedVisualizer(Path(self.cfg.visuals_dir)) # manajer visualisasi
+        self.buffer = InferenceBuffer(self.cfg.input_seq_len) # buffer inferensi
+        self.drift_mon = DriftMonitor() # monitor drift data
         
         # Cache in-memory untuk performa realtime
         self.models_cache = {}
-        
+        # Bersihkan folder logs lama
         if os.path.exists("logs"): shutil.rmtree("logs", ignore_errors=True)
 
     # Compatibility Props for other engines (Tidak ada perubahan)
     @property
-    def manager(self): return self.vault
+    def manager(self): return self.vault 
     @property
     def trainer(self): return self
     @property
     def viz(self): return self.viz_manager
-
+    # fungsi memuat data ke buffer
     def load_buffer(self, df_history):
         """Memuat data training ke buffer (inisialisasi untuk live stream)."""
         if df_history is not None and not df_history.empty:
@@ -690,7 +690,7 @@ class LstmEngine:
             df_proc = self.processor.prepare(df_history)
             feats = [c for c in df_proc.columns if c in self.cfg.features]
             self.drift_mon.update_baseline(df_proc, feats)
-
+        # fungsi integrasi prediksi GA ke buffer
         def integrate_ga_prediction(self, pred: Dict[str, Any], cid: Optional[int] = None, attach_to: str = "nearest"):
             """
             Integrasi output GA (pred dict) ke buffer LSTM.
@@ -699,13 +699,13 @@ class LstmEngine:
             - attach_to: "nearest" | "append_row"
             Efek: menambah kolom GA ke baris yang relevan di self.buffer.buffer_df
             """
-            try:
-                if not pred or ('pred_lat' not in pred or 'pred_lon' not in pred):
-                    logger.warning("[LSTM] integrate_ga_prediction: pred kosong atau tidak punya lat/lon.")
-                    return None
-
-                buf = self.buffer.get_context()
-                if buf is None or buf.empty:
+            try: # validasi input pred 
+                if not pred or ('pred_lat' not in pred or 'pred_lon' not in pred): # jika pred kosong atau tidak ada lat/lon
+                    logger.warning("[LSTM] integrate_ga_prediction: pred kosong atau tidak punya lat/lon.") # log peringatan
+                    return None # kembalikan None
+                # ambil salinan buffer saat ini
+                buf = self.buffer.get_context() # ambil salinan buffer
+                if buf is None or buf.empty: # jika buffer kosong
                     logger.warning("[LSTM] Buffer kosong, tidak ada tempat integrasi GA; opsi append_row dipertimbangkan.")
                     if attach_to == "append_row":
                         row = {
@@ -713,14 +713,14 @@ class LstmEngine:
                             'EQ_Lintang': pred.get('pred_lat'),
                             'EQ_Bujur': pred.get('pred_lon'),
                             'Nama': 'GA_PRED',
-                        }
+                        } # buat row baru
                         row.update({
                             'ga_pred_lat': pred.get('pred_lat'),
                             'ga_pred_lon': pred.get('pred_lon'),
                             'ga_bearing': pred.get('bearing_degree'),
                             'ga_distance_km': pred.get('distance_km'),
                             'ga_confidence': pred.get('confidence'),
-                        })
+                        }) # update row dengan data GA
                         self.buffer.update(pd.DataFrame([row]))
                         return True
                     return None
@@ -728,7 +728,7 @@ class LstmEngine:
                 # jika cluster id diberikan -> filter buffer per cluster
                 if cid is not None and 'cluster_id' in buf.columns:
                     sub = buf[buf['cluster_id'] == cid]
-                    if sub.empty:
+                    if sub.empty: 
                         candidates = buf
                     else:
                         candidates = sub
@@ -736,45 +736,45 @@ class LstmEngine:
                     candidates = buf
 
                 # hitung index terdekat (haversine) ke pred point
-                lat_p = float(pred.get('pred_lat'))
+                lat_p = float(pred.get('pred_lat')) 
                 lon_p = float(pred.get('pred_lon'))
 
                 # vectorized haversine
-                coords = candidates[['EQ_Lintang', 'EQ_Bujur']].dropna()
-                if coords.empty:
+                coords = candidates[['EQ_Lintang', 'EQ_Bujur']].dropna() # ambil koordinat valid 
+                if coords.empty: # jika tidak ada koordinat valid
                     # fallback append
-                    if attach_to == "append_row":
-                        row = {'Acquired_Date': pd.Timestamp.now(), 'EQ_Lintang': lat_p, 'EQ_Bujur': lon_p, 'Nama': 'GA_PRED'}
+                    if attach_to == "append_row": # jika opsi append_row
+                        row = {'Acquired_Date': pd.Timestamp.now(), 'EQ_Lintang': lat_p, 'EQ_Bujur': lon_p, 'Nama': 'GA_PRED'} # buat row baru
                         row.update({
                             'ga_pred_lat': lat_p,
                             'ga_pred_lon': lon_p,
                             'ga_bearing': pred.get('bearing_degree'),
                             'ga_distance_km': pred.get('distance_km'),
                             'ga_confidence': pred.get('confidence'),
-                        })
+                        }) # update row dengan data GA
                         self.buffer.update(pd.DataFrame([row]))
                         return True
                     return None
 
-                # compute distances
+                # fungsi untuk hitung haversine (tidak dipakai, hanya referensi)
                 def _h(lat1, lon1, lat2_arr, lon2_arr):
                     return np.array([GeoClusterer(0,1).model.metric if False else
                                      GeoMathCore.haversine(lat1, lon1, rlat, rlon)
                                      for rlat, rlon in zip(lat2_arr, lon2_arr)])
 
                 # faster vector compute
-                lat_arr = coords['EQ_Lintang'].astype(float).values
-                lon_arr = coords['EQ_Bujur'].astype(float).values
+                lat_arr = coords['EQ_Lintang'].astype(float).values # ambil array lat
+                lon_arr = coords['EQ_Bujur'].astype(float).values # ambil array lon
                 # compute distances vectorized using GeoMathCore.haversine in loop (numpy vectorization with listcomp)
-                dists = np.array([GeoMathCore.haversine(lat_p, lon_p, la, lo) for la, lo in zip(lat_arr, lon_arr)])
-                nearest_idx_local = coords.index[np.argmin(dists)]
+                dists = np.array([GeoMathCore.haversine(lat_p, lon_p, la, lo) for la, lo in zip(lat_arr, lon_arr)]) # hitung jarak
+                nearest_idx_local = coords.index[np.argmin(dists)] # ambil index terdekat
 
                 # update buffer row with GA fields
-                self.buffer.buffer_df.loc[nearest_idx_local, 'ga_pred_lat'] = lat_p
-                self.buffer.buffer_df.loc[nearest_idx_local, 'ga_pred_lon'] = lon_p
-                self.buffer.buffer_df.loc[nearest_idx_local, 'ga_bearing'] = pred.get('bearing_degree')
-                self.buffer.buffer_df.loc[nearest_idx_local, 'ga_distance_km'] = pred.get('distance_km')
-                self.buffer.buffer_df.loc[nearest_idx_local, 'ga_confidence'] = pred.get('confidence')
+                self.buffer.buffer_df.loc[nearest_idx_local, 'ga_pred_lat'] = lat_p # update lat
+                self.buffer.buffer_df.loc[nearest_idx_local, 'ga_pred_lon'] = lon_p # update lon
+                self.buffer.buffer_df.loc[nearest_idx_local, 'ga_bearing'] = pred.get('bearing_degree') # update bearing
+                self.buffer.buffer_df.loc[nearest_idx_local, 'ga_distance_km'] = pred.get('distance_km') # update distance
+                self.buffer.buffer_df.loc[nearest_idx_local, 'ga_confidence'] = pred.get('confidence') # update confidence
 
                 logger.info(f"[LSTM] GA pred integrated to buffer index {nearest_idx_local} (cid={cid})")
                 return nearest_idx_local
@@ -782,7 +782,7 @@ class LstmEngine:
             except Exception as e:
                 logger.error(f"[LSTM] integrate_ga_prediction failed: {e}")
                 return None
-        def load_ga_json_and_integrate(self, ga_json_path: str, cid: Optional[int] = None):
+        def load_ga_json_and_integrate(self, ga_json_path: str, cid: Optional[int] = None): # fungsi muat file JSON GA dan integrasi ke buffer 
             """
             Load GA vector JSON file and integrate into buffer.
             Returns True/False
@@ -800,19 +800,19 @@ class LstmEngine:
             except Exception as e:
                 logger.error(f"[LSTM] load_ga_json_and_integrate failed: {e}")
                 return False
-
+    # fungsi mendapatkan data buffer 
     def get_buffer(self) -> pd.DataFrame:
         """Mengembalikan data buffer historis dari InferenceBuffer."""
         return self.buffer.get_context()
-    
+    # fungsi memperbarui buffer dengan event baru
     def update_buffer(self, df_new_events: pd.DataFrame):
         """Memperbarui buffer dengan event yang baru diprediksi."""
         self.buffer.update(df_new_events)
-
+    # fungsi pelatihan per-cluster (dummy untuk kompatibilitas)
     def train_cluster(self, cid, data, scaler): pass # Dummy for compat
 
     @execution_telemetry
-    def train(self, df_train):
+    def train(self, df_train): # fungsi pelatihan model LSTM per-cluster 
         """
         Melatih model LSTM per-cluster dengan strategi cleaning & scaling yang robust.
         """
@@ -937,74 +937,74 @@ class LstmEngine:
         return success > 0
 
     @execution_telemetry
-    def predict_on_static(self, df_test):
-        if df_test is None or df_test.empty:
-            return df_test, pd.DataFrame()
+    def predict_on_static(self, df_test): # fungsi prediksi pada data statis    
+        if df_test is None or df_test.empty: # jika data kosong 
+            return df_test, pd.DataFrame() # kembalikan data kosong
 
         # Prepare Cleanly
-        df_proc = self.processor.prepare(df_test)
-        df_out = df_proc.copy()
+        df_proc = self.processor.prepare(df_test) # proses data
+        df_out = df_proc.copy() # salin data untuk output
 
         # Init Columns
-        df_out['lstm_prediction'] = np.nan
-        df_out['prediction_sigma'] = np.nan
-        df_out['prediction_error'] = np.nan
-        df_out['anomaly_score'] = 0.0
+        df_out['lstm_prediction'] = np.nan # inisialisasi kolom prediksi
+        df_out['prediction_sigma'] = np.nan # inisialisasi kolom sigma
+        df_out['prediction_error'] = np.nan # inisialisasi kolom error
+        df_out['anomaly_score'] = 0.0 # inisialisasi kolom skor anomali
 
-        anomalies = []
-        if 'cluster_id' not in df_out.columns:
-            df_out['cluster_id'] = -1
+        anomalies = [] # list untuk menyimpan anomali
+        if 'cluster_id' not in df_out.columns: # jika kolom cluster_id tidak ada
+            df_out['cluster_id'] = -1 # set default -1 (noise)
 
-        for cid in self.vault.list_clusters():
-            mask = df_out['cluster_id'] == cid
-            if not mask.any():
+        for cid in self.vault.list_clusters(): # iterasi setiap cluster
+            mask = df_out['cluster_id'] == cid # buat mask untuk cluster
+            if not mask.any(): # jika tidak ada data untuk cluster ini
                 continue
-
+            # Filter Data per Cluster & Sort
             df_c = df_out.loc[mask].sort_values('Acquired_Date')
 
             # Cache Lookup
-            if cid in self.models_cache:
-                model, scaler = self.models_cache[cid]
-            else:
-                model, scaler = self.vault.load_cluster_state(cid)
-                if model:
-                    self.models_cache[cid] = (model, scaler)
+            if cid in self.models_cache: # jika model ada di cache
+                model, scaler = self.models_cache[cid] # ambil dari cache
+            else: # jika tidak ada di cache
+                model, scaler = self.vault.load_cluster_state(cid) # muat dari vault
+                if model:# simpan ke cache
+                    self.models_cache[cid] = (model, scaler) # simpan ke cache
 
-            if not model:
-                continue
+            if not model: # jika model tidak ada
+                continue # lanjut ke cluster berikutnya
 
             # Feature check
-            feats = getattr(scaler, 'feature_names_in_', None)
-            if feats is None:
-                feats = list(self.cfg.features)
+            feats = getattr(scaler, 'feature_names_in_', None) # ambil fitur dari scaler
+            if feats is None: # jika tidak ada, gunakan dari config
+                feats = list(self.cfg.features) # salin fitur dari config
 
             # ensure GA cols present in df_c are included
-            ga_cols = [c for c in df_c.columns if c.startswith('ga_') or c in
-                       ('ga_pred_lat', 'ga_pred_lon', 'ga_bearing', 'ga_distance_km', 'ga_confidence')]
-            for g in ga_cols:
+            ga_cols = [c for c in df_c.columns if c.startswith('ga_') or c in 
+                       ('ga_pred_lat', 'ga_pred_lon', 'ga_bearing', 'ga_distance_km', 'ga_confidence')] # cari kolom GA
+            for g in ga_cols: # iterasi kolom GA 
                 if g not in feats:
                     feats.append(g)
 
-            if not all(f in df_c.columns for f in feats):
-                logger.warning(f"[LSTM] Missing features for cluster {cid}. Required: {feats}")
-                continue
+            if not all(f in df_c.columns for f in feats): # jika ada fitur yang hilang
+                logger.warning(f"[LSTM] Missing features for cluster {cid}. Required: {feats}") # log peringatan
+                continue # lanjut ke cluster berikutnya
 
             # Transform & Tensor
-            expected_feats = list(feats)
-            for ef in expected_feats:
-                if ef not in df_c.columns:
-                    df_c[ef] = 0.0
-
-            data_mtx = scaler.transform(df_c[expected_feats].fillna(0))
-            tfactory = TensorFactory(list(feats), self.cfg.target_feature, self.cfg.input_seq_len, self.cfg.target_seq_len)
-            X_enc = tfactory.construct_inference_tensor(data_mtx)
-
-            if len(X_enc) == 0:
-                continue
+            expected_feats = list(feats) # salin fitur yang diharapkan
+            for ef in expected_feats: # iterasi fitur yang diharapkan
+                if ef not in df_c.columns: # jika fitur tidak ada di data cluster
+                    df_c[ef] = 0.0 # tambahkan kolom dengan nilai 0.0
+            # Transform data menggunakan scaler
+            data_mtx = scaler.transform(df_c[expected_feats].fillna(0)) # transform data
+            tfactory = TensorFactory(list(feats), self.cfg.target_feature, self.cfg.input_seq_len, self.cfg.target_seq_len) # inisialisasi tensor factory
+            X_enc = tfactory.construct_inference_tensor(data_mtx) # buat tensor inferensi
+            # Skip jika tidak ada sampel
+            if len(X_enc) == 0: # jika tidak ada sampel
+                continue # lanjut ke cluster berikutnya
 
             # Predict
-            X_dec_dummy = np.zeros((len(X_enc), self.cfg.target_seq_len, len(feats)))
-            preds = model.predict([X_enc, X_dec_dummy], verbose=0)
+            X_dec_dummy = np.zeros((len(X_enc), self.cfg.target_seq_len, len(feats))) # buat dummy decoder input
+            preds = model.predict([X_enc, X_dec_dummy], verbose=0) # prediksi
 
             # preds shape: (n_samples, pred_len, 1) OR (n_samples, pred_len)
             preds = np.squeeze(preds)
@@ -1017,8 +1017,8 @@ class LstmEngine:
             # sigma not available in current architecture -> zeros
             sigma_seq = np.zeros_like(mu_seq)
 
-            # Inverse transform target saja menggunakan MinMaxScaler atau RobustScaler
-            from sklearn.preprocessing import MinMaxScaler
+            # Inverse transform target saja menggunakan MinMaxScaler 
+            from sklearn.preprocessing import MinMaxScaler 
 
             # Buat scaler hanya untuk target
             target_scaler = MinMaxScaler()
@@ -1062,26 +1062,26 @@ class LstmEngine:
             except Exception as e:
                 logger.warning(f"[Viz] plotting failed c{cid}: {e}")
 
-        final_anoms = pd.concat(anomalies) if anomalies else pd.DataFrame()
+        final_anoms = pd.concat(anomalies) if anomalies else pd.DataFrame() # gabungkan anomali
 
         # --- SAVE CSV OUTPUT (two-year + 15-day + anomalies) ---
-        try:
+        try: # simpan record LSTM
             self._save_lstm_records(df_out, final_anoms)
         except Exception as e:
             logger.warning(f"[LSTM] Failed to save LSTM records: {e}")
 
         return df_out, final_anoms
-
+        # fungsi merekam event aktual ke buffer 
         def record_actual_events(self, df_actual: pd.DataFrame):
             """
             Merekam event aktual (ground truth) ke buffer & vault
             untuk pembelajaran lanjutan LSTM (integrasi CNN).
             """
-            if df_actual is None or df_actual.empty:
-                logger.warning("[LSTM] record_actual_events: df_actual kosong")
-                return False
+            if df_actual is None or df_actual.empty: # jika data kosong
+                logger.warning("[LSTM] record_actual_events: df_actual kosong") # log peringatan
+                return False # kembalikan False
 
-            try:
+            try: # proses perekaman untuk event aktual 
                 # 1️⃣ Update buffer realtime
                 self.buffer.update(df_actual)
 
@@ -1099,7 +1099,7 @@ class LstmEngine:
                 logger.error(f"[LSTM] record_actual_events failed: {e}")
                 return False
         
-        
+        # fungsi simpan state LSTM
         def save_state(self):
             """
             Simpan state LSTM (buffer, metadata).
@@ -1118,14 +1118,14 @@ class LstmEngine:
             except Exception as e:
                 logger.warning(f"[LSTM] save_state failed: {e}")
 
-
+        # fungsi ekstrak hidden states dari LSTM untuk CNN 
         def extract_hidden_states(self, X_input, cid):
             # Robust extractor for encoder states for CNN
             try:
-                if cid in self.models_cache:
-                    model, _ = self.models_cache[cid]
+                if cid in self.models_cache: # jika model ada di cache
+                    model, _ = self.models_cache[cid] # ambil dari cache
                 else:
-                    model, _ = self.vault.load_cluster_state(cid)
+                    model, _ = self.vault.load_cluster_state(cid) # muat dari vault
 
                 if not model:
                     return None
@@ -1167,7 +1167,7 @@ class LstmEngine:
             except Exception as e:
                 logger.warning(f"[LSTM] extract_hidden_states failed for c{cid}: {e}")
                 return None
-
+    # fungsi proses data live stream 
     def process_live_stream(self, df_new):
         if df_new.empty: return pd.DataFrame(), pd.DataFrame()
         
@@ -1195,7 +1195,7 @@ class LstmEngine:
             logger.warning(f"[LSTM] Failed auto-save during live stream: {e}")
 
         return final_pred, final_anom
-
+    # fungsi simpan record LSTM ke CSV 
     def _save_lstm_records(self, df_full: pd.DataFrame, anomalies: pd.DataFrame):
         """
         Simpan file CSV:
@@ -1207,47 +1207,47 @@ class LstmEngine:
         dan file akan DITIMPA jika timestamp sama.
         """
 
-        out_root = getattr(self.cfg, 'output_dir', 'output/lstm_results')
-        os.makedirs(out_root, exist_ok=True)
+        out_root = getattr(self.cfg, 'output_dir', 'output/lstm_results') # direktori output
+        os.makedirs(out_root, exist_ok=True) # buat direktori jika belum ada
 
-        df = df_full.copy()
+        df = df_full.copy() # salin data
 
         # ===============================
         # 1️⃣ Pastikan kolom waktu valid
         # ===============================
-        if 'Acquired_Date' not in df.columns:
-            logger.error("[LSTM] Acquired_Date tidak ditemukan, batal simpan CSV.")
-            return {}
+        if 'Acquired_Date' not in df.columns: # jika kolom waktu tidak ada
+            logger.error("[LSTM] Acquired_Date tidak ditemukan, batal simpan CSV.") # log error
+            return {} # kembalikan dict kosong
 
-        df['Acquired_Date'] = pd.to_datetime(df['Acquired_Date'], errors='coerce')
-        df = df.dropna(subset=['Acquired_Date'])
+        df['Acquired_Date'] = pd.to_datetime(df['Acquired_Date'], errors='coerce') # parsing tanggal
+        df = df.dropna(subset=['Acquired_Date']) # buang baris dengan tanggal tidak valid
 
-        if df.empty:
-            logger.warning("[LSTM] Data kosong setelah parsing tanggal.")
-            return {}
+        if df.empty: # jika data kosong setelah parsing
+            logger.warning("[LSTM] Data kosong setelah parsing tanggal.") # log peringatan
+            return {} # kembalikan dict kosong
 
-        df = df.sort_values("Acquired_Date")
+        df = df.sort_values("Acquired_Date") # urutkan berdasarkan tanggal
         # ===============================
         # 2️⃣ Ambil timestamp dari DATA TERBARU
         # ===============================
-        latest_date = pd.Timestamp.now()
-        ts = latest_date.strftime("%Y%m%d")
+        latest_date = pd.Timestamp.now() # default ke sekarang
+        ts = latest_date.strftime("%Y%m%d") # default format tanggal
 
         # ===============================
         # 3️⃣ Filter rentang waktu
         # ===============================
-        two_years_ago = latest_date - pd.Timedelta(days=365 * 2)
-        recent_15d = latest_date - pd.Timedelta(days=15)
-
-        df_2y = df[df['Acquired_Date'] >= two_years_ago].copy()
-        df_recent = df[df['Acquired_Date'] >= recent_15d].copy()
+        two_years_ago = latest_date - pd.Timedelta(days=365 * 2) # dua tahun lalu
+        recent_15d = latest_date - pd.Timedelta(days=15) # 15 hari lalu
+        # Filter data
+        df_2y = df[df['Acquired_Date'] >= two_years_ago].copy() # data 2 tahun terakhir
+        df_recent = df[df['Acquired_Date'] >= recent_15d].copy() # data 15 hari terakhir
 
         # ===============================
         # 4️⃣ PATH FILE (DITIMPA)
         # ===============================
-        master_path = os.path.join(out_root, f"lstm_records_2y_{ts}.csv")
-        recent_path = os.path.join(out_root, f"lstm_recent_15d_{ts}.csv")
-        anom_path   = os.path.join(out_root, f"lstm_anomalies_{ts}.csv")
+        master_path = os.path.join(out_root, f"lstm_records_2y_{ts}.csv") # path master
+        recent_path = os.path.join(out_root, f"lstm_recent_15d_{ts}.csv") # path recent 
+        anom_path   = os.path.join(out_root, f"lstm_anomalies_{ts}.csv")# path anomalies
 
         # ===============================
         # 5️⃣ SIMPAN CSV
@@ -1294,6 +1294,6 @@ class LstmEngine:
             )
 
             logger.info(f"[LSTM] GA summary saved: {ga_summary_path}")
-
+    # fungsi prediksi realtime (dummy untuk kompatibilitas)
     def predict_realtime(self, *args):
         return pd.DataFrame(), pd.DataFrame()
