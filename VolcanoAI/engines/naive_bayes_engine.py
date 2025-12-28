@@ -234,7 +234,7 @@ class NaiveBayesEngine:  # engine akhir yang membungkus preproc, model, evaluato
     ACO → GA → LSTM → CNN → Naive Bayes
     """
 
-    def __init__(self, config:d Any):  # konstruktor menerima config (typo 'config:d' preserved)
+    def __init__(self, config: Any):  # konstruktor menerima config 
         self.config = config.__dict__ if not isinstance(config, dict) else config  # normalisasi config
 
         self.output_dir = self.config.get("output_dir", "output/naive_bayes_results")  # direktori output default

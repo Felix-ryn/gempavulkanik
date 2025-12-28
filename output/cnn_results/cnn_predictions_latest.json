@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-12-24T13:43:54.876246",
+  "timestamp": "2025-12-28T07:22:29.592439",
   "next_event": {
     "lat": -7.97,
     "lon": 112.38,
@@ -7,7 +7,7 @@
     "movement": "SE",
     "distance_km": 2.48,
     "confidence": 1.0,
-    "seismic": 4719.73
+    "seismic": 4.72
   },
   "status": "ok",
   "rows": 21

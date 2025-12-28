@@ -448,6 +448,7 @@ class CnnEngine:
         self.cfg.setdefault('use_augmentation', True) # default augment
         self.cfg.setdefault('epochs', 20) # default epochs
         self.cfg.setdefault('domain_km', 200.0) # default domain km
+        self.cfg.setdefault('luas_unit_divisor', 1000.0)
 
         self.model_dir = Path(self.cfg.get("model_dir", "output/cnn/models")) # lokasi simpan model
         self.visual_dir = Path(self.cfg.get("output_dir", "output/cnn")) / "visuals" # lokasi visual
@@ -666,7 +667,8 @@ class CnnEngine:
                 # fallback: use AreaTerdampak_km2 and low confidence
                 logger.warning(f"[CNN] Skip c{cid}: no LSTM features — applying fallback area.")
                 fallback_area = df_c.get('AreaTerdampak_km2', pd.Series(0.0, index=df_c.index)).values
-                df_out.loc[df_c.index, 'luas_cnn'] = fallback_area
+                divisor = float(self.cfg.get('luas_unit_divisor', 1.0)) or 1.0
+                df_out.loc[df_c.index, 'luas_cnn'] = np.array(fallback_area, dtype=float) / divisor
                 df_out.loc[df_c.index, 'cnn_confidence'] = 0.25
                 continue
 
@@ -674,7 +676,8 @@ class CnnEngine:
             if lstm_feats is None or len(lstm_feats) == 0 or len(valid_idx) == 0:
                 logger.warning(f"[CNN] Skip c{cid}: empty LSTM features/indices — applying fallback.")
                 fallback_area = df_c.get('AreaTerdampak_km2', pd.Series(0.0, index=df_c.index)).values
-                df_out.loc[df_c.index, 'luas_cnn'] = fallback_area
+                divisor = float(self.cfg.get('luas_unit_divisor', 1.0)) or 1.0
+                df_out.loc[df_c.index, 'luas_cnn'] = np.array(fallback_area, dtype=float) / divisor
                 df_out.loc[df_c.index, 'cnn_confidence'] = 0.25
                 continue
 
@@ -763,6 +766,14 @@ class CnnEngine:
             dist_vals = preds_vec[:min_len, 2]  # Jarak prediksi (km) dari output CNN
             angles_rad = np.arctan2(sin_vals, cos_vals)  # Konversi vektor (sin, cos) ke sudut radian
             angles_deg = (np.degrees(angles_rad) + 360) % 360  # Normalisasi sudut ke rentang 0–360 derajat
+
+            # Ambil divisor dari config (default 1000.0 untuk menampilkan "dalam ribuan")
+            divisor = float(self.cfg.get('luas_unit_divisor', 1.0))
+            if divisor == 0:
+                divisor = 1.0  # guard safety
+
+            # lakukan scaling: ubah unit km^2 -> km^2 / divisor
+            areas_to_write = np.array(areas_to_write, dtype=float) / divisor
 
             # map back to original df indices (valid_idx contains original indices)
             idxs_to_write = list(valid_idx[:min_len])  # Ambil indeks asli DataFrame untuk penulisan hasil
