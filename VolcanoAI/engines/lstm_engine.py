@@ -1048,9 +1048,19 @@ class LstmEngine:
             err = np.abs(res_mu[:min_l] - actual)
             df_out.loc[final_idx, 'prediction_error'] = err
 
-            # Z-Score Anomaly: Error / Sigma (safe)
-            z_score = err / (res_sigma[:min_l] + 1e-6)
+            # ===============================
+            # ANOMALY DETECTION (ERROR-BASED)
+            # ===============================
+            err_mean = err.mean()
+            err_std = err.std()
+
+            if err_std < 1e-6:
+                z_score = np.zeros_like(err)
+            else:
+                z_score = (err - err_mean) / err_std
+
             df_out.loc[final_idx, 'anomaly_score'] = z_score
+
 
             is_anom = z_score > 2.5  # 2.5 Sigma threshold
             if is_anom.any():

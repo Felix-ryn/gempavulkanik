@@ -375,10 +375,24 @@ class VolcanoAiPipeline: # Kelas utama pengatur seluruh alur kerja AI
 
             if cnn_json_path.exists(): # Cek apakah file JSON hasil prediksi CNN ada
                 cnn_map_gen = CNNMapGenerator(output_dir=cnn_output_dir)  # Inisialisasi generator peta CNN
-                map_path = cnn_map_gen.generate(json_path=cnn_json_path)   # Hasilkan peta dari file JSON
+                map_path = cnn_map_gen.generate(json_path=cnn_json_path)
 
-                if map_path: # Cek apakah peta berhasil dibuat
-                    self.logger.info(f"🗺️ CNN map generated: {map_path}") # Catat keberhasilan pembuatan peta ke log
+                if map_path:
+                    self.logger.info(f"🗺️ CNN map generated: {map_path}")
+
+                    # ==============================
+                    # SIMPAN POINTER MAP TERBARU
+                    # ==============================
+                    pointer_file = cnn_output_dir / "latest_map.txt"
+
+                    try:
+                        rel = Path(map_path).resolve().relative_to(Path.cwd().resolve())
+                        pointer_file.write_text(rel.as_posix(), encoding="utf-8")
+                    except Exception:
+                        pointer_file.write_text(str(Path(map_path).resolve()), encoding="utf-8")
+
+                    self.logger.info(f"[CNN MAP] latest pointer saved → {pointer_file}")
+
                 else:  # Jika peta gagal dibuat
                     self.logger.warning("CNN map not generated (next_event missing)") # Catat peringatan ke log
             else: # Jika file JSON tidak ditemukan
@@ -955,12 +969,23 @@ def build_dashboard_context(output_dir: Path) -> dict:
     else:  # default empty
         ctx["CNN_IMAGE_LIST_HTML"] = "<p class='muted'></p>" # no image
 
-    # CNN MAP (HTML)
-    cnn_map = out / "cnn_results" / "cnn_prediction_map.html" # CNN MAP HTML
-    if cnn_map.exists(): # check exists 
-        ctx["CNN_MAP"] = _file_url_for(cnn_map)  # set URL
-    else: # default
-        ctx["CNN_MAP"] = "#" # no map
+    # ===============================
+    # CNN MAP (DYNAMIC VIA POINTER)
+    # ===============================
+    pointer = out / "cnn_results" / "maps" / "latest_map.txt"
+
+    if pointer.exists():
+        try:
+            p = Path(pointer.read_text(encoding="utf-8").strip())
+            if p.exists():
+                ctx["CNN_MAP"] = _file_url_for(p)
+            else:
+                ctx["CNN_MAP"] = "#"
+        except Exception:
+            ctx["CNN_MAP"] = "#"
+    else:
+        ctx["CNN_MAP"] = "#"
+
 
     # NaiveBayes outputs (support multiple candidate dirs & files)
     nb_candidates = [

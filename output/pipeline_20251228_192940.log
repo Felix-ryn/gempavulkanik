@@ -1,0 +1,199 @@
+2025-12-28 19:29:40,798 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251228_192940.log
+2025-12-28 19:29:40,799 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-28 19:29:40,799 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
+2025-12-28 19:29:40,800 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-28 19:29:40,804 [INFO    ] [root                ] [MainThread] --- [Dashboard] Starting Flask server in background thread (monitoring enabled)...
+2025-12-28 19:29:40,813 [INFO    ] [RealtimeSensorManager] [MainThread] --- [MIROVA] Menggunakan log terbaru: output/realtime\mirova_log_20251003-094000.txt
+2025-12-28 19:29:40,813 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2025-12-28 19:29:40,813 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2025-12-28 19:29:40,813 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING ==========
+2025-12-28 19:29:40,867 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 2: FEATURE ENGINEERING ==========
+2025-12-28 19:29:40,915 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-28 19:29:41,018 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-28 19:29:41,046 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: Kolom berikut kosong total saat training -> diisi 0.0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-28 19:29:41,405 [INFO    ] [werkzeug            ] [Thread-1 (_run)] --- [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-12-28 19:29:41,405 [INFO    ] [werkzeug            ] [Thread-1 (_run)] --- [33mPress CTRL+C to quit[0m
+2025-12-28 19:29:41,605 [INFO    ] [werkzeug            ] [Thread-180 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:29:41] "GET / HTTP/1.1" 200 -
+2025-12-28 19:29:41,709 [INFO    ] [VolcanoAI.processing.feature_engineer] [MainThread] --- Preprocessor state saved to: output\feature_preprocessor.pkl
+2025-12-28 19:29:41,712 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (21, 60)
+2025-12-28 19:29:41,745 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-28 19:29:41,923 [INFO    ] [FeatureEngineer     ] [MainThread] --- Smart Classifier Trained.
+2025-12-28 19:29:41,960 [INFO    ] [werkzeug            ] [Thread-207 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:29:41] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-28 19:29:41,968 [INFO    ] [werkzeug            ] [Thread-208 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:29:41] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-28 19:29:41,982 [INFO    ] [werkzeug            ] [Thread-209 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:29:41] "GET /files/output/aco_results/aco_impact_zones.html HTTP/1.1" 200 -
+2025-12-28 19:29:42,024 [INFO    ] [werkzeug            ] [Thread-210 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:29:42] "GET /files/output/ga_results/ga_path_map.html HTTP/1.1" 200 -
+2025-12-28 19:29:42,024 [INFO    ] [werkzeug            ] [Thread-211 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:29:42] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:29:44,598 [WARNING ] [FeatureEngineer     ] [MainThread] --- Imputer Warning: Kolom berikut kosong total saat training -> diisi 0.0: ['OLI_total (W)', 'MSI_total (W)']
+2025-12-28 19:29:45,032 [INFO    ] [VolcanoAI.processing.feature_engineer] [MainThread] --- Preprocessor state saved to: output\feature_preprocessor.pkl
+2025-12-28 19:29:45,032 [INFO    ] [FeatureEngineer     ] [MainThread] --- Feature Engineering Complete. Shape: (9, 60)
+2025-12-28 19:29:45,032 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 3: MODEL TRAINING ==========
+2025-12-28 19:29:45,086 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Melanjutkan dari brain state sebelumnya.
+2025-12-28 19:29:50,559 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-69] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-28 19:29:53,645 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-110] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-28 19:29:56,602 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-151] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-28 19:29:59,578 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-192] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-28 19:30:00,115 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Output GA tersimpan → C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\output\aco_results\aco_to_ga.json
+2025-12-28 19:30:00,514 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Visual ACO tersimpan → C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\output\aco_results/aco_impact_zones.html
+2025-12-28 19:30:00,520 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- 
+================================================================================
+2025-12-28 19:30:00,522 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] ---                             === GA ENGINE START ===                             
+2025-12-28 19:30:00,523 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- ================================================================================
+2025-12-28 19:30:00,527 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA Evolution Start → Pop=80, Gen=150
+2025-12-28 19:30:00,533 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- Resuming GA from checkpoint...
+2025-12-28 19:30:00,563 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- [GA] next_event berhasil ditulis ke output\aco_results\aco_to_ga.json (valid=True)
+2025-12-28 19:30:00,565 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA vector JSON saved → output\ga_results\ga_vector.json
+2025-12-28 19:30:00,702 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- GA Map saved → output\ga_results\ga_path_map.html
+2025-12-28 19:30:00,846 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] --- Excel exported → output\ga_results\ga_report.xlsx
+2025-12-28 19:30:00,849 [INFO    ] [VolcanoAI.GaEngine  ] [MainThread] ---                            === GA ENGINE COMPLETE ===                           
+2025-12-28 19:30:00,850 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- === LSTM V6.0 TITAN TRAINING START ===
+2025-12-28 19:30:00,876 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Processing Cluster 0...
+2025-12-28 19:30:00,884 [WARNING ] [VolcanoAI.LstmEngine] [MainThread] --- Sample c0 terlalu sedikit (0). Skip training.
+2025-12-28 19:30:01,419 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- [Vault] Model Cluster 0 berhasil dimuat.
+2025-12-28 19:30:01,437 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- [LSTM] Saved CSV (overwrite-safe): master=output\lstm_results\lstm_records_2y_20251228.csv, recent=output\lstm_results\lstm_recent_15d_20251228.csv, anomalies=output\lstm_results\lstm_anomalies_20251228.csv
+2025-12-28 19:30:01,438 [INFO    ] [VolcanoAI_CNN       ] [MainThread] --- === MEMULAI CNN TRAINING PIPELINE V5.0 (TITAN) ===
+2025-12-28 19:30:01,439 [INFO    ] [VolcanoAI_CNN       ] [MainThread] --- 
+>>> Training CNN Cluster 0
+2025-12-28 19:30:01,605 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- [Vault] Model Cluster 0 berhasil dimuat.
+2025-12-28 19:30:01,606 [WARNING ] [VolcanoAI_CNN       ] [MainThread] --- Skip c0: Gagal get LSTM features (mungkin data kurang).
+2025-12-28 19:30:02,440 [INFO    ] [VolcanoAI_CNN       ] [MainThread] --- [CNN] Loaded model for cluster 0 from disk.
+2025-12-28 19:30:02,636 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- [Vault] Model Cluster 0 berhasil dimuat.
+2025-12-28 19:30:02,637 [WARNING ] [VolcanoAI_CNN       ] [MainThread] --- [CNN] Skip c0: no LSTM features — applying fallback area.
+2025-12-28 19:30:02,642 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- ✅ CNN latest overwritten: output\cnn_results\results\cnn_predictions_latest.csv
+2025-12-28 19:30:02,651 [INFO    ] [VolcanoAI.postprocess.cnn_csv_to_json] [MainThread] --- ✅ CNN JSON written: output\cnn_results\cnn_predictions_latest.json
+2025-12-28 19:30:02,651 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- ✅ CNN JSON generated: output\cnn_results\cnn_predictions_latest.json
+2025-12-28 19:30:02,678 [INFO    ] [VolcanoAI.engines.cnn_map_generator] [MainThread] --- CNNMapGenerator: map saved -> output\cnn_results\maps\cnn_prediction_map.html
+2025-12-28 19:30:02,679 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 🗺️ CNN map generated: output\cnn_results\maps\cnn_prediction_map.html
+2025-12-28 19:30:02,683 [INFO    ] [VolcanoAiPipeline   ] [MainThread] ---  CNN archive saved: output\cnn_results\results\cnn_predictions_20251228_193002.csv
+2025-12-28 19:30:02,694 [INFO    ] [VolcanoAI.NaiveBayesEngine] [MainThread] --- Fitur terpilih (7): ['Magnitudo', 'Kedalaman (km)', 'isVulkanik', 'isTektonik', 'R3_final', 'PheromoneScore', 'luas_cnn']
+2025-12-28 19:30:02,703 [INFO    ] [VolcanoAI.NaiveBayesEngine] [MainThread] --- Training Naive Bayes selesai.
+2025-12-28 19:30:02,705 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 4: MODEL EVALUATION ==========
+2025-12-28 19:30:09,955 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-90] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-28 19:30:12,988 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-131] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-28 19:30:15,987 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO Iter-172] Stagnasi (41) → Smooth Reset Pheromone.
+2025-12-28 19:30:17,978 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Output GA tersimpan → C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\output\aco_results\aco_to_ga.json
+2025-12-28 19:30:18,021 [INFO    ] [ACO_Engine_Master   ] [MainThread] --- [ACO] Visual ACO tersimpan → C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\output\aco_results/aco_impact_zones.html
+2025-12-28 19:30:18,053 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- [LSTM] Saved CSV (overwrite-safe): master=output\lstm_results\lstm_records_2y_20251228.csv, recent=output\lstm_results\lstm_recent_15d_20251228.csv, anomalies=output\lstm_results\lstm_anomalies_20251228.csv
+2025-12-28 19:30:18,207 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- [Vault] Model Cluster 0 berhasil dimuat.
+2025-12-28 19:30:18,207 [WARNING ] [VolcanoAI_CNN       ] [MainThread] --- [CNN] Skip c0: no LSTM features — applying fallback area.
+2025-12-28 19:30:18,226 [ERROR   ] [VolcanoAI.NaiveBayesEngine] [MainThread] --- Evaluasi gagal: index 1 is out of bounds for axis 1 with size 1
+2025-12-28 19:30:18,427 [INFO    ] [VolcanoAI.NaiveBayesEngine] [MainThread] --- Output Naive Bayes berhasil disimpan.
+2025-12-28 19:30:18,431 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Reporter metrics keys being passed: ['class_names', 'accuracy', 'confusion_matrix', 'report_str', 'aco_center', 'aco_area', 'aco_map', 'ga_map', 'cnn_pred_csv', 'cnn_pred_json', 'nb_confusion_png', 'nb_roc_png', 'nb_pred_csv', 'nb_metrics_json']
+2025-12-28 19:30:18,479 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- Generating Dual Dashboard HTML...
+2025-12-28 19:30:18,732 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- Dashboard berhasil dibuat: output\VolcanoAI_Analysis_STATIC.html
+2025-12-28 19:30:18,742 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- Dashboard berhasil dibuat: output\VolcanoAI_Monitor_LIVE.html
+2025-12-28 19:30:18,742 [INFO    ] [VolcanoAI.Reporter  ] [MainThread] --- ✅ Dual Dashboard Updated. Files: LIVE, STATIC.
+2025-12-28 19:30:18,743 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 5: LIVE MONITORING ==========
+2025-12-28 19:30:18,743 [INFO    ] [VolcanoAI.LstmEngine] [MainThread] --- Loading 21 rows to buffer.
+2025-12-28 19:30:18,774 [INFO    ] [RealtimeSensorManager] [MainThread] --- [MIROVA] Berhasil membaca 13 baris dari log.
+2025-12-28 19:30:29,558 [INFO    ] [werkzeug            ] [Thread-418 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:30:29] "GET / HTTP/1.1" 200 -
+2025-12-28 19:30:29,578 [INFO    ] [werkzeug            ] [Thread-419 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:30:29] "GET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1" 200 -
+2025-12-28 19:30:29,579 [INFO    ] [werkzeug            ] [Thread-420 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:30:29] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-28 19:30:29,605 [INFO    ] [werkzeug            ] [Thread-421 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:30:29] "GET /files/output/aco_results/aco_impact_zones.html HTTP/1.1" 200 -
+2025-12-28 19:30:29,614 [INFO    ] [werkzeug            ] [Thread-422 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:30:29] "GET /files/output/ga_results/ga_path_map.html HTTP/1.1" 200 -
+2025-12-28 19:30:29,622 [INFO    ] [werkzeug            ] [Thread-423 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:30:29] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:30:31,850 [INFO    ] [werkzeug            ] [Thread-424 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:30:31] "GET / HTTP/1.1" 200 -
+2025-12-28 19:30:31,869 [INFO    ] [werkzeug            ] [Thread-425 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:30:31] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-28 19:30:31,871 [INFO    ] [werkzeug            ] [Thread-426 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:30:31] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-28 19:30:31,892 [INFO    ] [werkzeug            ] [Thread-427 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:30:31] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-28 19:30:31,904 [INFO    ] [werkzeug            ] [Thread-428 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:30:31] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:30:31,907 [INFO    ] [werkzeug            ] [Thread-429 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:30:31] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:30:32,799 [INFO    ] [werkzeug            ] [Thread-430 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:30:32] "GET / HTTP/1.1" 200 -
+2025-12-28 19:30:32,816 [INFO    ] [werkzeug            ] [Thread-431 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:30:32] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-28 19:30:32,817 [INFO    ] [werkzeug            ] [Thread-432 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:30:32] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-28 19:30:32,838 [INFO    ] [werkzeug            ] [Thread-433 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:30:32] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-28 19:30:32,846 [INFO    ] [werkzeug            ] [Thread-434 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:30:32] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:30:32,850 [INFO    ] [werkzeug            ] [Thread-435 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:30:32] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:31:33,227 [INFO    ] [werkzeug            ] [Thread-436 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:31:33] "GET / HTTP/1.1" 200 -
+2025-12-28 19:31:33,250 [INFO    ] [werkzeug            ] [Thread-437 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:31:33] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-28 19:31:33,252 [INFO    ] [werkzeug            ] [Thread-438 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:31:33] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-28 19:31:33,277 [INFO    ] [werkzeug            ] [Thread-439 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:31:33] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-28 19:31:33,285 [INFO    ] [werkzeug            ] [Thread-440 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:31:33] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:31:33,290 [INFO    ] [werkzeug            ] [Thread-441 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:31:33] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:32:34,212 [INFO    ] [werkzeug            ] [Thread-442 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:32:34] "GET / HTTP/1.1" 200 -
+2025-12-28 19:32:34,227 [INFO    ] [werkzeug            ] [Thread-443 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:32:34] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-28 19:32:34,229 [INFO    ] [werkzeug            ] [Thread-444 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:32:34] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-28 19:32:34,245 [INFO    ] [werkzeug            ] [Thread-445 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:32:34] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-28 19:32:34,252 [INFO    ] [werkzeug            ] [Thread-446 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:32:34] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:32:34,255 [INFO    ] [werkzeug            ] [Thread-447 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:32:34] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:33:35,226 [INFO    ] [werkzeug            ] [Thread-448 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:33:35] "GET / HTTP/1.1" 200 -
+2025-12-28 19:33:35,242 [INFO    ] [werkzeug            ] [Thread-449 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:33:35] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-28 19:33:35,244 [INFO    ] [werkzeug            ] [Thread-450 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:33:35] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-28 19:33:35,258 [INFO    ] [werkzeug            ] [Thread-451 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:33:35] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-28 19:33:35,258 [INFO    ] [werkzeug            ] [Thread-452 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:33:35] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:33:35,271 [INFO    ] [werkzeug            ] [Thread-453 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:33:35] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:34:36,210 [INFO    ] [werkzeug            ] [Thread-454 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:34:36] "GET / HTTP/1.1" 200 -
+2025-12-28 19:34:36,225 [INFO    ] [werkzeug            ] [Thread-455 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:34:36] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-28 19:34:36,226 [INFO    ] [werkzeug            ] [Thread-456 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:34:36] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-28 19:34:36,243 [INFO    ] [werkzeug            ] [Thread-457 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:34:36] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-28 19:34:36,249 [INFO    ] [werkzeug            ] [Thread-458 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:34:36] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:34:36,251 [INFO    ] [werkzeug            ] [Thread-459 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:34:36] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:35:18,791 [INFO    ] [RealtimeSensorManager] [MainThread] --- [MIROVA] Berhasil membaca 13 baris dari log.
+2025-12-28 19:35:37,221 [INFO    ] [werkzeug            ] [Thread-460 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:35:37] "GET / HTTP/1.1" 200 -
+2025-12-28 19:35:37,236 [INFO    ] [werkzeug            ] [Thread-462 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:35:37] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-28 19:35:37,237 [INFO    ] [werkzeug            ] [Thread-461 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:35:37] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-28 19:35:37,257 [INFO    ] [werkzeug            ] [Thread-463 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:35:37] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-28 19:35:37,261 [INFO    ] [werkzeug            ] [Thread-464 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:35:37] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:35:37,265 [INFO    ] [werkzeug            ] [Thread-465 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:35:37] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:36:38,209 [INFO    ] [werkzeug            ] [Thread-466 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:36:38] "GET / HTTP/1.1" 200 -
+2025-12-28 19:36:38,225 [INFO    ] [werkzeug            ] [Thread-467 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:36:38] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-28 19:36:38,226 [INFO    ] [werkzeug            ] [Thread-468 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:36:38] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-28 19:36:38,243 [INFO    ] [werkzeug            ] [Thread-469 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:36:38] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-28 19:36:38,248 [INFO    ] [werkzeug            ] [Thread-470 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:36:38] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:36:38,253 [INFO    ] [werkzeug            ] [Thread-471 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:36:38] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:40:18,799 [INFO    ] [RealtimeSensorManager] [MainThread] --- [MIROVA] Berhasil membaca 13 baris dari log.
+2025-12-28 19:45:18,819 [INFO    ] [RealtimeSensorManager] [MainThread] --- [MIROVA] Berhasil membaca 13 baris dari log.
+2025-12-28 19:50:18,834 [INFO    ] [RealtimeSensorManager] [MainThread] --- [MIROVA] Berhasil membaca 13 baris dari log.
+2025-12-28 19:51:36,223 [INFO    ] [werkzeug            ] [Thread-472 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:51:36] "GET / HTTP/1.1" 200 -
+2025-12-28 19:51:36,264 [INFO    ] [werkzeug            ] [Thread-473 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:51:36] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-28 19:51:36,267 [INFO    ] [werkzeug            ] [Thread-474 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:51:36] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-28 19:51:36,294 [INFO    ] [werkzeug            ] [Thread-475 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:51:36] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-28 19:51:36,304 [INFO    ] [werkzeug            ] [Thread-476 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:51:36] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:51:36,309 [INFO    ] [werkzeug            ] [Thread-477 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:51:36] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:52:37,258 [INFO    ] [werkzeug            ] [Thread-478 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:52:37] "GET / HTTP/1.1" 200 -
+2025-12-28 19:52:37,276 [INFO    ] [werkzeug            ] [Thread-479 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:52:37] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-28 19:52:37,277 [INFO    ] [werkzeug            ] [Thread-480 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:52:37] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-28 19:52:37,299 [INFO    ] [werkzeug            ] [Thread-481 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:52:37] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-28 19:52:37,306 [INFO    ] [werkzeug            ] [Thread-482 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:52:37] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:52:37,308 [INFO    ] [werkzeug            ] [Thread-483 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:52:37] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:53:38,253 [INFO    ] [werkzeug            ] [Thread-484 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:53:38] "GET / HTTP/1.1" 200 -
+2025-12-28 19:53:38,279 [INFO    ] [werkzeug            ] [Thread-485 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:53:38] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-28 19:53:38,290 [INFO    ] [werkzeug            ] [Thread-486 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:53:38] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-28 19:53:38,330 [INFO    ] [werkzeug            ] [Thread-487 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:53:38] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-28 19:53:38,341 [INFO    ] [werkzeug            ] [Thread-488 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:53:38] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:53:38,347 [INFO    ] [werkzeug            ] [Thread-489 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:53:38] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:54:39,236 [INFO    ] [werkzeug            ] [Thread-490 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:54:39] "GET / HTTP/1.1" 200 -
+2025-12-28 19:54:39,257 [INFO    ] [werkzeug            ] [Thread-491 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:54:39] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-28 19:54:39,258 [INFO    ] [werkzeug            ] [Thread-492 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:54:39] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-28 19:54:39,279 [INFO    ] [werkzeug            ] [Thread-493 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:54:39] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-28 19:54:39,285 [INFO    ] [werkzeug            ] [Thread-494 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:54:39] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:54:39,295 [INFO    ] [werkzeug            ] [Thread-495 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 19:54:39] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-28 19:55:18,865 [INFO    ] [RealtimeSensorManager] [MainThread] --- [MIROVA] Berhasil membaca 13 baris dari log.
+2025-12-28 20:00:18,897 [INFO    ] [RealtimeSensorManager] [MainThread] --- [MIROVA] Berhasil membaca 13 baris dari log.
+2025-12-28 20:00:58,694 [INFO    ] [werkzeug            ] [Thread-496 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 20:00:58] "GET / HTTP/1.1" 200 -
+2025-12-28 20:00:58,737 [INFO    ] [werkzeug            ] [Thread-497 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 20:00:58] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-28 20:00:58,739 [INFO    ] [werkzeug            ] [Thread-498 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 20:00:58] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-28 20:00:58,768 [INFO    ] [werkzeug            ] [Thread-499 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 20:00:58] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-28 20:00:58,774 [INFO    ] [werkzeug            ] [Thread-500 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 20:00:58] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-28 20:00:58,782 [INFO    ] [werkzeug            ] [Thread-501 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 20:00:58] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-28 20:01:59,260 [INFO    ] [werkzeug            ] [Thread-502 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 20:01:59] "GET / HTTP/1.1" 200 -
+2025-12-28 20:01:59,288 [INFO    ] [werkzeug            ] [Thread-503 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 20:01:59] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-28 20:01:59,290 [INFO    ] [werkzeug            ] [Thread-504 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 20:01:59] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-28 20:01:59,315 [INFO    ] [werkzeug            ] [Thread-505 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 20:01:59] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-28 20:01:59,328 [INFO    ] [werkzeug            ] [Thread-506 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 20:01:59] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-28 20:01:59,331 [INFO    ] [werkzeug            ] [Thread-507 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 20:01:59] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-28 20:03:00,229 [INFO    ] [werkzeug            ] [Thread-508 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 20:03:00] "GET / HTTP/1.1" 200 -
+2025-12-28 20:03:00,247 [INFO    ] [werkzeug            ] [Thread-509 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 20:03:00] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-28 20:03:00,250 [INFO    ] [werkzeug            ] [Thread-510 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 20:03:00] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-28 20:03:00,267 [INFO    ] [werkzeug            ] [Thread-511 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 20:03:00] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-28 20:03:00,277 [INFO    ] [werkzeug            ] [Thread-512 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 20:03:00] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-28 20:03:00,280 [INFO    ] [werkzeug            ] [Thread-513 (process_request_thread)] --- 127.0.0.1 - - [28/Dec/2025 20:03:00] "[36mGET /files/output/cnn_results/cnn_prediction_map.html HTTP/1.1[0m" 304 -
+2025-12-28 20:03:33,273 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Monitoring dihentikan. Melakukan penyimpanan akhir...
+2025-12-28 20:03:33,330 [INFO    ] [root                ] [MainThread] --- [BUFFER SAVED] output/realtime/processed.csv
+2025-12-28 20:03:33,331 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Penyimpanan buffer live selesai.
+2025-12-28 20:03:33,332 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- System shutdown. Uptime: 2032.52s

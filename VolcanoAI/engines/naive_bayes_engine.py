@@ -22,12 +22,9 @@ from itertools import cycle  # utilitas iterasi (tidak selalu dipakai)
 # SKLEARN CORE
 # ==========================
 from sklearn.naive_bayes import GaussianNB  # model Gaussian Naive Bayes
-from sklearn.preprocessing import (
-    StandardScaler,  # standard scaling
-    PowerTransformer,  # power transform (Yeo-Johnson)
-    LabelEncoder,  # encode label string->int
-    label_binarize  # untuk ROC multiclass
-)
+from sklearn.preprocessing import StandardScaler as SkStandardScaler
+from sklearn.preprocessing import PowerTransformer, LabelEncoder, label_binarize
+
 from sklearn.impute import SimpleImputer  # imputasi nilai hilang
 from sklearn.feature_selection import SelectKBest, f_classif  # seleksi fitur berdasarkan ANOVA
 from sklearn.pipeline import Pipeline  # pipeline preprocessing
@@ -82,7 +79,7 @@ class ClassificationPreprocessor:  # class untuk preprocessing fitur sebelum NB
 
         steps = [  # default pipeline steps
             ("imputer", SimpleImputer(strategy="median")),  # isi nilai hilang dengan median
-            ("scaler", PowerTransformer(method="yeo-johnson")),  # transformasi power
+            ("scaler", SkStandardScaler()),
             ("selector", SelectKBest(f_classif, k="all"))  # placeholder selector
         ]
 
@@ -96,7 +93,7 @@ class ClassificationPreprocessor:  # class untuk preprocessing fitur sebelum NB
             logger.warning("Target hanya 1 kelas, selector dilewati.")  # warning
             self.pipeline = Pipeline([
                 ("imputer", SimpleImputer(strategy="median")),
-                ("scaler", StandardScaler())
+                ("scaler", SkStandardScaler())
             ])  # pipeline sederhana tanpa selector
             self.pipeline.fit(X)  # fit pipeline
             self.selected_features = valid_features  # semua fitur dipakai
@@ -152,38 +149,61 @@ class ModelEvaluator:  # class untuk menghitung metrik klasifikasi
         y_true: np.ndarray,
         y_pred: np.ndarray,
         y_prob: Optional[np.ndarray]
-    ) -> Dict[str, Any]:  # kembalikan dictionary metrics
-
-        metrics = {"class_names": self.class_names}  # mulai metrics
+    ) -> Dict[str, Any]:
+        metrics = {"class_names": self.class_names}
 
         try:
-            metrics["accuracy"] = accuracy_score(y_true, y_pred)  # hitung akurasi
+            # Pastikan y_true adalah array integer (encoded labels)
+            y_true_arr = np.asarray(y_true).astype(int)
+            y_pred_arr = np.asarray(y_pred).astype(int)
 
+            # label yang muncul di data (mis. [0,2] atau [0,1])
+            present_labels = sorted(list(np.unique(y_true_arr)))
+            if not present_labels:
+                present_labels = []
+
+            # accuracy
+            metrics["accuracy"] = accuracy_score(y_true_arr, y_pred_arr)
+
+            # confusion matrix sesuai label yang muncul saja
             metrics["confusion_matrix"] = confusion_matrix(
-                y_true,
-                y_pred,
-                labels=self.label_indices
-            )  # confusion matrix sesuai urutan label
+                y_true_arr,
+                y_pred_arr,
+                labels=present_labels
+            )
 
+            # target_names harus cocok panjangnya dgn present_labels
+            # jika self.class_names tersedia, gunakan mapping index->name, fallback ke str(index)
+            target_names = []
+            for i in present_labels:
+                if i < len(self.class_names):
+                    target_names.append(self.class_names[i])
+                else:
+                    target_names.append(str(i))
+
+            # classification report: gunakan labels + target_names agar tidak error
             metrics["report_str"] = classification_report(
-                y_true,
-                y_pred,
-                target_names=self.class_names,
+                y_true_arr,
+                y_pred_arr,
+                labels=present_labels,
+                target_names=target_names,
                 zero_division=0
-            )  # teks laporan klasifikasi
+            )
 
+            # ROC AUC (jika probabilitas tersedia)
             if y_prob is not None:
-                metrics["roc_auc"] = self._calculate_roc_auc(y_true, y_prob)  # tambahkan ROC AUC jika ada probabilitas
+                metrics["roc_auc"] = self._calculate_roc_auc(y_true_arr, y_prob)
 
-            logger.info("\n=== Classification Report ===\n" + metrics["report_str"])  # log report
+            logger.info("\n=== Classification Report ===\n" + metrics["report_str"])
 
         except Exception as e:
-            logger.error(f"Evaluasi gagal: {e}")  # jika error saat evaluasi
+            logger.error(f"Evaluasi gagal: {e}")
 
-        return metrics  # kembalikan metrics
+        return metrics
 
     def _calculate_roc_auc(self, y_true, y_prob) -> Dict[str, Any]:  # hitung ROC AUC multiclass
-        y_bin = label_binarize(y_true, classes=self.label_indices)  # binarize labels
+        present_labels = np.unique(y_true)
+        y_bin = label_binarize(y_true, classes=present_labels)# binarize labels
         n_classes = len(self.class_names)  # jumlah kelas
 
         fpr, tpr, roc_auc = {}, {}, {}  # dict penyimpanan
@@ -211,7 +231,9 @@ class ClassificationReporter:  # class untuk menyimpan plot hasil evaluasi
 
     def generate_plots(self, metrics: Dict[str, Any]):
         if "confusion_matrix" in metrics:
-            self._plot_cm(metrics["confusion_matrix"], metrics["class_names"])  # generate confusion matrix plot
+            used_classes = metrics.get("used_class_names", metrics["class_names"])
+            self._plot_cm(metrics["confusion_matrix"], used_classes)
+
 
     def _plot_cm(self, cm, classes):  # plot confusion matrix
         plt.figure(figsize=(8, 6))  # ukuran figure
@@ -295,10 +317,18 @@ class NaiveBayesEngine:  # engine akhir yang membungkus preproc, model, evaluato
         if X_processed is None:
             X_processed = np.zeros((len(df_out), len(self.preprocessor.selected_features) or 1))  # fallback zeros
 
-        preds = self.model.predict(X_processed)  # prediksi kelas
-        probs = self.model.predict_proba(X_processed)  # prediksi probabilitas
+        preds = self.model.predict(X_processed)
+        probs = self.model.predict_proba(X_processed)
 
-        df_out["kelas_prediksi"] = self.le.inverse_transform(preds)  # inverse transform ke label asli
+        max_probs = np.max(probs, axis=1)
+        anomaly_scores = 1.0 - max_probs
+
+        df_out["kelas_prediksi"] = self.le.inverse_transform(preds)
+        df_out["nb_confidence"] = max_probs
+        df_out["anomaly_score"] = anomaly_scores
+
+        threshold = np.quantile(anomaly_scores, 0.90)
+        df_out["is_anomaly"] = anomaly_scores >= threshold
 
         metrics = {}  # placeholder metrics
         # Jika kolom target ada, evaluasi seperti biasa

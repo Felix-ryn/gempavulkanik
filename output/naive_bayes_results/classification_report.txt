@@ -1,9 +1,8 @@
               precision    recall  f1-score   support
 
-      Ringan       0.63      0.99      0.77       241
-      Sedang       0.61      1.00      0.76       109
-       Parah       0.00      0.00      0.00       211
+      Ringan       0.00      0.00      0.00         3
+      Sedang       0.67      1.00      0.80         6
 
-    accuracy                           0.62       561
-   macro avg       0.41      0.66      0.51       561
-weighted avg       0.39      0.62      0.48       561
+    accuracy                           0.67         9
+   macro avg       0.33      0.50      0.40         9
+weighted avg       0.44      0.67      0.53         9

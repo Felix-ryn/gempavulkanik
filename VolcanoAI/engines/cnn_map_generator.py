@@ -14,7 +14,10 @@ class CNNMapGenerator:  # kelas pembuat peta prediksi CNN
     def __init__(self, output_dir: str):  # inisialisasi dengan direktori output
         self.output_dir = Path(output_dir)  # simpan Path output
         self.output_dir.mkdir(parents=True, exist_ok=True)  # buat folder jika belum ada
-        self.map_path = self.output_dir / "cnn_prediction_map.html"  # path default file peta
+        from datetime import datetime
+
+        self.map_path = self.output_dir / f"cnn_prediction_map_{datetime.now():%Y%m%d_%H%M%S}.html"
+
 
     def _load_json_robust(self, json_path: Path):  # baca JSON dengan fallback encoding
         """
@@ -72,7 +75,7 @@ class CNNMapGenerator:  # kelas pembuat peta prediksi CNN
             f"Direction: {nxt.get('movement', '-') }<br>"  # movement string jika ada
             f"Distance: {distance:.2f} km<br>"  # tampilkan distance dengan 2 desimal
             f"Confidence: {confidence:.2f}<br>"  # tampilkan confidence 2 desimal
-            f"Generated: {data.get('timestamp','')}"  # timestamp pembuatan jika ada
+            f"Map generated at (system time): {data.get('timestamp','')}"# timestamp pembuatan jika ada
         )
 
         folium.Marker(
