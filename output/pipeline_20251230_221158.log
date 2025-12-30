@@ -1,0 +1,40 @@
+2025-12-30 22:11:58,754 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251230_221158.log
+2025-12-30 22:11:58,755 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-30 22:11:58,758 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
+2025-12-30 22:11:58,760 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-30 22:11:58,764 [INFO    ] [root                ] [MainThread] --- [Dashboard] Starting Flask server in background thread (monitoring enabled)...
+2025-12-30 22:11:58,777 [INFO    ] [RealtimeSensorManager] [MainThread] --- [MIROVA] Menggunakan log terbaru: output/realtime\mirova_log_20251003-094000.txt
+2025-12-30 22:11:58,779 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2025-12-30 22:11:58,780 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2025-12-30 22:11:58,781 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING ==========
+2025-12-30 22:11:58,836 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 2: FEATURE ENGINEERING ==========
+2025-12-30 22:11:58,931 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-30 22:11:58,995 [CRITICAL] [PipelineGuard       ] [MainThread] --- CRASH di _step_feature_engineering: Found array with 0 sample(s) (shape=(0, 4)) while a minimum of 1 is required by RandomForestClassifier.
+2025-12-30 22:11:59,224 [CRITICAL] [VolcanoAiPipeline   ] [MainThread] --- PIPELINE FAILED: Found array with 0 sample(s) (shape=(0, 4)) while a minimum of 1 is required by RandomForestClassifier.
+Traceback (most recent call last):
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 652, in run
+    if not self._step_feature_engineering(is_training=True): # Panggil fungsi untuk melakukan rekayasa fitur
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 102, in wrapper
+    raise e
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 95, in wrapper
+    return func(*args, **kwargs) # coba jalankan fungsi asli yang dilindungi
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 265, in _step_feature_engineering
+    self.df_train, self.feature_preprocessor = self.feature_engineer.run(self.df_train) # Lakukan FE pada data latih dan dapatkan preprocessor
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\VolcanoAI\processing\feature_engineer.py", line 478, in run
+    df_proc = self._exec_smart_classification(df_proc, is_training)  # classifikasi tipe gempa
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\VolcanoAI\processing\feature_engineer.py", line 547, in _exec_smart_classification
+    clf.fit(ml_feats.loc[labeled_mask], y_train.loc[labeled_mask])  # fit classifier
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\env\lib\site-packages\sklearn\base.py", line 1365, in wrapper
+    return fit_method(estimator, *args, **kwargs)
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\env\lib\site-packages\sklearn\ensemble\_forest.py", line 359, in fit
+    X, y = validate_data(
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\env\lib\site-packages\sklearn\utils\validation.py", line 2971, in validate_data
+    X, y = check_X_y(X, y, **check_params)
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\env\lib\site-packages\sklearn\utils\validation.py", line 1368, in check_X_y
+    X = check_array(
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\env\lib\site-packages\sklearn\utils\validation.py", line 1128, in check_array
+    raise ValueError(
+ValueError: Found array with 0 sample(s) (shape=(0, 4)) while a minimum of 1 is required by RandomForestClassifier.
+2025-12-30 22:11:59,226 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- System shutdown. Uptime: 0.45s

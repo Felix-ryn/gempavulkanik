@@ -113,7 +113,7 @@
     <header>
         <h1>VolcanoAI – Monitor Live</h1>
         <div class="muted">
-            2025-12-30 20:28:18
+            2025-12-30 22:20:20
             <span class="badge" style="margin-left:12px">Live</span>
         </div>
     </header>
@@ -139,10 +139,10 @@
 
                     <div class="card">
                         <div class="stat"><strong>GA Prediction</strong></div>
-                        <div class="muted">Lat - | Lon -</div>
+                       
                         <div class="muted">Bearing - | Dist -</div>
-                        <div class="hr"></div>
-                        <div class="stat">Confidence -</div>
+                 
+                        
                     </div>
                 </div>
 
@@ -166,7 +166,7 @@
             &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width,
                 initial-scale=1.0, maximum-scale=1.0, user-scalable=no&quot; /&gt;
             &lt;style&gt;
-                #map_2d08c060498a1f8793a44d8c0d4efcc1 {
+                #map_30c2a5c9e023ac9fbc868aea4b2f3eb6 {
                     position: relative;
                     width: 100.0%;
                     height: 100.0%;
@@ -203,14 +203,14 @@
 &lt;body&gt;
     
     
-            &lt;div class=&quot;folium-map&quot; id=&quot;map_2d08c060498a1f8793a44d8c0d4efcc1&quot; &gt;&lt;/div&gt;
+            &lt;div class=&quot;folium-map&quot; id=&quot;map_30c2a5c9e023ac9fbc868aea4b2f3eb6&quot; &gt;&lt;/div&gt;
         
 &lt;/body&gt;
 &lt;script&gt;
     
     
-            var map_2d08c060498a1f8793a44d8c0d4efcc1 = L.map(
-                &quot;map_2d08c060498a1f8793a44d8c0d4efcc1&quot;,
+            var map_30c2a5c9e023ac9fbc868aea4b2f3eb6 = L.map(
+                &quot;map_30c2a5c9e023ac9fbc868aea4b2f3eb6&quot;,
                 {
                     center: [-7.96, 114.15],
                     crs: L.CRS.EPSG3857,
@@ -227,7 +227,7 @@
 
         
     
-            var tile_layer_b981471afcce8f8bca2e03cf1b6b26be = L.tileLayer(
+            var tile_layer_f85baa4320f1c37773d89d8e9993692f = L.tileLayer(
                 &quot;https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png&quot;,
                 {
   &quot;minZoom&quot;: 0,
@@ -244,39 +244,39 @@
             );
         
     
-            tile_layer_b981471afcce8f8bca2e03cf1b6b26be.addTo(map_2d08c060498a1f8793a44d8c0d4efcc1);
+            tile_layer_f85baa4320f1c37773d89d8e9993692f.addTo(map_30c2a5c9e023ac9fbc868aea4b2f3eb6);
         
     
-            var feature_group_cb10b1c904cb895e065686d7558eabb0 = L.featureGroup(
+            var feature_group_3536fbd1bf734de27488b9c63f285382 = L.featureGroup(
                 {
 }
             );
         
     
-            var circle_marker_0a10cee11e4d5b2693725528007b7e3d = L.circleMarker(
+            var circle_marker_e0fc2db195d11c43d4e061854e0a75f0 = L.circleMarker(
                 [-7.96, 114.15],
                 {&quot;bubblingMouseEvents&quot;: true, &quot;color&quot;: &quot;red&quot;, &quot;dashArray&quot;: null, &quot;dashOffset&quot;: null, &quot;fill&quot;: true, &quot;fillColor&quot;: &quot;red&quot;, &quot;fillOpacity&quot;: 1.0, &quot;fillRule&quot;: &quot;evenodd&quot;, &quot;lineCap&quot;: &quot;round&quot;, &quot;lineJoin&quot;: &quot;round&quot;, &quot;opacity&quot;: 1.0, &quot;radius&quot;: 12, &quot;stroke&quot;: true, &quot;weight&quot;: 3}
-            ).addTo(feature_group_cb10b1c904cb895e065686d7558eabb0);
+            ).addTo(feature_group_3536fbd1bf734de27488b9c63f285382);
         
     
-        var popup_94b8a554db24156123d406946ded1271 = L.popup({
+        var popup_9a56058e80ca20b5a2026128b4626fb6 = L.popup({
   &quot;maxWidth&quot;: &quot;100%&quot;,
 });
 
         
             
-                var html_78c9706bfaf5bd336eea519794bdb8f4 = $(`&lt;div id=&quot;html_78c9706bfaf5bd336eea519794bdb8f4&quot; style=&quot;width: 100.0%; height: 100.0%;&quot;&gt;&lt;b&gt;LIVE ALERT&lt;/b&gt;&lt;br&gt;Mag: 2.5&lt;/div&gt;`)[0];
-                popup_94b8a554db24156123d406946ded1271.setContent(html_78c9706bfaf5bd336eea519794bdb8f4);
+                var html_b53450ef424c07b6a3956908b3131416 = $(`&lt;div id=&quot;html_b53450ef424c07b6a3956908b3131416&quot; style=&quot;width: 100.0%; height: 100.0%;&quot;&gt;&lt;b&gt;LIVE ALERT&lt;/b&gt;&lt;br&gt;Mag: 2.5&lt;/div&gt;`)[0];
+                popup_9a56058e80ca20b5a2026128b4626fb6.setContent(html_b53450ef424c07b6a3956908b3131416);
             
         
 
-        circle_marker_0a10cee11e4d5b2693725528007b7e3d.bindPopup(popup_94b8a554db24156123d406946ded1271)
+        circle_marker_e0fc2db195d11c43d4e061854e0a75f0.bindPopup(popup_9a56058e80ca20b5a2026128b4626fb6)
         ;
 
         
     
     
-            feature_group_cb10b1c904cb895e065686d7558eabb0.addTo(map_2d08c060498a1f8793a44d8c0d4efcc1);
+            feature_group_3536fbd1bf734de27488b9c63f285382.addTo(map_30c2a5c9e023ac9fbc868aea4b2f3eb6);
         
 &lt;/script&gt;
 &lt;/html&gt;" style="position:absolute;width:100%;height:100%;left:0;top:0;border:none !important;" allowfullscreen webkitallowfullscreen mozallowfullscreen></iframe></div></div>"></iframe>

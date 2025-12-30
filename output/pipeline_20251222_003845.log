@@ -1,5 +1,0 @@
-2025-12-22 00:38:45,240 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251222_003845.log
-2025-12-22 00:38:45,242 [INFO    ] [root                ] [MainThread] --- ================================================================================
-2025-12-22 00:38:45,242 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
-2025-12-22 00:38:45,243 [INFO    ] [root                ] [MainThread] --- ================================================================================
-2025-12-22 00:38:45,247 [INFO    ] [root                ] [MainThread] --- [Dashboard] Starting Flask server in background thread (monitoring enabled)...

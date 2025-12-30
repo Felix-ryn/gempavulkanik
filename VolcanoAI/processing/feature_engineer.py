@@ -360,7 +360,14 @@ class FeatureEngineer:  # fasad utama pengolahan fitur
         df_clean = DataGuard.enforce_numeric(df_clean, required_cols)  # enforce numeric lagi
 
         # 🟢 5. Text Sanitization
-        df_clean["Keterangan"] = df_clean.get("Keterangan", "Unknown").fillna("Unknown").astype(str)  # pastikan Keterangan string
+        if "Keterangan" not in df_clean.columns:
+            df_clean["Keterangan"] = "Unknown"
+        else:
+            df_clean["Keterangan"] = (
+                df_clean["Keterangan"]
+                .fillna("Unknown")
+                .astype(str)
+            )
 
         return df_clean  # kembalikan df bersih
 
@@ -533,14 +540,32 @@ class FeatureEngineer:  # fasad utama pengolahan fitur
         unk_mask = (is_v == 0) & (is_t == 0)  # mask unknown
         
         if is_training:
-            y_train = is_v # Target: 1=Vulkanik  # target untuk training classifier
-            clf = RandomForestClassifier(n_estimators=50, max_depth=10, random_state=42)  # RF classifier
-            # Hanya fit pada data yang sudah terlabeli dengan baik
-            labeled_mask = (is_v == 1) | (is_t == 1)  # mask labeled
-            clf.fit(ml_feats.loc[labeled_mask], y_train.loc[labeled_mask])  # fit classifier
-            self.preprocessor.type_classifier = clf  # simpan classifier ke preprocessor
-            self.logger.info("Smart Classifier Trained.")  # log training
-            df.loc[unk_mask, "isTektonik"] = 1 # Default unkown to Tektonik during training if logic fails  # default assign
+            labeled_mask = (is_v == 1) | (is_t == 1)
+
+            if labeled_mask.sum() >= 2:  # 🔥 FIX KRITIS
+                y_train = is_v
+                clf = RandomForestClassifier(
+                    n_estimators=50,
+                    max_depth=10,
+                    random_state=42
+                )
+                clf.fit(
+                    ml_feats.loc[labeled_mask],
+                    y_train.loc[labeled_mask]
+                )
+                self.preprocessor.type_classifier = clf
+                self.logger.info(
+                    f"Smart Classifier Trained with {labeled_mask.sum()} samples."
+                )
+            else:
+                self.logger.warning(
+                    "Smart Classifier SKIPPED: Tidak ada data berlabel cukup (fallback ke rule-based)."
+                )
+                self.preprocessor.type_classifier = None
+
+            # Default unknown → Tektonik (AMAN)
+            df.loc[unk_mask, "isTektonik"] = 1
+
         else:
             if unk_mask.any() and self.preprocessor.type_classifier:
                 preds = self.preprocessor.type_classifier.predict(ml_feats.loc[unk_mask])  # prediksi untuk unknown

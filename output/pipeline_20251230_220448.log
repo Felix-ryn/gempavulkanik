@@ -1,0 +1,47 @@
+2025-12-30 22:04:48,550 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20251230_220448.log
+2025-12-30 22:04:48,553 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-30 22:04:48,554 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
+2025-12-30 22:04:48,555 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2025-12-30 22:04:48,561 [INFO    ] [root                ] [MainThread] --- [Dashboard] Starting Flask server in background thread (monitoring enabled)...
+2025-12-30 22:04:48,580 [INFO    ] [RealtimeSensorManager] [MainThread] --- [MIROVA] Menggunakan log terbaru: output/realtime\mirova_log_20251003-094000.txt
+2025-12-30 22:04:48,581 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2025-12-30 22:04:48,583 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2025-12-30 22:04:48,584 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING ==========
+2025-12-30 22:04:49,310 [INFO    ] [werkzeug            ] [Thread-1 (_run)] --- [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-12-30 22:04:49,312 [INFO    ] [werkzeug            ] [Thread-1 (_run)] --- [33mPress CTRL+C to quit[0m
+2025-12-30 22:04:50,699 [WARNING ] [VolcanoAI.DataLoader] [MainThread] --- [DataGuard] Kolom datetime 'Acquired_Date' tidak ditemukan. Skip.
+2025-12-30 22:04:50,853 [INFO    ] [werkzeug            ] [Thread-2 (process_request_thread)] --- 127.0.0.1 - - [30/Dec/2025 22:04:50] "GET / HTTP/1.1" 200 -
+2025-12-30 22:04:51,066 [INFO    ] [werkzeug            ] [Thread-3 (process_request_thread)] --- 127.0.0.1 - - [30/Dec/2025 22:04:51] "[36mGET /files/output/naive_bayes_results/confusion_matrix.png HTTP/1.1[0m" 304 -
+2025-12-30 22:04:51,137 [INFO    ] [werkzeug            ] [Thread-4 (process_request_thread)] --- 127.0.0.1 - - [30/Dec/2025 22:04:51] "[36mGET /files/output/naive_bayes_results/roc_curves.png HTTP/1.1[0m" 304 -
+2025-12-30 22:04:51,246 [INFO    ] [werkzeug            ] [Thread-5 (process_request_thread)] --- 127.0.0.1 - - [30/Dec/2025 22:04:51] "[36mGET /files/output/aco_results/aco_impact_zones.html HTTP/1.1[0m" 304 -
+2025-12-30 22:04:51,261 [INFO    ] [werkzeug            ] [Thread-6 (process_request_thread)] --- 127.0.0.1 - - [30/Dec/2025 22:04:51] "[36mGET /files/output/ga_results/ga_path_map.html HTTP/1.1[0m" 304 -
+2025-12-30 22:04:51,267 [INFO    ] [werkzeug            ] [Thread-7 (process_request_thread)] --- 127.0.0.1 - - [30/Dec/2025 22:04:51] "[36mGET /files/output/cnn_results/maps/cnn_prediction_map_20251230_220216.html HTTP/1.1[0m" 304 -
+2025-12-30 22:04:52,131 [INFO    ] [werkzeug            ] [Thread-8 (process_request_thread)] --- 127.0.0.1 - - [30/Dec/2025 22:04:52] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-12-30 22:04:58,228 [WARNING ] [VolcanoAI.DataLoader] [MainThread] --- [VolcanoSource] Kolom VRP_Date tidak ditemukan. Mengisi NaT.
+2025-12-30 22:04:58,506 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 2: FEATURE ENGINEERING ==========
+2025-12-30 22:04:58,573 [INFO    ] [FeatureEngineer     ] [MainThread] --- >>> FE TRAIN: Initializing new preprocessor state.
+2025-12-30 22:04:58,595 [ERROR   ] [VolcanoAI.processing.feature_engineer] [MainThread] --- Error in basic_cleanup: 'str' object has no attribute 'fillna'
+2025-12-30 22:04:58,596 [CRITICAL] [PipelineGuard       ] [MainThread] --- CRASH di _step_feature_engineering: 'str' object has no attribute 'fillna'
+2025-12-30 22:04:58,658 [CRITICAL] [VolcanoAiPipeline   ] [MainThread] --- PIPELINE FAILED: 'str' object has no attribute 'fillna'
+Traceback (most recent call last):
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 652, in run
+    if not self._step_feature_engineering(is_training=True): # Panggil fungsi untuk melakukan rekayasa fitur
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 102, in wrapper
+    raise e
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 95, in wrapper
+    return func(*args, **kwargs) # coba jalankan fungsi asli yang dilindungi
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 265, in _step_feature_engineering
+    self.df_train, self.feature_preprocessor = self.feature_engineer.run(self.df_train) # Lakukan FE pada data latih dan dapatkan preprocessor
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\VolcanoAI\processing\feature_engineer.py", line 466, in run
+    df_proc = self.basic_cleanup(df_proc)  # basic cleaning
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\VolcanoAI\processing\feature_engineer.py", line 57, in wrapper
+    raise e  # lempar ulang exception
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\VolcanoAI\processing\feature_engineer.py", line 54, in wrapper
+    return func(*args, **kwargs)  # eksekusi fungsi asli
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\VolcanoAI\processing\feature_engineer.py", line 363, in basic_cleanup
+    df_clean["Keterangan"] = df_clean.get("Keterangan", "Unknown").fillna("Unknown").astype(str)  # pastikan Keterangan string
+AttributeError: 'str' object has no attribute 'fillna'
+2025-12-30 22:04:58,659 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- System shutdown. Uptime: 10.08s
