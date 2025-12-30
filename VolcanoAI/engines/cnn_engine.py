@@ -75,44 +75,106 @@ class SpatialDataGenerator: # buat input spatial dari tabel
     # METHOD UTAMA: KONTROL PEMBUATAN HEATMAP
     # =======================================================
 
-    def create_input_mask(self, row: pd.Series) -> np.ndarray: # buat input gambar dari baris data
-        radii = [] # list radius per channel
-        for i in range(self.input_channels): # loop tiap channel
-            col = self.radius_columns[i] if i < len(self.radius_columns) else None # ambil kolom jika ada
-            val = float(row[col]) if (col and col in row and pd.notna(row[col])) else 0.0 # ambil nilai atau 0
-            radii.append(val) # tambahkan
-            channels = [self._create_gaussian_heatmap(r) for r in radii] # buat heatmap tiap radius
-        while len(channels) < self.input_channels: # jika kurang channel, pad dengan zeros
-            channels.append(np.zeros((self.grid_size, self.grid_size), dtype=np.float32)) # pad
-        return np.stack(channels, axis=-1) # gabungkan menjadi (H,W,C)
+    def create_input_mask(self, row: pd.Series) -> np.ndarray:
+        """
+        Membuat input image multi-channel dari baris data.
+        Expected optional fields in row:
+          - radius columns (default 'R1_final','R2_final',...)  -> interpreted as radius_km
+          - aco_offset_x_km, aco_offset_y_km  OR aco_center_lat/aco_center_lon + grid_center_lat/grid_center_lon (see note)
+          - is_anomaly (bool/int)  -> will create anomaly channel (1 or 0)
+          - AreaTerdampak_km2 -> will be placed into a normalized channel (optional)
+        If none of the special fields found, heatmaps are centered in grid.
+        """
+        gs = self.grid_size
+        channels = []
+
+        # 1) radii channels (from configured radius_columns)
+        radii = []
+        for i in range(self.input_channels):
+            col = self.radius_columns[i] if i < len(self.radius_columns) else None
+            val = float(row[col]) if (col and col in row and pd.notna(row[col])) else 0.0
+            radii.append(val)
+
+        # determine center offset (km) if provided
+        offset_x_km = 0.0
+        offset_y_km = 0.0
+        if 'aco_offset_x_km' in row and 'aco_offset_y_km' in row and pd.notna(row['aco_offset_x_km']) and pd.notna(row['aco_offset_y_km']):
+            offset_x_km = float(row['aco_offset_x_km'])
+            offset_y_km = float(row['aco_offset_y_km'])
+        # Note: if you prefer lat/lon mapping, add conversion lat/lon -> km relative to a grid center before calling generator.
+
+        # create gaussian per radius (will place them at same offset)
+        for r in radii:
+            channels.append(self._create_gaussian_heatmap(r, center_offset_x_km=offset_x_km, center_offset_y_km=offset_y_km))
+
+        # 2) anomaly channel (binary)
+        if 'is_anomaly' in row:
+            try:
+                an = 1.0 if bool(row['is_anomaly']) else 0.0
+            except Exception:
+                an = 0.0
+            channels.append(np.full((gs, gs), fill_value=an, dtype=np.float32))
+
+        # 3) area channel (AreaTerdampak_km2 normalized) optional
+        if 'AreaTerdampak_km2' in row and pd.notna(row['AreaTerdampak_km2']):
+            # normalize by domain area (simple heuristic)
+            domain_area = max(1.0, float(self.cfg.get("domain_km", self.domain_km)) ** 2)
+            area_norm = min(1.0, float(row['AreaTerdampak_km2']) / domain_area)
+            channels.append(np.full((gs, gs), fill_value=area_norm, dtype=np.float32))
+
+        # pad channels to match expected input_channels
+        while len(channels) < self.input_channels:
+            channels.append(np.zeros((gs, gs), dtype=np.float32))
+
+        # keep only first input_channels (in case anomaly/area created extra)
+        stacked = np.stack(channels[: self.input_channels], axis=-1)
+        return stacked
 
     # [NEW/PINDAHKAN]: Metode untuk membuat target mask
-    def create_target_mask(self, row: pd.Series) -> np.ndarray: # buat mask target (ground truth)
+    def create_target_mask(self, row: pd.Series) -> np.ndarray:
         """
-        Target mask dibuat dari radius GA (pseudo ground truth).
-        """ # docstring
-        gs = self.grid_size # grid size lokal
+        Target mask created around next-event distance (ga_distance_km) centred at GA location if offsets present.
+        Expects optionally 'ga_offset_x_km', 'ga_offset_y_km' for GA center position relative to grid center.
+        """
+        gs = self.grid_size
+        d = row.get("ga_distance_km", np.nan)
+        if pd.isna(d) or float(d) <= 0:
+            return np.zeros((gs, gs, 1), dtype=np.float32)
 
-
-        radius = row.get("ga_distance_km", np.nan) # ambil jarak GA
-        if pd.notna(radius) and float(radius) > 0: # jika valid
-            return self._create_gaussian_heatmap(float(radius)).reshape(gs, gs, 1) # buat heatmap dan reshape
-
-
-        return np.zeros((gs, gs, 1), dtype=np.float32) # kalau tidak, zero mask
+        off_x = float(row.get('ga_offset_x_km', 0.0))
+        off_y = float(row.get('ga_offset_y_km', 0.0))
+        hm = self._create_gaussian_heatmap(float(d), center_offset_x_km=off_x, center_offset_y_km=off_y)
+        return hm.reshape(gs, gs, 1)
 
     # Helper: buat heatmap gaussian dari radius (pixel)
-    def _create_gaussian_heatmap(self, radius_km: float) -> np.ndarray: # helper heatmap
-        gs = self.grid_size # grid size
-        if radius_km is None or radius_km <= 0: # jika radius tidak valid
-            return np.zeros((gs, gs), dtype=np.float32) # return zero map
-        radius_px = radius_km / (self.km_per_pixel + 1e-12) # konversi km->pixel aman
-        center = (gs - 1) / 2.0 # pusat grid
-        x, y = np.ogrid[:gs, :gs] # grid koordinat
-        sigma = max(radius_px / 3.0, 1.0) # sigma untuk gaussian
-        dist_sq = (x - center + 0.5) ** 2 + (y - center + 0.5) ** 2 # jarak kuadrat ke center
-        heatmap = np.exp(-dist_sq / (2.0 * (sigma ** 2) + 1e-9)) # gaussian formula
-        return heatmap.astype(np.float32) # pastikan tipe float32
+    def _create_gaussian_heatmap(self, radius_km: float, center_offset_x_km: float = 0.0, center_offset_y_km: float = 0.0) -> np.ndarray:
+        """
+        Membuat gaussian heatmap dengan pusat yang dapat digeser relatif ke tengah grid (dalam km).
+        center_offset_x_km: pergeseran sumbu-x (positif -> ke kanan)
+        center_offset_y_km: pergeseran sumbu-y (positif -> ke bawah)
+        """
+        gs = self.grid_size
+        if radius_km is None or radius_km <= 0:
+            return np.zeros((gs, gs), dtype=np.float32)
+
+        # convert km -> pixels
+        radius_px = float(radius_km) / (self.km_per_pixel + 1e-12)
+        # compute center in pixel coordinates (grid center + offset)
+        center_px = (gs - 1) / 2.0
+        # offset in pixels
+        offset_x_px = float(center_offset_x_km) / (self.km_per_pixel + 1e-12)
+        offset_y_px = float(center_offset_y_km) / (self.km_per_pixel + 1e-12)
+        cx = center_px + offset_x_px
+        cy = center_px + offset_y_px
+
+        x = np.arange(gs)
+        y = np.arange(gs)
+        xx, yy = np.meshgrid(x, y)
+        dist_sq = (xx - cx) ** 2 + (yy - cy) ** 2
+        sigma = max(radius_px / 3.0, 1.0)
+        heatmap = np.exp(-dist_sq / (2.0 * (sigma ** 2) + 1e-9))
+        return heatmap.astype(np.float32)
+
 
     def create_delta_mask(self, r_now: pd.Series, r_next: pd.Series) -> np.ndarray: # mask target untuk event selanjutnya
         """
@@ -167,44 +229,52 @@ class CnnDataGenerator(Sequence):
         if self.shuffle:
             np.random.shuffle(self.indexes) #acak indeks
 
-    def _augment(self, img, mask, vec): #argumentasi fungsi inernal
+    def _augment(self, img, mask, vec):
         """
-        Apply horizontal/vertical flips and rotation.
-        If vec provided (sin,cos,dist), update vec accordingly for rotation.
+        Augment image + mask. vec shape (3,) = [sin(angle), cos(angle), dist]
+        We copy vec to avoid mutating original stored target outside.
         """
-        rot_angle = 0 # default tidak rotasi
+        rot_angle = 0
+        img2 = img.copy()
+        mask2 = mask.copy()
+        vec2 = vec.copy() if vec is not None else None
+
+        # horizontal flip
         if np.random.rand() > 0.5:
-            img = np.fliplr(img) # flip horizontal image
-            mask = np.fliplr(mask) # flip mask
-            if vec is not None:
-            # flipping horizontally: angle -> 180 - angle
-                angle_rad = np.arctan2(vec[0], vec[1]) # vec stored as sin,cos -> arctan2(y,x) but here param order chosen
-                angle_deg = (np.degrees(angle_rad) + 360) % 360 # normalisasi 0-360
-                angle_deg = (180.0 - angle_deg) % 360 # transform horizontal flip
-                rad = np.radians(angle_deg) # balik ke rad
-                vec[0] = np.sin(rad); vec[1] = np.cos(rad) # update sin,cos
+            img2 = np.fliplr(img2)
+            mask2 = np.fliplr(mask2)
+            if vec2 is not None:
+                # vec2 stored as [sin, cos, dist] -> angle = atan2(sin, cos)
+                angle_rad = np.arctan2(vec2[0], vec2[1])
+                angle_deg = (np.degrees(angle_rad) + 360) % 360
+                angle_deg = (180.0 - angle_deg) % 360
+                rad = np.radians(angle_deg)
+                vec2[0] = np.sin(rad); vec2[1] = np.cos(rad)
+
+        # vertical flip
         if np.random.rand() > 0.5:
-            img = np.flipud(img) # flip vertical
-            mask = np.flipud(mask) # flip vertical mask
-            if vec is not None:
-            # flipping vertically: angle -> -angle
-                angle_rad = np.arctan2(vec[0], vec[1]) # current angle rad
-                angle_deg = (np.degrees(angle_rad) + 360) % 360 # to deg
-                angle_deg = (-angle_deg) % 360 # negate vertical
-                rad = np.radians(angle_deg) # back to rad
-                vec[0] = np.sin(rad); vec[1] = np.cos(rad) # update sin,cos
+            img2 = np.flipud(img2)
+            mask2 = np.flipud(mask2)
+            if vec2 is not None:
+                angle_rad = np.arctan2(vec2[0], vec2[1])
+                angle_deg = (np.degrees(angle_rad) + 360) % 360
+                angle_deg = (-angle_deg) % 360
+                rad = np.radians(angle_deg)
+                vec2[0] = np.sin(rad); vec2[1] = np.cos(rad)
+
+        # rotation
         if np.random.rand() > 0.5:
-            rot_angle = np.random.randint(-25, 25) # random rotation angle
-            img = rotate(img, rot_angle, reshape=False, order=1) # rotate image
-            mask = rotate(mask, rot_angle, reshape=False, order=1) # rotate mask
-            if vec is not None:
-            # rotate vector angle by rot_angle
-                angle_rad = np.arctan2(vec[0], vec[1]) # current angle
-                angle_deg = (np.degrees(angle_rad) + 360) % 360 # to deg
-                angle_deg = (angle_deg + rot_angle) % 360 # add rotation
-                rad = np.radians(angle_deg) # back to rad
-                vec[0] = np.sin(rad); vec[1] = np.cos(rad) # update sin,cos
-        return img, mask, vec # kembalikan hasil augmentasi
+            rot_angle = int(np.random.randint(-25, 25))
+            img2 = rotate(img2, rot_angle, reshape=False, order=1)
+            mask2 = rotate(mask2, rot_angle, reshape=False, order=1)
+            if vec2 is not None:
+                angle_rad = np.arctan2(vec2[0], vec2[1])
+                angle_deg = (np.degrees(angle_rad) + 360) % 360
+                angle_deg = (angle_deg + rot_angle) % 360
+                rad = np.radians(angle_deg)
+                vec2[0] = np.sin(rad); vec2[1] = np.cos(rad)
+
+        return img2, mask2, vec2
 
     def __getitem__(self, idx): # ambil satu batch
         inds = self.indexes[idx * self.batch_size : (idx + 1) * self.batch_size] # indeks batch
@@ -366,17 +436,15 @@ class CnnTuner: # simple hyperparameter tuner
             K.clear_session() # clear session to avoid memory grow
             
             try:
-                model = self.factory.build_model(temporal_dim, params) # build model
-                hist = model.fit(gen_train, validation_data=gen_val, epochs=3, verbose=0) # quick fit
-                val_loss = hist.history['val_loss'][-1] # ambil val loss terakhir
-        
-                if val_loss < best_loss: # update best
+                model = self.factory.build_model(temporal_dim, params)
+                hist = model.fit(gen_train, validation_data=gen_val, epochs=3, verbose=0)
+                val_loss = hist.history['val_loss'][-1]
+                if val_loss < best_loss:
                     best_loss = val_loss
                     best_params = params
-            except: continue # jika error skip trial
-        
-        logger.info(f"    [CNN Tuner] Terbaik: {best_params} (Loss: {best_loss:.4f})")
-        return best_params
+            except Exception as e:
+                logger.warning(f"[CNN Tuner] trial failed with params {params}: {e}")
+                continue
 
 class CnnVisualizer:
     """
@@ -461,52 +529,82 @@ class CnnEngine:
         self.visualizer = CnnVisualizer(self.visual_dir) # visualizer instance
         self.models = {} # dict untuk menyimpan model per cluster
 
-    def _extract_lstm_features(self, df_cluster: pd.DataFrame, lstm_engine, cid: int) -> Optional[Tuple[np.ndarray, pd.Index]]: # ekstrak fitur LSTM per cluster
+    def _extract_lstm_features(self, df_cluster: pd.DataFrame, lstm_engine, cid: int) -> Optional[Tuple[np.ndarray, pd.Index]]:
+        """
+        Try to extract LSTM hidden states (temporal features) aligned to dataframe rows.
+        Returns (states_array, valid_index) where valid_index are original df indices aligned to states.
+        """
         try:
-            lstm_cfg = getattr(lstm_engine, 'cfg', None) # ambil config LSTM
-            if not lstm_cfg: return None # jika ga ada, return None
-            seq_len = lstm_cfg.input_seq_len # panjang sequence yang dibutuhkan
-        
-            comps = None # placeholder komponen
+            if df_cluster.empty or lstm_engine is None:
+                return None
+
+            lstm_cfg = getattr(lstm_engine, 'cfg', None)
+            if not lstm_cfg:
+                logger.debug(f"[LSTM] No cfg found in lstm_engine for c{cid}")
+                return None
+
+            seq_len = getattr(lstm_cfg, 'input_seq_len', None)
+            feature_cols = getattr(lstm_cfg, 'features', None)
+            if seq_len is None or feature_cols is None:
+                logger.warning(f"[LSTM] lstm_cfg missing input_seq_len/features for c{cid}")
+                return None
+
+            # check columns present
+            missing = [c for c in feature_cols if c not in df_cluster.columns]
+            if len(missing) > 0:
+                logger.warning(f"[LSTM] Missing feature cols for c{cid}: {missing}")
+                return None
+
+            # attempt to load model+scaler from known interfaces
+            comps = None
             if hasattr(lstm_engine, 'manager') and hasattr(lstm_engine.manager, 'load_all'):
-                comps = lstm_engine.manager.load_all(cid) # load manager based
+                try:
+                    comps = lstm_engine.manager.load_all(cid)
+                except Exception as e:
+                    logger.debug(f"[LSTM] manager.load_all failed c{cid}: {e}")
             elif hasattr(lstm_engine, 'vault') and hasattr(lstm_engine.vault, 'load_cluster_state'):
-                comps = lstm_engine.vault.load_cluster_state(cid) # load vault based
-        
-                if not comps or comps[0] is None: return None # jika kosong return
-                model, scaler = comps # unpack
-        
-                feature_cols = lstm_cfg.features # columns fitur expect
-                if hasattr(scaler, 'feature_names_in_'):
-                    feature_cols = list(scaler.feature_names_in_) # ambil nama fitur dari scaler jika ada
-        
-                missing = [c for c in feature_cols if c not in df_cluster.columns] # cek kolom hilang
-                return None # jika ada missing, return None
-        
-                df_sorted = df_cluster.sort_values("Acquired_Date") # urutkan berdasarkan tanggal akuisisi
-                original_indices = df_sorted.index # simpan indeks asli
-        
-                data_vals = df_sorted[feature_cols].fillna(0.0).astype(float).values # ambil nilai fitur sebagai numpy
-                if len(data_vals) < seq_len: return None # kalau kurang sequence, skip
-        
-                scaled_vals = scaler.transform(data_vals) # transform dengan scaler
-        
-                X_enc_list = [] # kumpulan sequence
-                valid_indices = [] # indeks yang valid
-                for i in range(len(scaled_vals) - seq_len + 1): # buat sliding windows
-                    X_enc_list.append(scaled_vals[i : i+seq_len]) # append window
-                    valid_indices.append(original_indices[i + seq_len - 1]) # indeks target
-                X_enc = np.array(X_enc_list) # hasil array
-        
-                if hasattr(lstm_engine, 'extract_hidden_states'):
-                    states = lstm_engine.extract_hidden_states(X_enc, cid) # coba ekstrak hidden states
-                    if states is not None:
-                        return states, pd.Index(valid_indices) # return states dan indeks
-                    
-                return None # default None jika tidak bisa
+                try:
+                    comps = lstm_engine.vault.load_cluster_state(cid)
+                except Exception as e:
+                    logger.debug(f"[LSTM] vault.load_cluster_state failed c{cid}: {e}")
+
+            if not comps:
+                logger.debug(f"[LSTM] No saved components for c{cid}")
+                return None
+
+            model, scaler = comps
+            df_sorted = df_cluster.sort_values("Acquired_Date")
+            original_indices = df_sorted.index
+            data_vals = df_sorted[feature_cols].fillna(0.0).astype(float).values
+            if len(data_vals) < seq_len:
+                logger.debug(f"[LSTM] not enough rows for seq_len for c{cid}: have {len(data_vals)}, need {seq_len}")
+                return None
+
+            scaled_vals = scaler.transform(data_vals)
+            X_enc_list = []
+            valid_indices = []
+            for i in range(len(scaled_vals) - seq_len + 1):
+                X_enc_list.append(scaled_vals[i : i + seq_len])
+                valid_indices.append(original_indices[i + seq_len - 1])
+            X_enc = np.array(X_enc_list)
+
+            if hasattr(lstm_engine, 'extract_hidden_states'):
+                try:
+                    states = lstm_engine.extract_hidden_states(X_enc, cid)
+                    if states is not None and len(states) == X_enc.shape[0]:
+                        return states, pd.Index(valid_indices)
+                except Exception as e:
+                    logger.error(f"[LSTM] extract_hidden_states error c{cid}: {e}")
+                    return None
+
+            # fallback: if no hidden-state extractor, we can use last timestep flatten as features
+            # e.g., take last timestep of each window
+            last_ts = X_enc[:, -1, :].astype(float)
+            return last_ts, pd.Index(valid_indices)
+
         except Exception as e:
-            logger.error(f"Gagal ekstrak LSTM c{cid}: {e}") # log error
-            return None # return None on error
+            logger.error(f"Gagal ekstrak LSTM c{cid}: {e}")
+            return None
     
     def train(self, df_train: pd.DataFrame, lstm_engine) -> bool: # main training loop CNN
         if df_train.empty: return False # tidak ada data -> false
@@ -514,6 +612,27 @@ class CnnEngine:
         
         unique_clusters = sorted([c for c in df_train['cluster_id'].unique() if c != -1]) # cluster unik kecuali -1
         success_count = 0 # counter sukses
+
+    def train_from_scratch(
+        self,
+        df_train: pd.DataFrame,
+        lstm_engine,
+        epochs: Optional[int] = None
+    ) -> bool:
+        if df_train.empty:
+            logger.warning("[CNN] train_from_scratch: df_train kosong")
+            return False
+
+        prev_epochs = self.cfg.get('epochs', 20)
+
+        if epochs is not None:
+            self.cfg['epochs'] = int(epochs)
+
+        try:
+            logger.info("[CNN] Retraining CNN from scratch...")
+            return self.train(df_train, lstm_engine)
+        finally:
+            self.cfg['epochs'] = prev_epochs
         
         for cid in unique_clusters: # loop tiap cluster
             logger.info(f"\n>>> Training CNN Cluster {cid}") # log cluster
@@ -609,13 +728,6 @@ class CnnEngine:
             self.models[cid] = model
             success_count += 1
     
-
-        def train_from_scratch(  # Fungsi untuk melatih ulang CNN dari awal
-            self,  # Referensi instance class
-            df_train: pd.DataFrame,  # DataFrame dataset training
-            lstm_engine,  # Engine LSTM pendukung fitur temporal
-            epochs: Optional[int] = None  # Jumlah epoch opsional (override konfigurasi)
-        ) -> bool:  # Mengembalikan status keberhasilan training
             """
             Retrain CNN dari dataset training baru (misal 70% dari 15 hari terakhir).  # Deskripsi fungsi
             """
