@@ -77,6 +77,96 @@ def execution_monitor(func): # decorator untuk monitor eksekusi fungsi
 class GeoMathCore: # Kelas utilitas untuk perhitungan geodesik
     R_EARTH_KM = 6371.0088 # radius bumi dalam kilometer
 
+    # ----------------------------
+    # ACO → GA: Lightweight Angle Search
+    # ----------------------------
+    def angle_search_from_aco(center_lat: float, center_lon: float, impact_area_km2: float,
+                              aco_epicenters_csv: Optional[str] = None,
+                              sector_half_width_deg: float = 15.0) -> Dict[str, Any]:
+        """
+        Simple grid-search over 0..359 degrees:
+        - score(angle) = sum(pheromone_score) of ACO epicenters that lie inside
+          a sector centered at angle (± sector_half_width_deg) and within radius derived from impact_area.
+        Returns pred dict (pred_lat, pred_lon, bearing_degree, distance_km, confidence).
+        """
+        # compute radius from area
+        try:
+            radius_km = math.sqrt(max(impact_area_km2, 0.0) / math.pi)
+            # if area small, use a small default radius
+            radius_km = max(radius_km, 1.0)
+        except Exception:
+            radius_km = 10.0
+
+        # load ACO epicenters (if available)
+        if aco_epicenters_csv and os.path.exists(aco_epicenters_csv):
+            try:
+                df_aco = pd.read_csv(aco_epicenters_csv)
+            except Exception:
+                df_aco = pd.DataFrame()
+        else:
+            df_aco = pd.DataFrame()
+
+        # default: no points -> fallback default (N)
+        if df_aco.empty or not {'Lintang','Bujur'}.issubset(set(df_aco.columns)):
+            # fallback: return north (0 deg) with low confidence
+            pred_distance = radius_km * 0.5
+            pred_lat, pred_lon = GeoMathCore.destination_point(center_lat, center_lon, 0.0, pred_distance)
+            return {
+                "bearing_degree": float(best_angle),
+                "distance_km": float(pred_distance)
+            }
+
+
+        # ensure pheromone column availability
+        pher_col = None
+        for c in ['PheromoneScore','Pheromone_Score','Pheromone', 'Risk_Index']:
+            if c in df_aco.columns:
+                pher_col = c
+                break
+        if pher_col is None:
+            df_aco['__pher__'] = 1.0
+            pher_col = '__pher__'
+        df_aco[pher_col] = pd.to_numeric(df_aco[pher_col].fillna(0.0), errors='coerce')
+
+        lats = df_aco['Lintang'].astype(float).values
+        lons = df_aco['Bujur'].astype(float).values
+        phers = df_aco[pher_col].astype(float).values
+
+        best_score = -1.0
+        best_angle = 0.0
+
+        # precompute bearings & distances from center to all points
+        bearings = np.array([GeoMathCore.calculate_bearing(center_lat, center_lon, la, lo) for la, lo in zip(lats, lons)])
+        distances = np.array([GeoMathCore.haversine(center_lat, center_lon, la, lo) for la, lo in zip(lats, lons)])
+
+        for ang in range(0, 360):
+            # compute angular diff (0..180)
+            dif = np.abs(bearings - ang)
+            dif = np.minimum(dif, 360.0 - dif)
+            within_sector = dif <= sector_half_width_deg
+            within_dist = distances <= radius_km
+            mask = within_sector & within_dist
+            score = float(np.nansum( phers[mask] ))
+            if score > best_score:
+                best_score = score
+                best_angle = float(ang)
+
+        # project predicted point a fraction of radius_km along best_angle
+        pred_distance = radius_km * 0.6
+        pred_lat, pred_lon = GeoMathCore.destination_point(center_lat, center_lon, best_angle, pred_distance)
+
+        # confidence: normalized best_score vs total pheromone mass
+        total_pher = float(np.nansum(phers)) + 1e-9
+        conf = float(min(1.0, best_score / total_pher)) if total_pher > 0 else 0.2
+
+        return {
+            "pred_lat": float(pred_lat),
+            "pred_lon": float(pred_lon),
+            "bearing_degree": float(best_angle),
+            "distance_km": float(pred_distance),
+            "confidence": float(conf)
+        }
+
     @staticmethod # konversi derajat ke radian
     def to_radians(array_like): # mengonversi array derajat ke radian
         return np.radians(array_like) # menggunakan numpy untuk konversi
@@ -177,303 +267,313 @@ class DataSanitizer: # Kelas untuk membersihkan dan memvalidasi data input
         return df
 
 
-# ======================
-# PHYSICS FITNESS ENGINE
-# ======================
-class PhysicsFitnessEngine: # Kelas untuk menghitung fungsi fitness berdasarkan fisika
-    def __init__(self, df: pd.DataFrame, weight_config: Dict[str, float]):
-        self.df = df
-        self.weights = weight_config
+# # ======================
+# # PHYSICS FITNESS ENGINE
+# # ======================
+# class PhysicsFitnessEngine: # Kelas untuk menghitung fungsi fitness berdasarkan fisika
+#     def __init__(self, df: pd.DataFrame, weight_config: Dict[str, float]):
+#         self.df = df
+#         self.weights = weight_config
 
-        self.vec_lat = df['EQ_Lintang'].values
-        self.vec_lon = df['EQ_Bujur'].values
-        self.vec_time = df['Acquired_Date'].values.astype(np.int64)
-        self.vec_mag = df['Magnitudo'].values
-        self.vec_depth = df['Kedalaman (km)'].values
-        self.vec_risk = df['PheromoneScore'].values
+#         self.vec_lat = df['EQ_Lintang'].values
+#         self.vec_lon = df['EQ_Bujur'].values
+#         self.vec_time = df['Acquired_Date'].values.astype(np.int64)
+#         self.vec_mag = df['Magnitudo'].values
+#         self.vec_depth = df['Kedalaman (km)'].values
+#         self.vec_risk = df['PheromoneScore'].values
 
-        self.num_nodes = len(df)
-        self.eps = 1e-6
-        self.penalty = 1e15
+#         self.num_nodes = len(df)
+#         self.eps = 1e-6
+#         self.penalty = 1e15
 
-        # ekstrak bobot dari konfigurasi
-        self.w_time = weight_config.get("time", 10000)
-        self.w_space = weight_config.get("space", 1)
-        self.w_mag = weight_config.get("mag", 50)
-        self.w_depth = weight_config.get("depth", 10)
-        self.w_risk = weight_config.get("risk", 500)
+#         # ekstrak bobot dari konfigurasi
+#         self.w_time = weight_config.get("time", 10000)
+#         self.w_space = weight_config.get("space", 1)
+#         self.w_mag = weight_config.get("mag", 50)
+#         self.w_depth = weight_config.get("depth", 10)
+#         self.w_risk = weight_config.get("risk", 500)
 
-    # ------------
-    # FITNESS FUNCTION
-    # ------------
-    def evaluate(self, individual: List[int]) -> Tuple[float]:
-        """
-        Fungsi Evaluasi (Fitness Function) untuk Algoritma Genetika.
-        Tujuan: MEMINIMALKAN Total Cost.
+#     # ------------
+#     # FITNESS FUNCTION
+#     # ------------
+#     def evaluate(self, individual: List[int]) -> Tuple[float]:
+#         """
+#         Fungsi Evaluasi (Fitness Function) untuk Algoritma Genetika.
+#         Tujuan: MEMINIMALKAN Total Cost.
         
-        Args:
-            individual: List integer yang merepresentasikan urutan kunjungan node.
+#         Args:
+#             individual: List integer yang merepresentasikan urutan kunjungan node.
             
-        Returns:
-            Tuple (total_cost, ) -> Tuple wajib untuk library DEAP/PyGAD.
-        """
-        # Konversi ke array index integer
-        idx = np.array(individual, dtype=int)
+#         Returns:
+#             Tuple (total_cost, ) -> Tuple wajib untuk library DEAP/PyGAD.
+#         """
+#         # Konversi ke array index integer
+#         idx = np.array(individual, dtype=int)
 
-        # 1. Validasi Panjang Kromosom
-        if len(idx) != self.num_nodes:
-            # Return cost penalty sangat besar jika kromosom cacat
-            return (self.penalty, )
+#         # 1. Validasi Panjang Kromosom
+#         if len(idx) != self.num_nodes:
+#             # Return cost penalty sangat besar jika kromosom cacat
+#             return (self.penalty, )
 
-        # Ambil data dari vector (lookup table) berdasarkan urutan gen individu
-        # Asumsi variable vec_* sudah diinisialisasi di __init__ dan berbentuk numpy array
-        curr_mags = self.vec_mag[idx]
-        curr_depths = self.vec_depth[idx]
-        curr_times = self.vec_time[idx]
-        curr_risks = self.vec_risk[idx]
+#         # Ambil data dari vector (lookup table) berdasarkan urutan gen individu
+#         # Asumsi variable vec_* sudah diinisialisasi di __init__ dan berbentuk numpy array
+#         curr_mags = self.vec_mag[idx]
+#         curr_depths = self.vec_depth[idx]
+#         curr_times = self.vec_time[idx]
+#         curr_risks = self.vec_risk[idx]
 
-        # -------------------------------------------------------------
-        # 1. TEMPORAL VIOLATION COST
-        # -------------------------------------------------------------
-        # Logika: Sebaiknya node dikunjungi urut waktu.
-        # Menghitung berapa kali waktu bergerak 'mundur' (t_next < t_prev)
-        # Jika t[i+1] < t[i], itu violation (Boolean True = 1)
-        time_violations_count = np.sum(curr_times[1:] < curr_times[:-1])
+#         # -------------------------------------------------------------
+#         # 1. TEMPORAL VIOLATION COST
+#         # -------------------------------------------------------------
+#         # Logika: Sebaiknya node dikunjungi urut waktu.
+#         # Menghitung berapa kali waktu bergerak 'mundur' (t_next < t_prev)
+#         # Jika t[i+1] < t[i], itu violation (Boolean True = 1)
+#         time_violations_count = np.sum(curr_times[1:] < curr_times[:-1])
         
-        # [FIX]: Bobot pelanggaran waktu harus sangat besar agar individu valid bertahan
-        temporal_cost = self.w_time * float(time_violations_count)
+#         # [FIX]: Bobot pelanggaran waktu harus sangat besar agar individu valid bertahan
+#         temporal_cost = self.w_time * float(time_violations_count)
 
-        # -------------------------------------------------------------
-        # 2. SPATIAL DISTANCE COST
-        # -------------------------------------------------------------
-        # Logika: Minimalkan total jarak tempuh (Traveling Salesman Problem standard)
+#         # -------------------------------------------------------------
+#         # 2. SPATIAL DISTANCE COST
+#         # -------------------------------------------------------------
+#         # Logika: Minimalkan total jarak tempuh (Traveling Salesman Problem standard)
         
-        # Ambil koordinat berurut sesuai path
-        lat_seq = self.vec_lat[idx]
-        lon_seq = self.vec_lon[idx]
+#         # Ambil koordinat berurut sesuai path
+#         lat_seq = self.vec_lat[idx]
+#         lon_seq = self.vec_lon[idx]
 
-        # Hitung jarak antara titik i dan i+1 secara sekuensial
-        # Menggunakan loop list comprehension (lebih aman) atau vectorized jika GeoMathCore mendukung
-        # Lat1=Steps 0 ke N-1, Lat2=Steps 1 ke N
-        distances = []
-        for i in range(len(idx) - 1):
-            d = GeoMathCore.haversine(
-                lat_seq[i], lon_seq[i], 
-                lat_seq[i+1], lon_seq[i+1]
-            )
-            distances.append(d)
+#         # Hitung jarak antara titik i dan i+1 secara sekuensial
+#         # Menggunakan loop list comprehension (lebih aman) atau vectorized jika GeoMathCore mendukung
+#         # Lat1=Steps 0 ke N-1, Lat2=Steps 1 ke N
+#         distances = []
+#         for i in range(len(idx) - 1):
+#             d = GeoMathCore.haversine(
+#                 lat_seq[i], lon_seq[i], 
+#                 lat_seq[i+1], lon_seq[i+1]
+#             )
+#             distances.append(d)
         
-        total_dist = sum(distances)
-        spatial_cost = self.w_space * total_dist
+#         total_dist = sum(distances)
+#         spatial_cost = self.w_space * total_dist
 
-        # -------------------------------------------------------------
-        # 3. PHYSICS & PRIORITY COST
-        # -------------------------------------------------------------
+#         # -------------------------------------------------------------
+#         # 3. PHYSICS & PRIORITY COST
+#         # -------------------------------------------------------------
         
-        # [Safety Clip]: Cegah pembagian dengan nol atau nilai tak wajar
-        clipped_mag = np.clip(curr_mags, 0.1, None)      # M minimal 0.1
-        clipped_depth = np.clip(curr_depths, 1.0, None)  # Depth minimal 1.0 km
-        clipped_risk = np.clip(curr_risks, 1e-6, None)   # Risk minimal epsilon
+#         # [Safety Clip]: Cegah pembagian dengan nol atau nilai tak wajar
+#         clipped_mag = np.clip(curr_mags, 0.1, None)      # M minimal 0.1
+#         clipped_depth = np.clip(curr_depths, 1.0, None)  # Depth minimal 1.0 km
+#         clipped_risk = np.clip(curr_risks, 1e-6, None)   # Risk minimal epsilon
 
-        # A. MAGNITUDE COST
-        # Kita ingin PRIORITAS pada Magnitudo BESAR.
-        # Cost Function harus MENGECIL saat Magnitudo MEMBESAR.
-        # Formula: Cost = Sum(1 / M)
-        mag_cost = self.w_mag * np.sum(1.0 / clipped_mag)
+#         # A. MAGNITUDE COST
+#         # Kita ingin PRIORITAS pada Magnitudo BESAR.
+#         # Cost Function harus MENGECIL saat Magnitudo MEMBESAR.
+#         # Formula: Cost = Sum(1 / M)
+#         mag_cost = self.w_mag * np.sum(1.0 / clipped_mag)
 
-        # B. DEPTH COST
-        # Kita ingin PRIORITAS pada Kedalaman DANGKAL (Kecil).
-        # Cost Function harus MENGECIL saat Kedalaman MENGECIL.
-        # Formula: Cost = Sum(Depth)
-        depth_cost = self.w_depth * np.sum(clipped_depth)
+#         # B. DEPTH COST
+#         # Kita ingin PRIORITAS pada Kedalaman DANGKAL (Kecil).
+#         # Cost Function harus MENGECIL saat Kedalaman MENGECIL.
+#         # Formula: Cost = Sum(Depth)
+#         depth_cost = self.w_depth * np.sum(clipped_depth)
 
-        # C. RISK SCORE COST (Pheromone/External Risk)
-        # Kita ingin PRIORITAS pada Risk TINGGI.
-        # Cost Function harus MENGECIL saat Risk MEMBESAR.
-        # Formula: Cost = Sum(1 / Risk)
-        risk_cost = self.w_risk * np.sum(1.0 / clipped_risk)
+#         # C. RISK SCORE COST (Pheromone/External Risk)
+#         # Kita ingin PRIORITAS pada Risk TINGGI.
+#         # Cost Function harus MENGECIL saat Risk MEMBESAR.
+#         # Formula: Cost = Sum(1 / Risk)
+#         risk_cost = self.w_risk * np.sum(1.0 / clipped_risk)
 
-        # --------------------------
-        # 4. TOTAL COST CALCULATION
-        # --------------------------
-        total_cost = (
-            temporal_cost +
-            spatial_cost +
-            mag_cost +
-            depth_cost +
-            risk_cost
-        ) # total cost sebagai agregat semua komponen
+#         # --------------------------
+#         # 4. TOTAL COST CALCULATION
+#         # --------------------------
+#         total_cost = (
+#             temporal_cost +
+#             spatial_cost +
+#             mag_cost +
+#             depth_cost +
+#             risk_cost
+#         ) # total cost sebagai agregat semua komponen
         
-        # Pastikan return value aman untuk dikonsumsi algoritma
-        if np.isnan(total_cost) or np.isinf(total_cost):
-            return (self.penalty, )
+#         # Pastikan return value aman untuk dikonsumsi algoritma
+#         if np.isnan(total_cost) or np.isinf(total_cost):
+#             return (self.penalty, )
 
-        return (total_cost, )
+#         return (total_cost, )
 
-    # -------------------------------------------------------------
-    # PREDIKSI NEXT EVENT (berdasarkan 3 titik terakhir)
-    # -------------------------------------------------------------
-    def predict_next_event(
-        self,
-        df_path: pd.DataFrame,
-        n_seg: Optional[int] = 5
-    ) -> Dict[str, float]:
+#     # -------------------------------------------------------------
+#     # PREDIKSI NEXT EVENT (berdasarkan 3 titik terakhir)
+#     # -------------------------------------------------------------
+#     def predict_next_event(
+#         self,
+#         df_path: pd.DataFrame,
+#         n_seg: Optional[int] = 5
+#     ) -> Dict[str, float]:
 
-        """
-        Menghasilkan prediksi vektor pergerakan berdasarkan segmen terakhir dari df_path (best path).
-        mengembalikan dict berisi berisi pred_lat/pred_lon, bearing_degree, distance_km,
-        movement_direction, vector_lat/vector_lon, movement_scale, confidence, base_lat/base_lon.
-        """
+#         """
+#         Menghasilkan prediksi vektor pergerakan berdasarkan segmen terakhir dari df_path (best path).
+#         mengembalikan dict berisi berisi pred_lat/pred_lon, bearing_degree, distance_km,
+#         movement_direction, vector_lat/vector_lon, movement_scale, confidence, base_lat/base_lon.
+#         """
 
-        # pastikan df_path minimal 2 baris
-        if df_path is None or len(df_path) < 2:
-            return {
-            "pred_lat": float(df_path.iloc[-1]['EQ_Lintang']),
-            "pred_lon": float(df_path.iloc[-1]['EQ_Bujur']),
-            "bearing_degree": 0.0,
-            "distance_km": 0.0,
-            "confidence": 0.3
-        }
+#         if df_path is None or len(df_path) < 2:
+#             if df_path is not None and len(df_path) > 0:
+#                 return {
+#                     "pred_lat": float(df_path.iloc[-1]['EQ_Lintang']),
+#                     "pred_lon": float(df_path.iloc[-1]['EQ_Bujur']),
+#                     "bearing_degree": 0.0,
+#                     "distance_km": 0.0,
+#                     "confidence": 0.3
+#                 }
+#             return {
+#                 "pred_lat": 0.0,
+#                 "pred_lon": 0.0,
+#                 "bearing_degree": 0.0,
+#                 "distance_km": 0.0,
+#                 "confidence": 0.3
+#             }
 
-        # default gunakan segmen terakhir (n = 5 atau lebih kecil jika data sedikit)
-        if n_seg is None:
-            n_seg = min(5, len(df_path))
-        else:
-            n_seg = min(max(2, int(n_seg)), len(df_path))
 
-        df_seg = df_path.iloc[-n_seg:].reset_index(drop=True)
+#         # default gunakan segmen terakhir (n = 5 atau lebih kecil jika data sedikit)
+#         if n_seg is None:
+#             n_seg = min(5, len(df_path))
+#         else:
+#             n_seg = min(max(2, int(n_seg)), len(df_path))
 
-        return self.compute_vector_from_segment(df_seg)
-    # komputasi vektor dari segmen data
-    def compute_vector_from_segment(self, df_seg: pd.DataFrame) -> Dict[str, float]:
-        """
-        Hitung bearing rata-rata (circular mean) dan distance rata-rata (weighted),
-        lalu proyeksikan titik prediksi menggunakan geodesic destination_point.
-        Output berisi: pred_lat, pred_lon, bearing_degree, bearing_std_deg,
-        distance_km, distance_std_km, unit_vector_km (dx, dy), angular_concentration_R, confidence, ...
-        """
-        # safety
-        if df_seg is None or len(df_seg) < 2:
-            return {}
+#         df_seg = df_path.iloc[-n_seg:].reset_index(drop=True)
 
-        lats = df_seg['EQ_Lintang'].astype(float).values
-        lons = df_seg['EQ_Bujur'].astype(float).values
-        mags = df_seg['Magnitudo'].astype(float).values if 'Magnitudo' in df_seg.columns else np.ones(len(df_seg))
-        risks = df_seg['PheromoneScore'].astype(float).values if 'PheromoneScore' in df_seg.columns else np.ones(len(df_seg)) * 0.1
+#         return self.compute_vector_from_segment(df_seg)
+#     # komputasi vektor dari segmen data
+#     def compute_vector_from_segment(self, df_seg: pd.DataFrame) -> Dict[str, float]:
+#         """
+#         Hitung bearing rata-rata (circular mean) dan distance rata-rata (weighted),
+#         lalu proyeksikan titik prediksi menggunakan geodesic destination_point.
+#         Output berisi: pred_lat, pred_lon, bearing_degree, bearing_std_deg,
+#         distance_km, distance_std_km, unit_vector_km (dx, dy), angular_concentration_R, confidence, ...
+#         """
+#         # safety
+#         if df_seg is None or len(df_seg) < 2:
+#             return {}
 
-        # komputasi jarak & bearing antar titik segmen
-        bearings = []
-        distances = []
-        weights = []
-        for i in range(len(lats) - 1): # loop antar segmen
-            lat_a, lon_a = lats[i], lons[i] 
-            lat_b, lon_b = lats[i + 1], lons[i + 1]
-            dkm = GeoMathCore.haversine(lat_a, lon_a, lat_b, lon_b)
-            bdeg = GeoMathCore.calculate_bearing(lat_a, lon_a, lat_b, lon_b)
-            # bobot berdasarkan magnitudo & risiko (rata-rata segmen)
-            w = ((mags[i] + mags[i + 1]) / 2.0) * ((risks[i] + risks[i + 1]) / 2.0) + 1e-9
-            distances.append(float(dkm))
-            bearings.append(float(bdeg))
-            weights.append(float(w))
-        # jarak, bobot sebagai numpy array
-        distances = np.array(distances, dtype=float)
-        weights = np.array(weights, dtype=float)
-        # normalize weights
-        weights = weights / (np.sum(weights) + 1e-12)
+#         lats = df_seg['EQ_Lintang'].astype(float).values
+#         lons = df_seg['EQ_Bujur'].astype(float).values
+#         mags = df_seg['Magnitudo'].astype(float).values if 'Magnitudo' in df_seg.columns else np.ones(len(df_seg))
+#         risks = df_seg['PheromoneScore'].astype(float).values if 'PheromoneScore' in df_seg.columns else np.ones(len(df_seg)) * 0.1
 
-        # --- Circular mean for bearings ---
-        # convert deg->rad
-        thetas = np.radians(np.array(bearings)) # radian
-        # weighted vector sum
-        x = np.sum(weights * np.cos(thetas)) # komponen x
-        y = np.sum(weights * np.sin(thetas)) # komponen y
-        if x == 0 and y == 0: 
-            mean_theta = 0.0
-        else:
-            mean_theta = math.atan2(y, x)  # rad
-        mean_bearing_deg = (math.degrees(mean_theta) + 360.0) % 360.0
+#         # komputasi jarak & bearing antar titik segmen
+#         bearings = []
+#         distances = []
+#         weights = []
+#         for i in range(len(lats) - 1): # loop antar segmen
+#             lat_a, lon_a = lats[i], lons[i] 
+#             lat_b, lon_b = lats[i + 1], lons[i + 1]
+#             dkm = GeoMathCore.haversine(lat_a, lon_a, lat_b, lon_b)
+#             bdeg = GeoMathCore.calculate_bearing(lat_a, lon_a, lat_b, lon_b)
+#             # bobot berdasarkan magnitudo & risiko (rata-rata segmen)
+#             w = ((mags[i] + mags[i + 1]) / 2.0) * ((risks[i] + risks[i + 1]) / 2.0) + 1e-9
+#             distances.append(float(dkm))
+#             bearings.append(float(bdeg))
+#             weights.append(float(w))
+#         # jarak, bobot sebagai numpy array
+#         distances = np.array(distances, dtype=float)
+#         weights = np.array(weights, dtype=float)
+#         # normalize weights
+#         weights = weights / (np.sum(weights) + 1e-12)
 
-        # angular concentration R (0..1), R = sqrt(x^2 + y^2)
-        R = math.sqrt(x * x + y * y)
-        # circular std (radians): sqrt(-2 * ln(R)) ; guard R to (1e-6, 1]
-        Rc = min(max(R, 1e-12), 1.0)
-        try:
-            ang_std_rad = math.sqrt(-2.0 * math.log(Rc)) if Rc < 1.0 else 0.0
-        except Exception:
-            ang_std_rad = 0.0
-        ang_std_deg = math.degrees(ang_std_rad)
+#         # --- Circular mean for bearings ---
+#         # convert deg->rad
+#         thetas = np.radians(np.array(bearings)) # radian
+#         # weighted vector sum
+#         x = np.sum(weights * np.cos(thetas)) # komponen x
+#         y = np.sum(weights * np.sin(thetas)) # komponen y
+#         if x == 0 and y == 0: 
+#             mean_theta = 0.0
+#         else:
+#             mean_theta = math.atan2(y, x)  # rad
+#         mean_bearing_deg = (math.degrees(mean_theta) + 360.0) % 360.0
 
-        # --- Weighted average distance (km) ---
-        mean_distance_km = float(np.sum(distances * weights)) if len(distances) > 0 else 0.0 # rata-rata jarak berbobot
-        dist_std_km = float(np.sqrt(np.sum(weights * (distances - mean_distance_km) ** 2))) if len(distances) > 0 else 0.0 # std dev jarak
+#         # angular concentration R (0..1), R = sqrt(x^2 + y^2)
+#         R = math.sqrt(x * x + y * y)
+#         # circular std (radians): sqrt(-2 * ln(R)) ; guard R to (1e-6, 1]
+#         Rc = min(max(R, 1e-12), 1.0)
+#         try:
+#             ang_std_rad = math.sqrt(-2.0 * math.log(Rc)) if Rc < 1.0 else 0.0
+#         except Exception:
+#             ang_std_rad = 0.0
+#         ang_std_deg = math.degrees(ang_std_rad)
 
-        # scaling factor (influences how far we project next point)
-        last_mag = float(mags[-1]) if len(mags) > 0 else 1.0 # gunakan magnitudo terakhir
-        last_risk = float(risks[-1]) if len(risks) > 0 else 0.1 # gunakan risiko terakhir
-        scale = 0.5 + (last_mag / 10.0) + float(last_risk)
+#         # --- Weighted average distance (km) ---
+#         mean_distance_km = float(np.sum(distances * weights)) if len(distances) > 0 else 0.0 # rata-rata jarak berbobot
+#         dist_std_km = float(np.sqrt(np.sum(weights * (distances - mean_distance_km) ** 2))) if len(distances) > 0 else 0.0 # std dev jarak
 
-        # predicted distance = mean_distance_km * scale
-        pred_distance_km = float(mean_distance_km * scale)
+#         # scaling factor (influences how far we project next point)
+#         last_mag = float(mags[-1]) if len(mags) > 0 else 1.0 # gunakan magnitudo terakhir
+#         last_risk = float(risks[-1]) if len(risks) > 0 else 0.1 # gunakan risiko terakhir
+#         scale = 0.5 + (last_mag / 10.0) + float(last_risk)
 
-        # convert mean_theta to degrees and compute destination (pred_lat, pred_lon)
-        pred_lat, pred_lon = GeoMathCore.destination_point(float(lats[-1]), float(lons[-1]), mean_bearing_deg, pred_distance_km)
+#         # predicted distance = mean_distance_km * scale
+#         pred_distance_km = float(mean_distance_km * scale)
 
-        # compute km components of unit vector for clarity
-        bearing_rad = mean_theta
-        dx_east_km = pred_distance_km * math.sin(bearing_rad)   # east component
-        dy_north_km = pred_distance_km * math.cos(bearing_rad)  # north component
+#         # convert mean_theta to degrees and compute destination (pred_lat, pred_lon)
+#         pred_lat, pred_lon = GeoMathCore.destination_point(float(lats[-1]), float(lons[-1]), mean_bearing_deg, pred_distance_km)
 
-        # compute a refined confidence: combine risk-based metric + angular concentration R
-        conf_risk = self.compute_confidence(df_seg)  # existing risk-based confidence 0..1
-        # combine with angular concentration R (higher R => more coherent direction)
-        combined_conf = conf_risk * (0.5 + 0.5 * R)  # scale R into contribution
-        combined_conf = max(0.0, min(combined_conf, 1.0))
+#         # compute km components of unit vector for clarity
+#         bearing_rad = mean_theta
+#         dx_east_km = pred_distance_km * math.sin(bearing_rad)   # east component
+#         dy_north_km = pred_distance_km * math.cos(bearing_rad)  # north component
 
-        # return enriched dict
-        return {
-            "pred_lat": float(pred_lat),
-            "pred_lon": float(pred_lon),
-            "base_lat": float(lats[-1]),
-            "base_lon": float(lons[-1]),
-            "movement_scale": float(scale),
-            "bearing_degree": float(mean_bearing_deg),
-            "bearing_rad": float(bearing_rad),
-            "bearing_std_deg": float(ang_std_deg),
-            "angular_concentration_R": float(R),
-            "distance_km": float(pred_distance_km),
-            "distance_mean_km": float(mean_distance_km),
-            "distance_std_km": float(dist_std_km),
-            "vector_lat": float(dy_north_km),   # north km
-            "vector_lon": float(dx_east_km),    # east km
-            "movement_direction": self.bearing_to_compass(mean_bearing_deg),
-            "confidence": float(combined_conf)
-        } # dict hasil prediksi
+#         # compute a refined confidence: combine risk-based metric + angular concentration R
+#         conf_risk = self.compute_confidence(df_seg)  # existing risk-based confidence 0..1
+#         # combine with angular concentration R (higher R => more coherent direction)
+#         combined_conf = conf_risk * (0.5 + 0.5 * R)  # scale R into contribution
+#         combined_conf = max(0.0, min(combined_conf, 1.0))
 
-    @staticmethod
-    def bearing_to_compass(bearing: float) -> str: # konversi bearing ke arah kompas
-        """
-        Konversi 0-360 derajat ke 8 arah kompas.
-        """
-        dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
-        ix = int((bearing + 22.5) // 45) % 8
-        return dirs[ix]
+#         # cap confidence to avoid over-optimism in hazard prediction
+#         combined_conf = min(combined_conf, 0.85)
+#         # return enriched dict
+#         return {
+#             "pred_lat": float(pred_lat),
+#             "pred_lon": float(pred_lon),
+#             "base_lat": float(lats[-1]),
+#             "base_lon": float(lons[-1]),
+#             "movement_scale": float(scale),
+#             "bearing_degree": float(mean_bearing_deg),
+#             "bearing_rad": float(bearing_rad),
+#             "bearing_std_deg": float(ang_std_deg),
+#             "angular_concentration_R": float(R),
+#             "distance_km": float(pred_distance_km),
+#             "distance_mean_km": float(mean_distance_km),
+#             "distance_std_km": float(dist_std_km),
+#             "vector_lat": float(dy_north_km),   # north km
+#             "vector_lon": float(dx_east_km),    # east km
+#             "movement_direction": self.bearing_to_compass(mean_bearing_deg),
+#             "confidence": float(combined_conf)
+#         } # dict hasil prediksi
 
-    # komputasi confidence berdasarkan pheromone score
-    def compute_confidence(self, df_seg: pd.DataFrame) -> float:
-        try:
-            risks = df_seg['PheromoneScore'].astype(float).values
-            # jika semua risiko nol, kembalikan confidence minimal
-            if np.all(risks == 0):
-                return 0.4  # fallback confidence minimal
-            # komputasi mean & std dev
-            mean_r = float(np.mean(risks))
-            std_r = float(np.std(risks)) + 1e-6
-            # confidence formula (0.3 .. 1.0) berbasis rasio mean/std 
-            conf = mean_r / (mean_r + std_r)
-            return max(0.3, min(conf, 1.0)) # clamp ke [0.3, 1.0] 
-        # selainnya, kembalikan confidence default
-        except Exception: 
-            return 0.4
+#     @staticmethod
+#     def bearing_to_compass(bearing: float) -> str: # konversi bearing ke arah kompas
+#         """
+#         Konversi 0-360 derajat ke 8 arah kompas.
+#         """
+#         dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
+#         ix = int((bearing + 22.5) // 45) % 8
+#         return dirs[ix]
+
+#     # komputasi confidence berdasarkan pheromone score
+#     def compute_confidence(self, df_seg: pd.DataFrame) -> float:
+#         try:
+#             risks = df_seg['PheromoneScore'].astype(float).values
+#             # jika semua risiko nol, kembalikan confidence minimal
+#             if np.all(risks == 0):
+#                 return 0.4  # fallback confidence minimal
+#             # komputasi mean & std dev
+#             mean_r = float(np.mean(risks))
+#             std_r = float(np.std(risks)) + 1e-6
+#             # confidence formula (0.3 .. 1.0) berbasis rasio mean/std 
+#             conf = mean_r / (mean_r + std_r)
+#             return max(0.3, min(conf, 1.0)) # clamp ke [0.3, 1.0] 
+#         # selainnya, kembalikan confidence default
+#         except Exception: 
+#             return 0.4
 
 # ============================================
 # BLOCK 2/3 — Evolutionary Controller + Checkpoint
@@ -700,8 +800,9 @@ class MultiLayerVisualizer:
             logger.warning("GA Visualizer: best_path kosong, map tidak dibuat.")
             return
 
-        center_lat = df['EQ_Lintang'].mean() # pusat peta berdasarkan rata-rata koordinat
-        center_lon = df['EQ_Bujur'].mean() # pusat peta berdasarkan rata-rata koordinat
+        center_lat = pred_info.get("aco_center_lat")
+        center_lon = pred_info.get("aco_center_lon")
+
         # buat objek peta folium
         m = folium.Map(location=[center_lat, center_lon], zoom_start=8, tiles=None)
         folium.TileLayer('CartoDB positron', name='Light').add_to(m)
@@ -848,44 +949,52 @@ class MultiLayerVisualizer:
 
         snake.add_to(m)
 
-        # PREDICTION LAYER
-        if pred_info and "pred_lat" in pred_info and "pred_lon" in pred_info:
-            raw_lat = pred_info["pred_lat"]
-            raw_lon = pred_info["pred_lon"]
+        # DIRECTION VISUALIZATION (GA OUTPUT — VISUAL ONLY)
+        if pred_info and "bearing_degree" in pred_info:
 
-            pred_lat, pred_lon = self.clamp_to_east_java(raw_lat, raw_lon)
+            # pusat dampak dari ACO (bukan dari GA)
+            start_lat = center_lat
+            start_lon = center_lon
 
-            # include bearing & confidence where available
-            bearing_text = f"{pred_info.get('bearing_degree'):.1f}°" if pred_info.get('bearing_degree') is not None else "-"
-            distance_text = f"{pred_info.get('distance_km'):.2f} km" if pred_info.get('distance_km') is not None else "-"
-            conf_text = f"{pred_info.get('confidence'):.3f}" if pred_info.get('confidence') is not None else "-"
+            bearing = pred_info.get("bearing_degree")
+            distance_km = pred_info.get("distance_km", 3.0)  # default jarak visual
 
-            popup_pred = f"""
-            <b>Predicted Next Event</b><br>
-            Lat: {pred_lat:.4f}<br>
-            Lon: {pred_lon:.4f}<br>
-            Bearing: {bearing_text}<br>
-            Distance: {distance_text}<br>
-            Confidence: {conf_text}<br>
-            Scale: {pred_info.get('movement_scale', 0):.3f}
+            # hitung endpoint PANAH (BUKAN PREDIKSI LOKASI)
+            end_lat, end_lon = GeoMathCore.destination_point(
+                start_lat,
+                start_lon,
+                bearing,
+                distance_km
+            )
+
+            popup_dir = f"""
+            <b>GA Movement Direction</b><br>
+            Origin (ACO Center)<br>
+            Bearing: {bearing:.1f}°<br>
+            Visual Length: {distance_km:.2f} km<br>
+            <i>This arrow indicates direction only,<br>
+            not a predicted earthquake location.</i>
             """
 
-            folium.Marker(
-                [pred_lat, pred_lon],
-                popup=folium.Popup(popup_pred, max_width=300),
-                icon=folium.Icon(color="purple", icon="star")
-            ).add_to(m)
-
-            last = best_df.iloc[-1]
+            # garis arah
             folium.PolyLine(
                 [
-                    [last['EQ_Lintang'], last['EQ_Bujur']],
-                    [pred_lat, pred_lon]
+                    [start_lat, start_lon],
+                    [end_lat, end_lon]
                 ],
-                color="purple",
+                color="orange",
                 weight=4,
-                opacity=0.7
+                opacity=0.8,
+                tooltip="GA Direction (visual only)"
             ).add_to(m)
+
+            # marker panah
+            folium.Marker(
+                [end_lat, end_lon],
+                popup=folium.Popup(popup_dir, max_width=280),
+                icon=folium.DivIcon(html="<div style='font-size:20px'>➤</div>")
+            ).add_to(m)
+
 
         # Heatmap risiko (optional)
         try:
@@ -952,77 +1061,121 @@ class GaEngine: # GA Engine utama
     # Tulis hasil prediksi ke aco_to_ga.json
     def _write_back_to_aco_json(self, pred: Dict[str, Any]):
         """
-        Menulis hasil prediksi GA ke aco_to_ga.json agar dashboard bisa membaca next_event.
-        Robust: jika file tidak ada, buat minimal template. Jaga tipe numeric & buang NaN/Inf.
+        GA OUTPUT (client-compliant):
+        - HANYA arah dan sudut pergerakan
+        - Tidak ada lokasi, magnitudo, confidence
         """
+
+        import os
+        import json
+        import numpy as np
+        from datetime import datetime
+
         aco_json_path = os.path.join(
             os.path.dirname(self.output_dir),
             "aco_results",
             "aco_to_ga.json"
         )
 
-        # Ensure folder exists
-        aco_dir = os.path.dirname(aco_json_path)
-        os.makedirs(aco_dir, exist_ok=True)
+        os.makedirs(os.path.dirname(aco_json_path), exist_ok=True)
 
-        # Helper untuk safe float
         def safe_float(x, default=0.0):
             try:
                 fx = float(x)
-                if np.isfinite(fx):
-                    return fx
-                return default
+                return fx if np.isfinite(fx) else default
             except Exception:
                 return default
 
-        # Build next_event payload from pred (with safe conversions)
+        # === GA OUTPUT SESUAI CLIENT ===
         next_event = {
-            "lat": safe_float(pred.get("pred_lat", None), 0.0), # latitude prediksi
-            "lon": safe_float(pred.get("pred_lon", None), 0.0), # longitude prediksi
-            "direction_deg": safe_float(pred.get("bearing_degree", None), 0.0), # arah prediksi dalam derajat
-            "distance_km": safe_float(pred.get("distance_km", None), 0.0), # jarak prediksi dalam km
-            "confidence": max(0.0, min(1.0, float(pred.get("confidence", 0.0) or 0.0))) # confidence (0..1)
+            "direction_deg": safe_float(pred.get("bearing_degree")),
+            "distance_km": safe_float(pred.get("distance_km"))  # hanya visual panah
         }
 
-        # jika semua field invalid (0.0), anggap prediksi tidak valid 
-        # tapi tetap tulis next_event sebagai placeholder
-        pred_is_valid = any([
-            np.isfinite(next_event["lat"]) and abs(next_event["lat"]) > 1e-9,
-            np.isfinite(next_event["lon"]) and abs(next_event["lon"]) > 1e-9,
-            np.isfinite(next_event["distance_km"]) and next_event["distance_km"] > 1e-9,
-            np.isfinite(next_event["confidence"]) and next_event["confidence"] > 1e-9
-        ])
-
         try:
-            # read existing file if present, else create minimal template
+            # load ACO json
             if os.path.exists(aco_json_path):
                 with open(aco_json_path, "r") as f:
-                    try:
-                        data = json.load(f)
-                    except Exception:
-                        data = {}
+                    data = json.load(f)
             else:
                 data = {}
 
-            # attach next_event only if pred dict non-empty; otherwise still write placeholder
-            data.setdefault("center_lat", data.get("center_lat", None)) # latitude pusat peta
-            data.setdefault("center_lon", data.get("center_lon", None)) # longitude pusat peta
-            data["next_event"] = next_event # hasil prediksi event selanjutnya
-            data["_ga_generated_at"] = datetime.now().isoformat() # timestamp generasi
+            # PERTAHANKAN ACO OUTPUT
+            data["next_event"] = next_event
+            data["_ga_generated_at"] = datetime.now().isoformat()
 
-            # dump (use allow_nan=False to prevent invalid JSON if NaN sneaks in)
             with open(aco_json_path, "w") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+                json.dump(data, f, indent=2, ensure_ascii=False, allow_nan=False)
 
-            logger.info(f"[GA] next_event berhasil ditulis ke {aco_json_path} (valid={pred_is_valid})")
-        except Exception as e:
-            logger.error(f"[GA] Gagal menulis next_event: {e}", exc_info=True)
+            logger.info("[GA] next_event (direction-only) ditulis ke aco_to_ga.json")
+
+        except Exception:
+            logger.error("[GA] Gagal menulis next_event GA", exc_info=True)
+
 
     # Metode utama untuk menjalankan GA Engine
     def run(self, df_train: pd.DataFrame) -> Tuple[List[int], Dict[str, Any]]:
         logger.info("\n" + "=" * 80)
         logger.info("=== GA ENGINE START ===".center(80))
         logger.info("=" * 80)
+
+                # --- ACO-first mode: jika aco_to_ga.json tersedia, gunakan itu sebagai input GA ---
+        aco_json_path = os.path.join(os.path.dirname(self.output_dir), "aco_results", "aco_to_ga.json")
+        aco_epicenters_csv = os.path.join(os.path.dirname(self.output_dir), "aco_results", "aco_epicenters.csv")
+        if os.path.exists(aco_json_path):
+            try:
+                with open(aco_json_path, "r", encoding="utf-8") as f:
+                    aco_payload = json.load(f)
+                center_lat = float(aco_payload.get("center_lat", 0.0))
+                center_lon = float(aco_payload.get("center_lon", 0.0))
+                impact_area = float(aco_payload.get("impact_area_km2", aco_payload.get("impact_area", 0.0)))
+
+                # run lightweight angle search (uses only ACO outputs)
+                pred = GeoMathCore.angle_search_from_aco(
+                    center_lat,
+                    center_lon,
+                    impact_area,
+                    aco_epicenters_csv
+                )
+
+                # write results back to the aco JSON (next_event) and ga_vector.json
+                self._write_back_to_aco_json(pred)
+
+                # save GA vector JSON too
+                try:
+                    vector_out = {
+                        "_generated_at": datetime.now().isoformat(),
+                        "bearing_degree": pred.get("bearing_degree"),
+                        "distance_km": pred.get("distance_km")
+                    }
+
+                    with open(os.path.join(self.output_dir, "ga_vector_from_aco.json"), "w", encoding="utf-8") as vf:
+                        json.dump(vector_out, vf, indent=2, ensure_ascii=False)
+                except Exception as e:
+                    logger.warning(f"[GA] Failed to save ga_vector_from_aco.json: {e}")
+
+                # generate a small map using ACO epicenters (if available) and prediction
+                try:
+                    df_aco = pd.read_csv(aco_epicenters_csv) if os.path.exists(aco_epicenters_csv) else df_train
+                except Exception:
+                    df_aco = df_train
+
+                # use visualizer to draw result (safe_idx empty because there is no GA permutation)
+                out_map_path = os.path.join(self.output_dir, "ga_from_aco_map.html")
+                self.visualizer.generate_map([], df_aco, pred, out_map_path)
+
+
+                return [], {
+                    "map": out_map_path,
+                    "prediction": {
+                        "bearing_degree": pred["bearing_degree"],
+                        "distance_km": pred["distance_km"]
+                    }
+                }
+
+            except Exception as e:
+                logger.error(f"[GA] Error in ACO-only mode: {e}", exc_info=True)
+                # fallback to normal GA flow below
 
         # 1. Sanitization
         clean_df = self.sanitizer.execute(df_train)
@@ -1054,9 +1207,10 @@ class GaEngine: # GA Engine utama
         ] 
 
         if not safe_idx:
-            self.logger.warning(
+            logger.warning(
                 "[GA] Semua index hasil GA out-of-bounds. Menggunakan fallback data."
             )
+
             df_opt = clean_df.copy().reset_index(drop=True)
         else:
             df_opt = clean_df.iloc[safe_idx].reset_index(drop=True)
@@ -1070,17 +1224,7 @@ class GaEngine: # GA Engine utama
             self._write_back_to_aco_json(pred)
 
         # Save GA vector JSON for downstream LSTM / pipeline
-        try:
-            vector_out_path = os.path.join(self.output_dir, "ga_vector.json")
-            pred_out = pred.copy()
-            pred_out["_generated_at"] = datetime.now().isoformat()
-            pred_out["_n_segment"] = getattr(self.cfg, "ga_segment_window", 5)
-
-            with open(vector_out_path, "w") as vf:
-                json.dump(pred_out, vf, indent=2, default=float)
-            logger.info(f"GA vector JSON saved → {vector_out_path}")
-        except Exception as e:
-            logger.error(f"Failed to save GA vector JSON: {e}")
+        
 
         # 6. Visualization (pass pred_info)
         self.visualizer.generate_map(

@@ -474,32 +474,30 @@ class DynamicAcoEngine: # mesin utama ACO dengan konfigurasi dinamis
         return {
             "impact_area_km2": round(impact_area, 2)
         }
-    # ekspor hasil ACO sebagai input GA
     def _export_for_ga(self, df, center_info):
         """
-        Export hasil ACO sebagai input GA
+        Export minimal ACO -> GA payload.
+        Client requirement: GA input HANYA center & impact area.
         """
-        # Hitung area terdampak
         area_info = self._compute_impact_area(df)
-        # Siapkan data input untuk GA
         ga_input = {
-            "center_lat": center_info["center_lat"],
-            "center_lon": center_info["center_lon"],
-            "risk_mean": float(df['Risk_Index'].mean()),
-            "risk_max": float(df['Risk_Index'].max()),
-            "n_events": int(len(df)),
-            "impact_area_km2": area_info["impact_area_km2"]  # <<< PENAMBAHAN
+            "center_lat": float(center_info.get("center_lat", 0.0)),
+            "center_lon": float(center_info.get("center_lon", 0.0)),
+            "impact_area_km2": float(area_info.get("impact_area_km2", 0.0))
         }
-        # Simpan sebagai JSON
+
+        # Save to aco_results/aco_to_ga.json (consistent with GA expecting this path)
         output_dir = os.path.dirname(self.output_paths['aco_state_file'])
         ga_path = os.path.join(output_dir, "aco_to_ga.json")
-        # pastikan direktori ada
-        with open(ga_path, "w") as f:
-            json.dump(ga_input, f, indent=2)
-
-        self.logger.info(f"[ACO] Output GA tersimpan → {ga_path}")
+        try:
+            with open(ga_path, "w", encoding="utf-8") as f:
+                json.dump(ga_input, f, indent=2, ensure_ascii=False)
+            self.logger.info(f"[ACO] Minimal GA input saved → {ga_path}")
+        except Exception as e:
+            self.logger.error(f"[ACO] Failed to write ACO->GA json: {e}")
 
         return ga_input
+
 
 
     # menjalankan ACO pada DataFrame input
