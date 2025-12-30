@@ -1,20 +1,6 @@
 {
-  "pred_lat": -7.994398215976737,
-  "pred_lon": 114.28235844707649,
-  "base_lat": -7.99,
-  "base_lon": 114.21,
-  "movement_scale": 1.4446605430963264,
-  "bearing_degree": 93.51743294051084,
-  "bearing_rad": 1.6321871128249164,
-  "bearing_std_deg": 141.27956795401462,
-  "angular_concentration_R": 0.047831584003610914,
-  "distance_km": 7.982748640550591,
-  "distance_mean_km": 5.525691608799148,
-  "distance_std_km": 1.4303459891609007,
-  "vector_lat": -0.48975944183690495,
-  "vector_lon": 7.96771055870781,
-  "movement_direction": "E",
-  "confidence": 0.4041904767157775,
-  "_generated_at": "2025-12-29T23:33:19.465732",
-  "_n_segment": 5
+  "_generated_at": "2025-12-30T20:27:39.841194",
+  "bearing_degree": 109.0,
+  "distance_km": 3.91755631744768,
+  "note": "Output GA based on ACO Input only"
 }

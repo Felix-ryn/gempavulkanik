@@ -1,19 +1,60 @@
 {
   "class_names": [
-    "Ringan",
-    "Sedang",
-    "Parah"
+    "Normal",
+    "Waspada",
+    "Siaga",
+    "Awas"
   ],
-  "accuracy": 0.6666666666666666,
+  "accuracy": 1.0,
   "confusion_matrix": [
     [
       0,
-      3
+      0,
+      0,
+      0
     ],
     [
       0,
-      6
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      9
     ]
   ],
-  "report_str": "              precision    recall  f1-score   support\n\n      Ringan       0.00      0.00      0.00         3\n      Sedang       0.67      1.00      0.80         6\n\n    accuracy                           0.67         9\n   macro avg       0.33      0.50      0.40         9\nweighted avg       0.44      0.67      0.53         9\n"
+  "report_str": "              precision    recall  f1-score   support\n\n      Normal       0.00      0.00      0.00         0\n     Waspada       0.00      0.00      0.00         0\n       Siaga       0.00      0.00      0.00         0\n        Awas       1.00      1.00      1.00         9\n\n    accuracy                           1.00         9\n   macro avg       0.25      0.25      0.25         9\nweighted avg       1.00      1.00      1.00         9\n",
+  "roc_auc": {
+    "fpr": {
+      "3": [
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ]
+    },
+    "tpr": {
+      "3": [
+        0.0,
+        0.1111111111111111,
+        0.3333333333333333,
+        1.0
+      ]
+    },
+    "roc_auc": {
+      "Normal": 0.5,
+      "Waspada": 0.5,
+      "Siaga": 0.5,
+      "Awas": NaN
+    }
+  }
 }

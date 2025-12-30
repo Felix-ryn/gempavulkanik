@@ -800,6 +800,37 @@ class LstmEngine:
             except Exception as e:
                 logger.error(f"[LSTM] load_ga_json_and_integrate failed: {e}")
                 return False
+        # Tambahkan method ini di bawah integrate_ga_prediction
+        def integrate_cnn_prediction(self, pred: Dict[str, Any], attach_to: str = "nearest"):
+            """
+            Integrasi output CNN (pred dict) ke buffer LSTM untuk record lengkap.
+            """
+            try:
+                # Validasi input minimal
+                if not pred:
+                    return None
+            
+                # Ambil data buffer terakhir (latest row)
+                buf = self.buffer.get_context()
+                if buf is None or buf.empty:
+                    return None
+
+                # Kita tempelkan prediksi CNN ke data paling akhir (event terbaru)
+                latest_idx = buf.index[-1]
+            
+                # Update kolom CNN
+                # Pastikan nama key sesuai dengan output JSON CNN Anda
+                self.buffer.buffer_df.loc[latest_idx, 'cnn_bearing'] = pred.get('bearing_degree', pred.get('predicted_bearing'))
+                self.buffer.buffer_df.loc[latest_idx, 'cnn_distance'] = pred.get('distance_km', pred.get('predicted_distance'))
+                self.buffer.buffer_df.loc[latest_idx, 'cnn_confidence'] = pred.get('confidence', 0.0)
+            
+                logger.info(f"[LSTM] CNN pred integrated to buffer index {latest_idx}")
+                return latest_idx
+
+            except Exception as e:
+                logger.error(f"[LSTM] integrate_cnn_prediction failed: {e}")
+                return None
+
     # fungsi mendapatkan data buffer 
     def get_buffer(self) -> pd.DataFrame:
         """Mengembalikan data buffer historis dari InferenceBuffer."""
@@ -1048,6 +1079,33 @@ class LstmEngine:
             err = np.abs(res_mu[:min_l] - actual)
             df_out.loc[final_idx, 'prediction_error'] = err
 
+            try:
+                # Ambil baris terakhir (data terbaru)
+                if not df_out.empty:
+                    last_idx = df_out.index[-1]
+                
+                    # 1. Load Output GA (Arah & Sudut)
+                    ga_path = os.path.join("output", "ga_results", "ga_vector.json")
+                    if os.path.exists(ga_path):
+                        with open(ga_path, 'r') as f:
+                            ga_data = json.load(f)
+                        df_out.loc[last_idx, 'ga_bearing'] = ga_data.get('bearing_degree')
+                        df_out.loc[last_idx, 'ga_distance_km'] = ga_data.get('distance_km')
+                
+                    # 2. Load Output CNN (Prediksi Arah & Sudut)
+                    cnn_path = os.path.join("output", "cnn_results", "cnn_predictions_latest.json")
+                    if os.path.exists(cnn_path):
+                        with open(cnn_path, 'r') as f:
+                            cnn_data = json.load(f)
+                        # Mapping nama field sesuai JSON CNN Anda
+                        df_out.loc[last_idx, 'cnn_bearing'] = cnn_data.get('bearing_degree', cnn_data.get('predicted_bearing'))
+                        df_out.loc[last_idx, 'cnn_angle'] = cnn_data.get('angle', 0.0) 
+                    
+                    logger.info("[LSTM] Data terbaru berhasil diperkaya dengan vektor GA & CNN.")
+                
+            except Exception as e:
+                logger.warning(f"[LSTM] Gagal integrasi data eksternal ke record: {e}")
+
             # ===============================
             # ANOMALY DETECTION (ERROR-BASED)
             # ===============================
@@ -1076,11 +1134,12 @@ class LstmEngine:
 
         # --- SAVE CSV OUTPUT (two-year + 15-day + anomalies) ---
         try: # simpan record LSTM
-            self._save_lstm_records(df_out, final_anoms)
+            self._save_lstm_records(df_out, pd.concat(anomalies) if anomalies else pd.DataFrame())
         except Exception as e:
             logger.warning(f"[LSTM] Failed to save LSTM records: {e}")
 
-        return df_out, final_anoms
+        return df_out, pd.concat(anomalies) if anomalies else pd.DataFrame()
+
         # fungsi merekam event aktual ke buffer 
         def record_actual_events(self, df_actual: pd.DataFrame):
             """
