@@ -682,7 +682,7 @@ class VolcanoAiPipeline: # Kelas utama pengatur seluruh alur kerja AI
                         pass # Abaikan error dan lanjutkan
 
                     # 2) GA map
-                    ga_map = outdir / "ga_results" / r"C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\output\ga_results\ga_from_aco_map.html" # Path ke file peta hasil GA
+                    ga_map = outdir / "ga_results" / "ga_from_aco_map.html" # Path ke file peta hasil GA
                     if ga_map.exists(): # Cek apakah file peta hasil GA ada
                         normalized["ga_map"] = str(ga_map) # Simpan path ke peta GA
 
@@ -902,7 +902,7 @@ def build_dashboard_context(output_dir: Path) -> dict:
             pass
 
     # GA map (path json produced earlier)
-    ga_map = out / "ga_results" / r"C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\output\ga_results\ga_from_aco_map.html" # Path ke file peta hasil GA
+    ga_map = out / "ga_results" / "ga_from_aco_map.html" # Path ke file peta hasil GA
     if ga_map.exists(): # Cek apakah file peta hasil GA ada 
         ctx["GA_MAP"] = _file_url_for(ga_map) # Simpan path ke peta GA
 

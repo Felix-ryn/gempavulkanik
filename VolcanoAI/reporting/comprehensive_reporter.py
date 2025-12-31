@@ -71,7 +71,6 @@ class AssetManager:  # class untuk mengelola jalur file aset dari engine lain
             "aco_csv": os.path.join(self.engine_dirs["aco"], "aco_dynamic_result.csv"),  # path ACO csv
             "ga_path_csv": os.path.join(self.engine_dirs["ga"], "ga_optimized_path_for_lstm.csv"),  # path GA csv
             "final_xlsx": os.path.join(self.output_dir, "hasil_akhir_analisis.xlsx"),  # path final excel
-            "nb_roc": os.path.join(self.engine_dirs["naive_bayes"], "roc_curves.png"),  # path ROC image
             "ga_conv": os.path.join(self.engine_dirs["ga"], "ga_convergence_plot.png")  # path GA convergence plot
         }
 
@@ -308,16 +307,59 @@ class ComprehensiveReporter(MapGenerator):  # reporter komprehensif yang mewaris
             self.logger.error(f"Template tidak ditemukan: {template_path}")  # log error jika template hilang
             return  # hentikan eksekusi
 
-        template_html = _safe_read_text(template_path, logger=self.logger)  # baca template dengan safe reader
+        ALLOWED_METRICS = {
+            "accuracy",
+            "precision",
+            "recall",
+            "f1_score",
+            "confusion_matrix",
+            "nb_metrics_html",
+            "nb_report"
+        }
+
+        if isinstance(self.metrics, dict):
+            self.metrics = {
+                k: v for k, v in self.metrics.items()
+                if k in ALLOWED_METRICS
+            }
 
         def getm(key, default="-"):
-            v = self.metrics.get(key)  # ambil value dari metrics
+            v = self.metrics.get(key)
             if v is None:
-                return default  # default jika tidak ada
+                return default
             if isinstance(v, (list, tuple)):
-                return ", ".join(map(str, v))  # gabungkan list/tuple jadi string
-            return str(v)  # konversi ke string
+                return ", ".join(map(str, v))
+            return str(v)
 
+        def clean_nb_metrics_html(html: str) -> str:
+            if not html:
+                return html
+            bad_keys = ("roc_auc", "fpr", "tpr")
+            return "\n".join(
+                line for line in html.splitlines()
+                if not any(k in line.lower() for k in bad_keys)
+            )
+
+        nb_metrics_html_raw = getm("nb_metrics_html", "")
+        nb_metrics_html = clean_nb_metrics_html(nb_metrics_html_raw)
+
+        def clean_nb_report(report: str) -> str:
+            if not report:
+                return report
+            lines = report.splitlines()
+            cleaned = [
+                line for line in lines
+                if not line.strip().startswith("roc_auc")
+            ]
+            return "\n".join(cleaned)
+        nb_report_raw = getm("nb_report", "")
+        nb_report_clean = clean_nb_report(nb_report_raw)
+
+        if not latest_row.empty:
+            forbidden_patterns = ("roc_auc", "fpr", "tpr")
+            latest_row = latest_row[
+                [c for c in latest_row.index if not any(p in c.lower() for p in forbidden_patterns)]
+            ]
         data = {
             "TIMESTAMP": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),  # timestamp sekarang
             "ACO_IMPACT_CENTER": getm("aco_center"),  # center impact ACO
@@ -335,9 +377,10 @@ class ComprehensiveReporter(MapGenerator):  # reporter komprehensif yang mewaris
             "LSTM_ANOMALIES_CSV": getm("lstm_anomalies_csv", ""),  # link/placeholder LSTM anomalies
             "CNN_PRED_CSV": getm("cnn_pred_csv", ""),  # link/placeholder CNN predictions CSV
             "CNN_PRED_JSON": getm("cnn_pred_json", ""),  # link/placeholder CNN predictions JSON
-            "NB_REPORT_STR": getm("nb_report", "")  # string laporan Naive Bayes
+            "NB_METRICS_HTML": nb_metrics_html,
+            "NB_REPORT_STR": nb_report_clean  
         }
-
+        template_html = _safe_read_text(template_path, self.logger)
         for k, v in data.items():
             template_html = template_html.replace(f"{{{{{k}}}}}", str(v))  # replace placeholder dalam template
 

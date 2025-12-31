@@ -1,18 +1,18 @@
 {
     "DataLoading": {
         "status": "Success",
-        "timestamp": "2025-12-31T17:22:31.115944"
+        "timestamp": "2025-12-31T18:42:40.219277"
     },
     "FeatureEngineering": {
-        "status": "Success",
-        "timestamp": "2025-12-31T17:22:36.923333"
+        "status": "Running",
+        "timestamp": "2025-12-31T18:42:40.222271"
     },
     "Training": {
         "status": "Success",
-        "timestamp": "2025-12-31T17:23:02.387824"
+        "timestamp": "2025-12-31T18:20:07.496084"
     },
     "Evaluation": {
         "status": "Success",
-        "timestamp": "2025-12-31T17:23:42.818430"
+        "timestamp": "2025-12-31T18:09:53.745589"
     }
 }
