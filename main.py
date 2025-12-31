@@ -682,7 +682,7 @@ class VolcanoAiPipeline: # Kelas utama pengatur seluruh alur kerja AI
                         pass # Abaikan error dan lanjutkan
 
                     # 2) GA map
-                    ga_map = outdir / "ga_results" / "ga_path_map.html" # Path ke file peta hasil GA
+                    ga_map = outdir / "ga_results" / r"C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\output\ga_results\ga_from_aco_map.html" # Path ke file peta hasil GA
                     if ga_map.exists(): # Cek apakah file peta hasil GA ada
                         normalized["ga_map"] = str(ga_map) # Simpan path ke peta GA
 
@@ -902,22 +902,49 @@ def build_dashboard_context(output_dir: Path) -> dict:
             pass
 
     # GA map (path json produced earlier)
-    ga_map = out / "ga_results" / "ga_path_map.html" # Path ke file peta hasil GA
+    ga_map = out / "ga_results" / r"C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\output\ga_results\ga_from_aco_map.html" # Path ke file peta hasil GA
     if ga_map.exists(): # Cek apakah file peta hasil GA ada 
         ctx["GA_MAP"] = _file_url_for(ga_map) # Simpan path ke peta GA
 
     # try to read GA predicted fields (if aco_to_ga.json contains next_event)
     try:
+        # === 1. Ambil bearing & arah dari aco_to_ga.json (next_event) ===
         if aco_json.exists():
-            j = json.loads(aco_json.read_text(encoding="utf-8")) # Baca dan parse file JSON
-            nxt = j.get("next_event") or {} # get next_event dict
-            ctx["GA_PRED_LAT"] = nxt.get("lat", ctx["GA_PRED_LAT"]) # get lat
-            ctx["GA_PRED_LON"] = nxt.get("lon", ctx["GA_PRED_LON"]) # get lon
-            ctx["GA_BEARING"] = nxt.get("direction_deg", ctx["GA_BEARING"]) # get bearing
-            ctx["GA_DISTANCE"] = nxt.get("distance_km", ctx["GA_DISTANCE"]) # get distance
-            ctx["GA_CONFIDENCE"] = nxt.get("confidence", ctx["GA_CONFIDENCE"]) # get confidence
-    except Exception:  
+            j = json.loads(aco_json.read_text(encoding="utf-8"))
+            # ==========================
+            # GA PATH (FROM ACO → GA)
+            # ==========================
+            ga_path = j.get("ga_path", [])
+
+            if isinstance(ga_path, list) and len(ga_path) > 0:
+                first = ga_path[0]
+
+                angle = first.get("angle_deg")
+                direction = first.get("direction")
+                distance = first.get("distance_km")
+
+                if angle is not None:
+                    ctx["GA_BEARING"] = f"{angle}° ({direction})" if direction else f"{angle}°"
+
+                if distance is not None:
+                    ctx["GA_DISTANCE"] = f"{distance:.2f} km"
+
+
+        # === 2. Ambil distance numerik dari ga_vector.json ===
+        ga_vec = out / "ga_results" / "ga_vector.json"
+        if ga_vec.exists():
+            gv = json.loads(ga_vec.read_text(encoding="utf-8"))
+
+            if "distance_km" in gv:
+                ctx["GA_DISTANCE"] = f"{gv['distance_km']:.2f} km"
+
+            # OPTIONAL fallback: jika bearing belum terisi, pakai bearing_degree
+            if ctx["GA_BEARING"] == "N/A" and "bearing_degree" in gv:
+                ctx["GA_BEARING"] = f"{gv['bearing_degree']}°"
+
+    except Exception:
         pass
+
 
     # LSTM CSVs
     lstm_dir = out / "lstm_results" # Direktori hasil LSTM

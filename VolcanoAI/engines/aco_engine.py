@@ -135,27 +135,24 @@ class EnvironmentManager: # manajemen lingkungan ACO (matriks jarak, heuristic, 
     def _build_heuristic_matrix(self):
         """Membangun Matrix Heuristic untuk ACO berbasis Fisika Gempa."""
         mag_col = next((c for c in ['Magnitudo_Original', 'Magnitudo', 'magnitude', 'mag'] if c in self.df.columns), None)
-        depth_cols_candidates = ['Kedalaman_Original', 'Kedalaman_km', 'Kedalaman (km)', 'depth', 'depth_km']
         depth_col = next((c for c in ['Kedalaman_Original', 'Kedalaman_km', 'Kedalaman (km)', 'depth', 'depth_km'] if c in self.df.columns), None)
-        # jika kolom magnitudo atau kedalaman tidak ditemukan, lempar error
+
         if mag_col is None or depth_col is None:
-            raise KeyError(f"[ACO Error] Kolom Magnitudo ('{mag_col}') atau Kedalaman ('{depth_col}') tidak ditemukan di DataFrame.")
+            # Fallback: jika magnitudo/kedalaman tidak lengkap, gunakan fallback uniform attractiveness
+            self.logger.warning("[ACO] Magnitudo/Kedalaman tidak lengkap — memakai fallback uniform heuristic.")
+            attractiveness = np.ones(self.n_nodes, dtype=float)
+        else:
+            mags_raw = pd.to_numeric(self.df[mag_col], errors='coerce').fillna(0.1)
+            depths_raw = pd.to_numeric(self.df[depth_col], errors='coerce').fillna(1.0)
+            mags = np.clip(mags_raw.values.astype(float), 0.1, None)
+            depths = np.clip(depths_raw.values.astype(float), 1.0, None)
 
-        print("[DEBUG ACO] mags:", self.df[mag_col].values)
-        print("[DEBUG ACO] depths:", self.df[depth_col].values)
-        # konversi kolom magnitudo dan kedalaman ke numerik, isi NaN dengan nilai default
-        mags_raw = pd.to_numeric(self.df[mag_col], errors='coerce').fillna(0.1) # Magnitudo minimal 0.1
-        depths_raw = pd.to_numeric(self.df[depth_col], errors='coerce').fillna(1.0) # Kedalaman minimal 1.0 km
-        
-        mags = np.clip(mags_raw.values.astype(float), 0.1, None) # pastikan magnitudo minimal 0.1
-        depths = np.clip(depths_raw.values.astype(float), 1.0, None) # pastikan kedalaman minimal 1.0 km
+            energy_score = np.clip(np.power(mags, 2.5), 1e-4, None)
+            depth_factor = np.clip(1.0 / np.power(depths, 0.5), 1e-4, None)
+            if np.max(depth_factor) > 0: 
+                depth_factor /= np.max(depth_factor)
+            attractiveness = energy_score * depth_factor
 
-        energy_score = np.clip(np.power(mags, 2.5), 1e-4, None) # energi gempa berbasis magnitudo
-        depth_factor = np.clip(1.0 / np.power(depths, 0.5), 1e-4, None) # faktor kedalaman (semakin dangkal, semakin besar faktor)
-        if np.max(depth_factor) > 0: # normalisasi faktor kedalaman
-            depth_factor /= np.max(depth_factor) # normalisasi ke [0, 1]
-        # hitung daya tarik gabungan
-        attractiveness = energy_score * depth_factor
         attr_matrix = np.tile(attractiveness, (self.n_nodes, 1))
         dist_safe = self.dist_matrix.copy()
         dist_safe[dist_safe < 0.5] = 0.5  # MIN 500 meter
@@ -189,11 +186,22 @@ class EnvironmentManager: # manajemen lingkungan ACO (matriks jarak, heuristic, 
         prob = np.power(tau, ant.alpha) * np.power(eta, ant.beta) # hitung probabilitas transisi
         # hilangkan node yang sudah dikunjungi
         if ant.visited_mask is not None and len(ant.visited_mask) == len(prob):
+            prob = prob.copy()
             prob[ant.visited_mask] = 0.0
-        # sanitasi probabilitas
-        if not np.isfinite(prob).any() or np.sum(prob) <= 0:
-            prob = np.ones_like(prob, dtype=float)
-        return prob  # kembalikan vektor probabilitas
+
+        # sanitasi probabilitas: jika semua nol, beri nilai uniform hanya pada non-visited
+        if np.sum(prob) <= 0 or not np.isfinite(np.sum(prob)):
+            if ant.visited_mask is not None:
+                non_visited = ~ant.visited_mask
+                if non_visited.any():
+                    prob = np.zeros_like(prob, dtype=float)
+                    prob[non_visited] = 1.0 / non_visited.sum()
+                else:
+                    # semua ter-visit: fallback uniform (akan mengijinkan revisit)
+                    prob = np.ones_like(prob, dtype=float) / len(prob)
+            else:
+                prob = np.ones_like(prob, dtype=float) / len(prob)
+        return prob
 
     # terapkan update global pheromone (evaporasi + deposit baru)
     def apply_global_update(self, evaporation_rate: float, deposit_matrix: np.ndarray):
@@ -489,22 +497,34 @@ class DynamicAcoEngine: # mesin utama ACO dengan konfigurasi dinamis
         # Save to aco_results/aco_to_ga.json (consistent with GA expecting this path)
         output_dir = os.path.dirname(self.output_paths['aco_state_file'])
         ga_path = os.path.join(output_dir, "aco_to_ga.json")
+        from tempfile import NamedTemporaryFile
         try:
-            with open(ga_path, "w", encoding="utf-8") as f:
-                json.dump(ga_input, f, indent=2, ensure_ascii=False)
-            self.logger.info(f"[ACO] Minimal GA input saved → {ga_path}")
-        except Exception as e:
-            self.logger.error(f"[ACO] Failed to write ACO->GA json: {e}")
+            dirn = os.path.dirname(ga_path)
+            with NamedTemporaryFile('w', dir=dirn, delete=False, encoding='utf-8') as tf:
+                existing = {}
+                if os.path.exists(ga_path):
+                    try:
+                        with open(ga_path, 'r', encoding='utf-8') as f:
+                            existing = json.load(f)
+                    except Exception:
+                        existing = {}
 
+                existing.update(ga_input)  # hanya update center & area
+                json.dump(existing, tf, indent=2, ensure_ascii=False)
+                tmp = tf.name
+            os.replace(tmp, ga_path)  # atomic move
+            self.logger.info(f"[ACO] Minimal GA input saved → {ga_path} (atomic)")
+        except Exception as e:
+            self.logger.error(f"[ACO] Failed to write ACO->GA json: {e}", exc_info=True)
         return ga_input
 
 
 
     # menjalankan ACO pada DataFrame input
     def run(self, df: pd.DataFrame):
-        print(f"[DEBUG] DataFrame masuk: {df.shape[0]} baris, {df.shape[1]} kolom")
-        print(f"[DEBUG] Kolom: {list(df.columns)}")
-        print(df.head(5))
+        self.logger.debug(f"[ACO] DataFrame masuk: {df.shape[0]} baris, {df.shape[1]} kolom")
+        self.logger.debug(f"[ACO] Kolom: {list(df.columns)}")
+        self.logger.debug(df.head(5).to_string())
         if 'EQ_Lintang' in df.columns and 'EQ_Bujur' in df.columns: # cek kolom koordinat
             print("[DEBUG ACO] Kolom koordinat tersedia")
             print(df[['EQ_Lintang', 'EQ_Bujur']].tail(10))
@@ -577,6 +597,13 @@ class DynamicAcoEngine: # mesin utama ACO dengan konfigurasi dinamis
         # finalisasi hasil
         df_out, meta = self._finalize_results(df)
         center_info = self._compute_impact_center(df_out)
+        # Validasi center
+        c_lat = center_info.get('center_lat', None)
+        c_lon = center_info.get('center_lon', None)
+        if c_lat is None or c_lon is None or (abs(c_lat) < 1e-6 and abs(c_lon) < 1e-6):
+            self.logger.warning("[ACO] Center tidak valid/terlalu kecil → tidak menulis ACO->GA JSON.")
+        else:
+            self._export_for_ga(df_out, center_info)
         self._export_for_ga(df_out, center_info)
         self._save_to_disk(df_out)
         self._generate_visuals(df_out)

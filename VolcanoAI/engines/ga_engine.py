@@ -107,6 +107,18 @@ class GeoMathCore: # Kelas utilitas untuk perhitungan geodesik
         else:
             df_aco = pd.DataFrame()
 
+        # Normalize column names: accept multiple variants
+        col_map = {}
+        if 'Lintang' in df_aco.columns and 'Bujur' in df_aco.columns:
+            col_map['Lintang'] = 'Lintang'
+            col_map['Bujur'] = 'Bujur'
+        elif 'EQ_Lintang' in df_aco.columns and 'EQ_Bujur' in df_aco.columns:
+            col_map['EQ_Lintang'] = 'Lintang'
+            col_map['EQ_Bujur'] = 'Bujur'
+            df_aco = df_aco.rename(columns={'EQ_Lintang':'Lintang','EQ_Bujur':'Bujur'})
+        elif 'Latitude' in df_aco.columns and 'Longitude' in df_aco.columns:
+            df_aco = df_aco.rename(columns={'Latitude':'Lintang','Longitude':'Bujur'})
+
         if df_aco.empty or not {'Lintang','Bujur'}.issubset(set(df_aco.columns)):
             pred_distance = radius_km * 0.5
             pred_lat, pred_lon = GeoMathCore.destination_point(center_lat, center_lon, 0.0, pred_distance)
@@ -230,6 +242,20 @@ class GeoMathCore: # Kelas utilitas untuk perhitungan geodesik
         # Normalize lon to -180..180
         lon2 = (lon2 + 180) % 360 - 180
         return float(lat2), float(lon2)
+
+    # -------------------------------------------------
+    # Bearing → Compass Direction (STATIC)
+    # -------------------------------------------------
+    @staticmethod
+    def bearing_to_compass_static(bearing: float) -> str:
+        """
+        Konversi bearing derajat (0–360) ke arah mata angin.
+        Dipakai oleh GA untuk write-back ke ACO JSON.
+        """
+        dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
+        ix = int((bearing + 22.5) // 45) % 8
+        return dirs[ix]
+
 
 
 # ==============
@@ -674,9 +700,16 @@ class MultiLayerVisualizer:
         self,
         best_path: List[int],
         df: pd.DataFrame,
-        pred_info: Dict[str, float],
-        out_path: str
-    ): 
+        pred_info: Dict[str, Any],
+        out_path: str,
+        ga_vectors: Optional[List[Dict[str, Any]]] = None
+    ):
+
+        # =========================
+        # MODE DETECTION
+        # =========================
+        is_aco_mode = bool(ga_vectors)
+
         # --- LOGIC FIX: Penentuan Titik Pusat Peta (Center) ---
         # Prioritas 1: Gunakan ACO Center (jika Mode ACO)
         center_lat = pred_info.get("aco_center_lat")
@@ -741,12 +774,12 @@ class MultiLayerVisualizer:
         max_idx = len(df) - 1
         safe_path = [i for i in best_path if 0 <= i <= max_idx]
 
-        # Jika tidak ada path (misal mode ACO only), kita tetap bisa plot titik-titik
-        if not safe_path and not df.empty:
-             # Fallback: Plot 5 titik terakhir sebagai jejak jika path kosong
-             safe_path = list(range(max(0, len(df)-5), len(df)))
+        # Jika TIDAK mode ACO, baru boleh fallback snake path
+        if not safe_path and not df.empty and not is_aco_mode:
+            safe_path = list(range(max(0, len(df)-5), len(df)))
 
-        if safe_path:
+        # GA STANDARD ONLY (1 VECTOR)
+        if pred_info and "bearing_degree" in pred_info and not ga_vectors:
             best_df = df.iloc[safe_path].reset_index(drop=True)
             path_coords = best_df[['EQ_Lintang', 'EQ_Bujur']].values.tolist()
 
@@ -810,6 +843,45 @@ class MultiLayerVisualizer:
                 icon=folium.DivIcon(html="<div style='font-size:20px'>➤</div>")
             ).add_to(m)
 
+        # =========================
+        # GA VECTOR FROM ACO
+        # =========================
+        if ga_vectors:
+            ga_layer = folium.FeatureGroup(name="GA Direction (Per ACO Node)", show=True)
+
+            for v in ga_vectors:
+                start_lat = v["base_lat"]
+                start_lon = v["base_lon"]
+                bearing = v["bearing_degree"]
+                dist = v["distance_km"]
+
+                end_lat, end_lon = GeoMathCore.destination_point(
+                    start_lat, start_lon, bearing, dist
+                )
+
+                folium.PolyLine(
+                    [[start_lat, start_lon], [end_lat, end_lon]],
+                    color="orange",
+                    weight=3,
+                    opacity=0.9
+                ).add_to(ga_layer)
+
+                folium.Marker(
+                    [end_lat, end_lon],
+                    icon=folium.DivIcon(
+                        html="<div style='font-size:18px;color:orange'>➤</div>"
+                    ),
+                    popup=f"""
+                    <b>GA Vector</b><br>
+                    From ACO index: {v['from_aco_index']}<br>
+                    Bearing: {bearing:.1f}°<br>
+                    Distance: {dist:.2f} km
+                    """
+                ).add_to(ga_layer)
+
+            ga_layer.add_to(m)
+
+
         # Heatmap
         try:
             if 'PheromoneScore' in df.columns:
@@ -868,14 +940,14 @@ class GaEngine: # GA Engine utama
     def _write_back_to_aco_json(self, pred: Dict[str, Any]):
         """
         GA OUTPUT (client-compliant):
-        - HANYA arah dan sudut pergerakan
-        - Tidak ada lokasi, magnitudo, confidence
+        - HANYA arah (teks) dan sudut pergerakan (derajat)
+        - Tidak ada lokasi, magnitudo, confidence, atau distance.
         """
-
         import os
         import json
         import numpy as np
         from datetime import datetime
+        from tempfile import NamedTemporaryFile
 
         aco_json_path = os.path.join(
             os.path.dirname(self.output_dir),
@@ -885,36 +957,51 @@ class GaEngine: # GA Engine utama
 
         os.makedirs(os.path.dirname(aco_json_path), exist_ok=True)
 
-        def safe_float(x, default=0.0):
+        def safe_float(x, default=None):
             try:
                 fx = float(x)
                 return fx if np.isfinite(fx) else default
             except Exception:
                 return default
 
-        # === GA OUTPUT SESUAI CLIENT ===
-        next_event = {
-            "direction_deg": safe_float(pred.get("bearing_degree")),
-            "distance_km": safe_float(pred.get("distance_km"))  # hanya visual panah
-        }
+        # Prepare minimal payload expected by client: sudut + arah teks
+        bearing = safe_float(pred.get("bearing_degree"), default=None)
+        # fallback compute textual direction if not present
+        move_dir = pred.get("movement_direction")
+        if move_dir is None and bearing is not None:
+            move_dir = GeoMathCore.bearing_to_compass_static(bearing) if hasattr(GeoMathCore, "bearing_to_compass_static") else self.visualizer_bearing_to_compass(bearing)
+
+        next_event = {}
+        if bearing is not None:
+            next_event["angle_deg"] = bearing
+        if move_dir is not None:
+            next_event["direction"] = move_dir
+
+        # If neither present, log & do not overwrite ACO output
+        if not next_event:
+            logger.warning("[GA] No valid bearing/direction to write. Skipping write-back.")
+            return
 
         try:
-            # load ACO json
+            # load existing ACO json (preserve its other fields)
             if os.path.exists(aco_json_path):
-                with open(aco_json_path, "r") as f:
+                with open(aco_json_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
             else:
                 data = {}
 
-            # PERTAHANKAN ACO OUTPUT
+            # update only next_event key
             data["next_event"] = next_event
             data["_ga_generated_at"] = datetime.now().isoformat()
 
-            with open(aco_json_path, "w") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False, allow_nan=False)
+            # atomic write (temp file + rename)
+            dirn = os.path.dirname(aco_json_path)
+            with NamedTemporaryFile("w", dir=dirn, delete=False, encoding="utf-8") as tf:
+                json.dump(data, tf, indent=2, ensure_ascii=False)
+                temp_name = tf.name
+            os.replace(temp_name, aco_json_path)
 
             logger.info("[GA] next_event (direction-only) ditulis ke aco_to_ga.json")
-
         except Exception:
             logger.error("[GA] Gagal menulis next_event GA", exc_info=True)
 
@@ -937,32 +1024,70 @@ class GaEngine: # GA Engine utama
                     aco_payload = json.load(f)
                 
                 # Input GA: Pusat ACO dan Area ACO
-                center_lat = float(aco_payload.get("center_lat", 0.0))
-                center_lon = float(aco_payload.get("center_lon", 0.0))
-                impact_area = float(aco_payload.get("impact_area_km2", aco_payload.get("impact_area", 0.0)))
-
-                logger.info(f"[GA] Using ACO Input: Center=({center_lat}, {center_lon}), Area={impact_area}")
-
-                # JALANKAN PROSES GA (Angle Search) MENGGUNAKAN INPUT ACO
-                pred = GeoMathCore.angle_search_from_aco(
-                    center_lat, center_lon, impact_area, aco_epicenters_csv
+                impact_area = float(
+                    aco_payload.get("impact_area_km2", aco_payload.get("impact_area", 0.0))
                 )
-                
-                # Tambahkan info center ACO untuk map
-                pred["aco_center_lat"] = float(center_lat)
-                pred["aco_center_lon"] = float(center_lon)
 
-                # Simpan output ke JSON (hanya arah & sudut sesuai request)
-                self._write_back_to_aco_json(pred)
+                ga_vectors = []
+
+                # Baca titik-titik ACO
+                df_aco = pd.read_csv(aco_epicenters_csv)
+
+                # Normalisasi nama kolom
+                rename_map = {
+                    'Lintang': 'EQ_Lintang', 'Bujur': 'EQ_Bujur',
+                    'Latitude': 'EQ_Lintang', 'Longitude': 'EQ_Bujur'
+                }
+                df_aco.rename(columns=rename_map, inplace=True)
+
+                for idx, row in df_aco.iterrows():
+                    base_lat = float(row["EQ_Lintang"])
+                    base_lon = float(row["EQ_Bujur"])
+
+                    # Jalankan GA dari TITIK ACO ini
+                    pred = GeoMathCore.angle_search_from_aco(
+                        base_lat,
+                        base_lon,
+                        impact_area,
+                        aco_epicenters_csv
+                    )
+
+                    ga_vectors.append({
+                        "from_aco_index": int(idx),
+                        "base_lat": base_lat,
+                        "base_lon": base_lon,
+                        "bearing_degree": float(pred.get("bearing_degree", 0.0)),
+                        "distance_km": float(pred.get("distance_km", 0.0))
+                    })
+
+               # =====================================================
+                # WRITE BACK GA PATH (PER TITIK ACO)
+                # =====================================================
+                ga_path = []
+                for v in ga_vectors:
+                    ga_path.append({
+                        "from_aco": v["from_aco_index"],
+                        "angle_deg": v["bearing_degree"],
+                        "direction": GeoMathCore.bearing_to_compass_static(v["bearing_degree"]),
+                        "distance_km": v["distance_km"]
+                    })
+
+                aco_payload["ga_path"] = ga_path
+                aco_payload["_ga_generated_at"] = datetime.now().isoformat()
+
+                with open(aco_json_path, "w", encoding="utf-8") as f:
+                    json.dump(aco_payload, f, indent=2)
 
                 # Simpan vektor untuk LSTM
                 try:
-                    vector_out = {
-                        "_generated_at": datetime.now().isoformat(),
-                        "bearing_degree": float(pred.get("bearing_degree", 0.0)),
-                        "distance_km": float(pred.get("distance_km", 0.0)),
-                        "note": "Output GA based on ACO Input only"
-                    }
+                    if ga_vectors:
+                        vector_out = {
+                            "_generated_at": datetime.now().isoformat(),
+                            "bearing_degree": ga_vectors[0]["bearing_degree"],
+                            "distance_km": ga_vectors[0]["distance_km"],
+                            "note": "Representative GA vector (first ACO node)"
+                        }
+
                     with open(os.path.join(self.output_dir, "ga_vector.json"), "w", encoding="utf-8") as vf:
                         json.dump(vector_out, vf, indent=2)
                 except Exception as e:
@@ -993,7 +1118,16 @@ class GaEngine: # GA Engine utama
                     df_aco = df_train
 
                 out_map_path = os.path.join(self.output_dir, "ga_from_aco_map.html")
-                self.visualizer.generate_map([], df_aco, pred, out_map_path)
+                self.visualizer.generate_map(
+                    best_path=[],
+                    df=df_aco,
+                    pred_info={
+                        "aco_center_lat": df_aco["EQ_Lintang"].mean(),
+                        "aco_center_lon": df_aco["EQ_Bujur"].mean()
+                    },
+                    out_path=out_map_path,
+                    ga_vectors=ga_vectors
+                )
 
                 logger.info("=== GA ENGINE COMPLETE (ACO Mode) ===".center(80))
 
@@ -1023,7 +1157,8 @@ class GaEngine: # GA Engine utama
         
         # --- FIX 2: Pass 'clean_df' sebagai argumen ---
         # Ini mengatasi error TypeError: missing 1 required positional argument: 'df_train'
-        best_idx, log_df, hof = evo.run(clean_df)
+        best_idx, log_df, hof = evo.run()
+
         
         # Clean indices
         if isinstance(best_idx, tuple): best_idx = list(best_idx)
