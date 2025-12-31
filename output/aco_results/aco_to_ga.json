@@ -6,7 +6,7 @@
     "angle_deg": 114.0,
     "direction": "SE"
   },
-  "_ga_generated_at": "2025-12-31T15:55:04.793433",
+  "_ga_generated_at": "2025-12-31T17:00:59.728508",
   "ga_path": [
     {
       "from_aco": 0,
@@ -124,7 +124,7 @@
     },
     {
       "from_aco": 19,
-      "angle_deg": 301.0,
+      "angle_deg": 293.0,
       "direction": "NW",
       "distance_km": 3.91755631744768
     },
