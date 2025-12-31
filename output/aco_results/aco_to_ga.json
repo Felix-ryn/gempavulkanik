@@ -1,12 +1,12 @@
 {
-  "center_lat": -7.973332055495512,
-  "center_lon": 114.16964973942741,
-  "impact_area_km2": 133.93,
+  "center_lat": -7.972222222222222,
+  "center_lon": 114.1711111111111,
+  "impact_area_km2": 93.01,
   "next_event": {
     "angle_deg": 77.10276203662858,
     "direction": "E"
   },
-  "_ga_generated_at": "2025-12-31T18:20:01.737416",
+  "_ga_generated_at": "2025-12-31T19:57:32.732344",
   "ga_path": [
     {
       "from_aco": 0,
@@ -46,13 +46,13 @@
     },
     {
       "from_aco": 6,
-      "angle_deg": 196.0,
+      "angle_deg": 179.0,
       "direction": "S",
       "distance_km": 3.91755631744768
     },
     {
       "from_aco": 7,
-      "angle_deg": 196.0,
+      "angle_deg": 179.0,
       "direction": "S",
       "distance_km": 3.91755631744768
     },
@@ -118,13 +118,13 @@
     },
     {
       "from_aco": 18,
-      "angle_deg": 0.0,
-      "direction": "N",
+      "angle_deg": 102.0,
+      "direction": "E",
       "distance_km": 3.91755631744768
     },
     {
       "from_aco": 19,
-      "angle_deg": 301.0,
+      "angle_deg": 293.0,
       "direction": "NW",
       "distance_km": 3.91755631744768
     },

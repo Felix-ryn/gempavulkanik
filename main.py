@@ -1045,14 +1045,19 @@ def build_dashboard_context(output_dir: Path) -> dict:
         if p_json.exists():
             try:
                 mj = json.loads(p_json.read_text(encoding="utf-8"))
-                # convert metrics json to a small HTML table (reuse existing style)
                 rows = ["<table>"]
                 for k, v in mj.items():
-                    rows.append(f"<tr><th style='text-align:left;padding:6px'>{k}</th><td style='padding:6px'>{v}</td></tr>")
+                    if k == "roc_auc":
+                        continue   # ⬅️ INI YANG MENGHILANGKAN roc_auc
+                    rows.append(
+                        f"<tr><th style='text-align:left;padding:6px'>{k}</th>"
+                        f"<td style='padding:6px'>{v}</td></tr>"
+                    )
                 rows.append("</table>")
                 ctx["NB_METRICS_HTML"] = "\n".join(rows)
             except Exception:
                 ctx["NB_METRICS_HTML"] = "<em>Metrics JSON exists but failed to parse</em>"
+
         if p_report.exists():
             try:
                 ctx["NB_REPORT_STR"] = p_report.read_text(encoding="utf-8")

@@ -17,7 +17,7 @@
             <meta name="viewport" content="width=device-width,
                 initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
             <style>
-                #map_d2a9de9564902159984ec38a15355fa9 {
+                #map_e4c9fa294ca38ebc63fb58219b6a3381 {
                     position: relative;
                     width: 100.0%;
                     height: 100.0%;
@@ -54,16 +54,16 @@
 <body>
     
     
-            <div class="folium-map" id="map_d2a9de9564902159984ec38a15355fa9" ></div>
+            <div class="folium-map" id="map_e4c9fa294ca38ebc63fb58219b6a3381" ></div>
         
 </body>
 <script>
     
     
-            var map_d2a9de9564902159984ec38a15355fa9 = L.map(
-                "map_d2a9de9564902159984ec38a15355fa9",
+            var map_e4c9fa294ca38ebc63fb58219b6a3381 = L.map(
+                "map_e4c9fa294ca38ebc63fb58219b6a3381",
                 {
-                    center: [-7.971904761904763, 114.04285714285714],
+                    center: [-7.972222222222222, 114.1711111111111],
                     crs: L.CRS.EPSG3857,
                     ...{
   "zoom": 6,
@@ -78,7 +78,7 @@
 
         
     
-            var tile_layer_40408b8c1d8bd0602077b61584134429 = L.tileLayer(
+            var tile_layer_e80ea6ef51f334a407ab75ef039d2273 = L.tileLayer(
                 "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
                 {
   "minZoom": 0,
@@ -95,616 +95,268 @@
             );
         
     
-            tile_layer_40408b8c1d8bd0602077b61584134429.addTo(map_d2a9de9564902159984ec38a15355fa9);
+            tile_layer_e80ea6ef51f334a407ab75ef039d2273.addTo(map_e4c9fa294ca38ebc63fb58219b6a3381);
         
     
-            var circle_df765ef7da61af859e0feb22bdb3068e = L.circle(
-                [-8.01, 114.18],
-                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 5877.254504294056, "stroke": true, "weight": 1.5}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
+            var circle_ccd3fe75197e0260dea4944b854f67c8 = L.circle(
+                [-8.0, 114.19],
+                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3279.405314694293, "stroke": true, "weight": 1.5}
+            ).addTo(map_e4c9fa294ca38ebc63fb58219b6a3381);
         
     
-        var popup_867a2310dabe8528b99e39ae0b727424 = L.popup({
+        var popup_3fe1ae4e1c6920a063192804bdb6c7ed = L.popup({
   "maxWidth": 320,
 });
 
         
             
-                var html_b712c1eafd525cfbc2025eff75d56a5f = $(`<div id="html_b712c1eafd525cfbc2025eff75d56a5f" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-09 22:47:00<br>                 <b>Lokasi (Estimasi):</b> Lat -8.01, Lon 114.18<br>                 <b>Magnitudo:</b> 2.9<br>                 <b>Kedalaman:</b> 17 km<br>                 <b>Radius Prediksi:</b> 5.88 km<br>                 <b>Risk Score (0–1):</b> 0.9450<br>                 <b>Risk Index (0–100):</b> 94.50                 </div>`)[0];
-                popup_867a2310dabe8528b99e39ae0b727424.setContent(html_b712c1eafd525cfbc2025eff75d56a5f);
+                var html_dea938e3663ffcf986da83b5be690bba = $(`<div id="html_dea938e3663ffcf986da83b5be690bba" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-12 03:22:00<br>                 <b>Lokasi (Estimasi):</b> Lat -8.00, Lon 114.19<br>                 <b>Magnitudo:</b> 2.1<br>                 <b>Kedalaman:</b> 11 km<br>                 <b>Radius Prediksi:</b> 3.28 km<br>                 <b>Risk Score (0–1):</b> 0.5000<br>                 <b>Risk Index (0–100):</b> 50.00                 </div>`)[0];
+                popup_3fe1ae4e1c6920a063192804bdb6c7ed.setContent(html_dea938e3663ffcf986da83b5be690bba);
             
         
 
-        circle_df765ef7da61af859e0feb22bdb3068e.bindPopup(popup_867a2310dabe8528b99e39ae0b727424)
+        circle_ccd3fe75197e0260dea4944b854f67c8.bindPopup(popup_3fe1ae4e1c6920a063192804bdb6c7ed)
         ;
 
         
     
     
-            var circle_marker_33b7985e6ff2af55476e0213256bca5e = L.circleMarker(
-                [-8.01, 114.18],
+            var circle_marker_2f31bf6b9b926c063151b8d60911e599 = L.circleMarker(
+                [-8.0, 114.19],
                 {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 1.0, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3, "stroke": true, "weight": 3}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
+            ).addTo(map_e4c9fa294ca38ebc63fb58219b6a3381);
         
     
-            var circle_e59ef34a43e5db736f7ad4d42cb8728c = L.circle(
-                [-8.01, 114.18],
-                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 5889.5999392104695, "stroke": true, "weight": 1.5}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
+            var circle_4c78042ebbac0712bc41f56c76eb88b2 = L.circle(
+                [-8.0, 114.19],
+                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3279.405314694293, "stroke": true, "weight": 1.5}
+            ).addTo(map_e4c9fa294ca38ebc63fb58219b6a3381);
         
     
-        var popup_f64960d44d89fc7ca451fcc0d933fe5f = L.popup({
+        var popup_22530890330bfe5d8ee122e17a05bbab = L.popup({
   "maxWidth": 320,
 });
 
         
             
-                var html_2f695c2ca4128bae187d3b079d8bf032 = $(`<div id="html_2f695c2ca4128bae187d3b079d8bf032" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-09 22:47:00<br>                 <b>Lokasi (Estimasi):</b> Lat -8.01, Lon 114.18<br>                 <b>Magnitudo:</b> 2.9<br>                 <b>Kedalaman:</b> 17 km<br>                 <b>Radius Prediksi:</b> 5.89 km<br>                 <b>Risk Score (0–1):</b> 0.9512<br>                 <b>Risk Index (0–100):</b> 95.12                 </div>`)[0];
-                popup_f64960d44d89fc7ca451fcc0d933fe5f.setContent(html_2f695c2ca4128bae187d3b079d8bf032);
+                var html_6d95c5b4e3e7c672b83f1efcc61a090f = $(`<div id="html_6d95c5b4e3e7c672b83f1efcc61a090f" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-12 03:22:00<br>                 <b>Lokasi (Estimasi):</b> Lat -8.00, Lon 114.19<br>                 <b>Magnitudo:</b> 2.1<br>                 <b>Kedalaman:</b> 11 km<br>                 <b>Radius Prediksi:</b> 3.28 km<br>                 <b>Risk Score (0–1):</b> 0.5000<br>                 <b>Risk Index (0–100):</b> 50.00                 </div>`)[0];
+                popup_22530890330bfe5d8ee122e17a05bbab.setContent(html_6d95c5b4e3e7c672b83f1efcc61a090f);
             
         
 
-        circle_e59ef34a43e5db736f7ad4d42cb8728c.bindPopup(popup_f64960d44d89fc7ca451fcc0d933fe5f)
+        circle_4c78042ebbac0712bc41f56c76eb88b2.bindPopup(popup_22530890330bfe5d8ee122e17a05bbab)
         ;
 
         
     
     
-            var circle_marker_89018d5dfc47dc2ab03802af0e4702b6 = L.circleMarker(
-                [-8.01, 114.18],
+            var circle_marker_3ccb4218ea034c05d67a44551caa4018 = L.circleMarker(
+                [-8.0, 114.19],
                 {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 1.0, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3, "stroke": true, "weight": 3}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
+            ).addTo(map_e4c9fa294ca38ebc63fb58219b6a3381);
         
     
-            var circle_cf2ff7cafe5e6e8e3ad8b8f495ae6fd9 = L.circle(
-                [-7.96, 112.77],
-                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3000.0, "stroke": true, "weight": 1.5}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-        var popup_c4db8fafc3beeb177476c1b99da88770 = L.popup({
-  "maxWidth": 320,
-});
-
-        
-            
-                var html_29a156cc9380a5475a13d236bd7d1726 = $(`<div id="html_29a156cc9380a5475a13d236bd7d1726" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-09 23:16:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.96, Lon 112.77<br>                 <b>Magnitudo:</b> 2.1<br>                 <b>Kedalaman:</b> 8 km<br>                 <b>Radius Prediksi:</b> 3.00 km<br>                 <b>Risk Score (0–1):</b> 0.0001<br>                 <b>Risk Index (0–100):</b> 0.01                 </div>`)[0];
-                popup_c4db8fafc3beeb177476c1b99da88770.setContent(html_29a156cc9380a5475a13d236bd7d1726);
-            
-        
-
-        circle_cf2ff7cafe5e6e8e3ad8b8f495ae6fd9.bindPopup(popup_c4db8fafc3beeb177476c1b99da88770)
-        ;
-
-        
-    
-    
-            var circle_marker_00256c37a124b8c9b50f1a2da72f1bee = L.circleMarker(
-                [-7.96, 112.77],
-                {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 1.0, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3, "stroke": true, "weight": 3}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-            var circle_e52465d15f2a48a70e2b3df1a235b58c = L.circle(
-                [-7.96, 112.77],
-                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3000.0, "stroke": true, "weight": 1.5}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-        var popup_55df92953d26e6e0d41cee3689d64822 = L.popup({
-  "maxWidth": 320,
-});
-
-        
-            
-                var html_e12ea979a2535f8dc4811a27df20c592 = $(`<div id="html_e12ea979a2535f8dc4811a27df20c592" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-09 23:16:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.96, Lon 112.77<br>                 <b>Magnitudo:</b> 2.1<br>                 <b>Kedalaman:</b> 8 km<br>                 <b>Radius Prediksi:</b> 3.00 km<br>                 <b>Risk Score (0–1):</b> 0.0598<br>                 <b>Risk Index (0–100):</b> 5.98                 </div>`)[0];
-                popup_55df92953d26e6e0d41cee3689d64822.setContent(html_e12ea979a2535f8dc4811a27df20c592);
-            
-        
-
-        circle_e52465d15f2a48a70e2b3df1a235b58c.bindPopup(popup_55df92953d26e6e0d41cee3689d64822)
-        ;
-
-        
-    
-    
-            var circle_marker_4c3074ad723c9861f433639436fadc1d = L.circleMarker(
-                [-7.96, 112.77],
-                {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 1.0, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3, "stroke": true, "weight": 3}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-            var circle_b29c31017542dd02de231419566e3472 = L.circle(
-                [-7.98, 114.15],
-                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3994.1836577859403, "stroke": true, "weight": 1.5}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-        var popup_c790586b18c0d1b672de49de492298e4 = L.popup({
-  "maxWidth": 320,
-});
-
-        
-            
-                var html_c793f09c466f47171530351d081fd942 = $(`<div id="html_c793f09c466f47171530351d081fd942" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-11 03:22:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.98, Lon 114.15<br>                 <b>Magnitudo:</b> 2.2<br>                 <b>Kedalaman:</b> 4 km<br>                 <b>Radius Prediksi:</b> 3.99 km<br>                 <b>Risk Score (0–1):</b> 0.8662<br>                 <b>Risk Index (0–100):</b> 86.62                 </div>`)[0];
-                popup_c790586b18c0d1b672de49de492298e4.setContent(html_c793f09c466f47171530351d081fd942);
-            
-        
-
-        circle_b29c31017542dd02de231419566e3472.bindPopup(popup_c790586b18c0d1b672de49de492298e4)
-        ;
-
-        
-    
-    
-            var circle_marker_e751025e2b52eb4940a9b7a7a27b30ed = L.circleMarker(
-                [-7.98, 114.15],
-                {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 1.0, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3, "stroke": true, "weight": 3}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-            var circle_c321a57d059db1b61fd01e63434cba80 = L.circle(
-                [-7.98, 114.15],
-                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3875.5240590609387, "stroke": true, "weight": 1.5}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-        var popup_2613bbb51ec448c954438a3efbc107ae = L.popup({
-  "maxWidth": 320,
-});
-
-        
-            
-                var html_66381f3abd0fdfb42f12eccb679f5165 = $(`<div id="html_66381f3abd0fdfb42f12eccb679f5165" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-11 03:22:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.98, Lon 114.15<br>                 <b>Magnitudo:</b> 2.2<br>                 <b>Kedalaman:</b> 4 km<br>                 <b>Radius Prediksi:</b> 3.88 km<br>                 <b>Risk Score (0–1):</b> 0.7811<br>                 <b>Risk Index (0–100):</b> 78.11                 </div>`)[0];
-                popup_2613bbb51ec448c954438a3efbc107ae.setContent(html_66381f3abd0fdfb42f12eccb679f5165);
-            
-        
-
-        circle_c321a57d059db1b61fd01e63434cba80.bindPopup(popup_2613bbb51ec448c954438a3efbc107ae)
-        ;
-
-        
-    
-    
-            var circle_marker_499585476731c0226ebe46cad5baf178 = L.circleMarker(
-                [-7.98, 114.15],
-                {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 1.0, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3, "stroke": true, "weight": 3}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-            var circle_d38a905e4866c427ff1665187be6104f = L.circle(
-                [-7.92, 114.16],
-                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4065.678888822081, "stroke": true, "weight": 1.5}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-        var popup_e25c1e6e8deb27c082fdc8a0c9888e78 = L.popup({
-  "maxWidth": 320,
-});
-
-        
-            
-                var html_1d1542dc0304e21caa1ab296dd4bda0b = $(`<div id="html_1d1542dc0304e21caa1ab296dd4bda0b" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-11 22:02:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.92, Lon 114.16<br>                 <b>Magnitudo:</b> 2.2<br>                 <b>Kedalaman:</b> 6 km<br>                 <b>Radius Prediksi:</b> 4.07 km<br>                 <b>Risk Score (0–1):</b> 0.9175<br>                 <b>Risk Index (0–100):</b> 91.75                 </div>`)[0];
-                popup_e25c1e6e8deb27c082fdc8a0c9888e78.setContent(html_1d1542dc0304e21caa1ab296dd4bda0b);
-            
-        
-
-        circle_d38a905e4866c427ff1665187be6104f.bindPopup(popup_e25c1e6e8deb27c082fdc8a0c9888e78)
-        ;
-
-        
-    
-    
-            var circle_marker_33b736e034a6391a8471ffa2a10c86e7 = L.circleMarker(
-                [-7.92, 114.16],
-                {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 1.0, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3, "stroke": true, "weight": 3}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-            var circle_acc13aeb1e277811d09b530bd1ddf9cd = L.circle(
-                [-7.92, 114.16],
-                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4012.973378366607, "stroke": true, "weight": 1.5}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-        var popup_9497db4801d7daf7c968f9532250658e = L.popup({
-  "maxWidth": 320,
-});
-
-        
-            
-                var html_ab6bb7aca991f8b1950fbd89af406725 = $(`<div id="html_ab6bb7aca991f8b1950fbd89af406725" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-11 22:02:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.92, Lon 114.16<br>                 <b>Magnitudo:</b> 2.2<br>                 <b>Kedalaman:</b> 6 km<br>                 <b>Radius Prediksi:</b> 4.01 km<br>                 <b>Risk Score (0–1):</b> 0.8797<br>                 <b>Risk Index (0–100):</b> 87.97                 </div>`)[0];
-                popup_9497db4801d7daf7c968f9532250658e.setContent(html_ab6bb7aca991f8b1950fbd89af406725);
-            
-        
-
-        circle_acc13aeb1e277811d09b530bd1ddf9cd.bindPopup(popup_9497db4801d7daf7c968f9532250658e)
-        ;
-
-        
-    
-    
-            var circle_marker_a6beca2a4b0303456f1ca7fa0780e793 = L.circleMarker(
-                [-7.92, 114.16],
-                {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 1.0, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3, "stroke": true, "weight": 3}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-            var circle_4b92e8eeffd5484b021d918b0d451b30 = L.circle(
-                [-7.98, 114.18],
-                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 5802.792935549129, "stroke": true, "weight": 1.5}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-        var popup_ba68687daf51c8a64494cd5aea6d84dd = L.popup({
-  "maxWidth": 320,
-});
-
-        
-            
-                var html_805b091d49c717052206dc327c89a500 = $(`<div id="html_805b091d49c717052206dc327c89a500" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-12 05:19:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.98, Lon 114.18<br>                 <b>Magnitudo:</b> 3.0<br>                 <b>Kedalaman:</b> 13 km<br>                 <b>Radius Prediksi:</b> 5.80 km<br>                 <b>Risk Score (0–1):</b> 0.7823<br>                 <b>Risk Index (0–100):</b> 78.23                 </div>`)[0];
-                popup_ba68687daf51c8a64494cd5aea6d84dd.setContent(html_805b091d49c717052206dc327c89a500);
-            
-        
-
-        circle_4b92e8eeffd5484b021d918b0d451b30.bindPopup(popup_ba68687daf51c8a64494cd5aea6d84dd)
-        ;
-
-        
-    
-    
-            var circle_marker_4a213360c9d466a4594afd455725a924 = L.circleMarker(
-                [-7.98, 114.18],
-                {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 1.0, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3, "stroke": true, "weight": 3}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-            var circle_3ce7cfb87b5b8945b2a21b4bc49de72b = L.circle(
-                [-7.98, 114.18],
-                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 6002.316294436578, "stroke": true, "weight": 1.5}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-        var popup_b167a48c7cb57506cc15004815009525 = L.popup({
-  "maxWidth": 320,
-});
-
-        
-            
-                var html_1860d6363c7be01947d9709c5d0a3bc6 = $(`<div id="html_1860d6363c7be01947d9709c5d0a3bc6" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-12 05:19:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.98, Lon 114.18<br>                 <b>Magnitudo:</b> 3.0<br>                 <b>Kedalaman:</b> 13 km<br>                 <b>Radius Prediksi:</b> 6.00 km<br>                 <b>Risk Score (0–1):</b> 0.8780<br>                 <b>Risk Index (0–100):</b> 87.80                 </div>`)[0];
-                popup_b167a48c7cb57506cc15004815009525.setContent(html_1860d6363c7be01947d9709c5d0a3bc6);
-            
-        
-
-        circle_3ce7cfb87b5b8945b2a21b4bc49de72b.bindPopup(popup_b167a48c7cb57506cc15004815009525)
-        ;
-
-        
-    
-    
-            var circle_marker_ec10a9171f72163a616e76d20546bccc = L.circleMarker(
-                [-7.98, 114.18],
-                {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 1.0, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3, "stroke": true, "weight": 3}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-            var circle_0abf57779ab9a2ffc923ddd2cb7d7739 = L.circle(
+            var circle_23d3de109e7ca8ca730a8272dc8adb4a = L.circle(
                 [-7.97, 114.13],
-                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4057.944861025488, "stroke": true, "weight": 1.5}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
+                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3483.850403030317, "stroke": true, "weight": 1.5}
+            ).addTo(map_e4c9fa294ca38ebc63fb58219b6a3381);
         
     
-        var popup_67e42442809e9bdf5a17b6a5ec47c0f9 = L.popup({
+        var popup_3a84cfb834abf4e726a846beb9b3145f = L.popup({
   "maxWidth": 320,
 });
 
         
             
-                var html_d96040ceeb149afb73a56fb0a8006ed3 = $(`<div id="html_d96040ceeb149afb73a56fb0a8006ed3" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-12 05:41:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.97, Lon 114.13<br>                 <b>Magnitudo:</b> 2.2<br>                 <b>Kedalaman:</b> 6 km<br>                 <b>Radius Prediksi:</b> 4.06 km<br>                 <b>Risk Score (0–1):</b> 0.9120<br>                 <b>Risk Index (0–100):</b> 91.20                 </div>`)[0];
-                popup_67e42442809e9bdf5a17b6a5ec47c0f9.setContent(html_d96040ceeb149afb73a56fb0a8006ed3);
+                var html_cb4f01a904bd519a28e4c5c6de6f9fd9 = $(`<div id="html_cb4f01a904bd519a28e4c5c6de6f9fd9" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-12 05:41:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.97, Lon 114.13<br>                 <b>Magnitudo:</b> 2.2<br>                 <b>Kedalaman:</b> 6 km<br>                 <b>Radius Prediksi:</b> 3.48 km<br>                 <b>Risk Score (0–1):</b> 0.5000<br>                 <b>Risk Index (0–100):</b> 50.00                 </div>`)[0];
+                popup_3a84cfb834abf4e726a846beb9b3145f.setContent(html_cb4f01a904bd519a28e4c5c6de6f9fd9);
             
         
 
-        circle_0abf57779ab9a2ffc923ddd2cb7d7739.bindPopup(popup_67e42442809e9bdf5a17b6a5ec47c0f9)
+        circle_23d3de109e7ca8ca730a8272dc8adb4a.bindPopup(popup_3a84cfb834abf4e726a846beb9b3145f)
         ;
 
         
     
     
-            var circle_marker_6d3388b17b38cfc8ad1c2d0954630956 = L.circleMarker(
+            var circle_marker_4f89de8193a5d60081803bc74d1cc786 = L.circleMarker(
                 [-7.97, 114.13],
                 {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 1.0, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3, "stroke": true, "weight": 3}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
+            ).addTo(map_e4c9fa294ca38ebc63fb58219b6a3381);
         
     
-            var circle_f838dd0609e17509c872cea84ff33157 = L.circle(
+            var circle_25f6e1beaea2478b87dc1d8527791525 = L.circle(
                 [-7.91, 114.14],
-                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3156.2140495018834, "stroke": true, "weight": 1.5}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
+                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3077.8610333622905, "stroke": true, "weight": 1.5}
+            ).addTo(map_e4c9fa294ca38ebc63fb58219b6a3381);
         
     
-        var popup_4cb891f85debfadb39f3df9157d149e7 = L.popup({
+        var popup_5f2972bf793fe9c0d0702edc438f6b86 = L.popup({
   "maxWidth": 320,
 });
 
         
             
-                var html_7e6f8ba6fc8802a6f45b8d18a049b4f1 = $(`<div id="html_7e6f8ba6fc8802a6f45b8d18a049b4f1" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-12 18:16:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.91, Lon 114.14<br>                 <b>Magnitudo:</b> 2.0<br>                 <b>Kedalaman:</b> 14 km<br>                 <b>Radius Prediksi:</b> 3.16 km<br>                 <b>Risk Score (0–1):</b> 0.5636<br>                 <b>Risk Index (0–100):</b> 56.36                 </div>`)[0];
-                popup_4cb891f85debfadb39f3df9157d149e7.setContent(html_7e6f8ba6fc8802a6f45b8d18a049b4f1);
+                var html_4ac5f0214a7a2366b7dc9f7fc05428c7 = $(`<div id="html_4ac5f0214a7a2366b7dc9f7fc05428c7" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-12 18:16:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.91, Lon 114.14<br>                 <b>Magnitudo:</b> 2.0<br>                 <b>Kedalaman:</b> 14 km<br>                 <b>Radius Prediksi:</b> 3.08 km<br>                 <b>Risk Score (0–1):</b> 0.5000<br>                 <b>Risk Index (0–100):</b> 50.00                 </div>`)[0];
+                popup_5f2972bf793fe9c0d0702edc438f6b86.setContent(html_4ac5f0214a7a2366b7dc9f7fc05428c7);
             
         
 
-        circle_f838dd0609e17509c872cea84ff33157.bindPopup(popup_4cb891f85debfadb39f3df9157d149e7)
+        circle_25f6e1beaea2478b87dc1d8527791525.bindPopup(popup_5f2972bf793fe9c0d0702edc438f6b86)
         ;
 
         
     
     
-            var circle_marker_35cb96f8d6dc1f020cd6c984378da5ae = L.circleMarker(
+            var circle_marker_8c603b8c6b51176df3f06cb55f72ee87 = L.circleMarker(
                 [-7.91, 114.14],
                 {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 1.0, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3, "stroke": true, "weight": 3}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
+            ).addTo(map_e4c9fa294ca38ebc63fb58219b6a3381);
         
     
-            var circle_f7b379031f899a747ba3fd832f2e3739 = L.circle(
+            var circle_7f20e984b3655d16a7ea98b58712fc5c = L.circle(
                 [-7.98, 114.24],
-                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 6529.222387025386, "stroke": true, "weight": 1.5}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
+                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 5441.018655854488, "stroke": true, "weight": 1.5}
+            ).addTo(map_e4c9fa294ca38ebc63fb58219b6a3381);
         
     
-        var popup_fa896b30f4ffdb2029994959021774d9 = L.popup({
+        var popup_3fe12c3e1f3261d45dffc2230d0c812e = L.popup({
   "maxWidth": 320,
 });
 
         
             
-                var html_a90d5fb60d2e06bf5b4eea7c39a5c652 = $(`<div id="html_a90d5fb60d2e06bf5b4eea7c39a5c652" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-13 15:03:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.98, Lon 114.24<br>                 <b>Magnitudo:</b> 3.1<br>                 <b>Kedalaman:</b> 10 km<br>                 <b>Radius Prediksi:</b> 6.53 km<br>                 <b>Risk Score (0–1):</b> 1.0000<br>                 <b>Risk Index (0–100):</b> 100.00                 </div>`)[0];
-                popup_fa896b30f4ffdb2029994959021774d9.setContent(html_a90d5fb60d2e06bf5b4eea7c39a5c652);
+                var html_846e275740683a8e1a6c484d6cfc8f00 = $(`<div id="html_846e275740683a8e1a6c484d6cfc8f00" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-13 15:03:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.98, Lon 114.24<br>                 <b>Magnitudo:</b> 3.1<br>                 <b>Kedalaman:</b> 10 km<br>                 <b>Radius Prediksi:</b> 5.44 km<br>                 <b>Risk Score (0–1):</b> 0.5000<br>                 <b>Risk Index (0–100):</b> 50.00                 </div>`)[0];
+                popup_3fe12c3e1f3261d45dffc2230d0c812e.setContent(html_846e275740683a8e1a6c484d6cfc8f00);
             
         
 
-        circle_f7b379031f899a747ba3fd832f2e3739.bindPopup(popup_fa896b30f4ffdb2029994959021774d9)
+        circle_7f20e984b3655d16a7ea98b58712fc5c.bindPopup(popup_3fe12c3e1f3261d45dffc2230d0c812e)
         ;
 
         
     
     
-            var circle_marker_ac3dfacd4815becea3b1aaecb0aea873 = L.circleMarker(
+            var circle_marker_e6620804a24b9dae240dfcae793ee2a1 = L.circleMarker(
                 [-7.98, 114.24],
                 {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 1.0, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3, "stroke": true, "weight": 3}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
+            ).addTo(map_e4c9fa294ca38ebc63fb58219b6a3381);
         
     
-            var circle_66442cdbfdc240e1976ce865a46564e7 = L.circle(
-                [-7.99, 114.21],
-                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 5063.326569954734, "stroke": true, "weight": 1.5}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-        var popup_737c918242f5f0507bcad38a73667302 = L.popup({
-  "maxWidth": 320,
-});
-
-        
-            
-                var html_e412f4749471b1276bfdba94aec2d09a = $(`<div id="html_e412f4749471b1276bfdba94aec2d09a" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-13 15:07:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.99, Lon 114.21<br>                 <b>Magnitudo:</b> 2.9<br>                 <b>Kedalaman:</b> 5 km<br>                 <b>Radius Prediksi:</b> 5.06 km<br>                 <b>Risk Score (0–1):</b> 0.5372<br>                 <b>Risk Index (0–100):</b> 53.72                 </div>`)[0];
-                popup_737c918242f5f0507bcad38a73667302.setContent(html_e412f4749471b1276bfdba94aec2d09a);
-            
-        
-
-        circle_66442cdbfdc240e1976ce865a46564e7.bindPopup(popup_737c918242f5f0507bcad38a73667302)
-        ;
-
-        
-    
-    
-            var circle_marker_ff5feebf71ac894cb81772968af89b90 = L.circleMarker(
-                [-7.99, 114.21],
-                {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 1.0, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3, "stroke": true, "weight": 3}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-            var circle_cc96066abf49b7f1f0c3c73c20695062 = L.circle(
-                [-7.99, 114.21],
-                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 5304.787401220268, "stroke": true, "weight": 1.5}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-        var popup_48e81dff80b9685042cc1162575323f5 = L.popup({
-  "maxWidth": 320,
-});
-
-        
-            
-                var html_335ac3fbf72249bd084f69cfc1cd271f = $(`<div id="html_335ac3fbf72249bd084f69cfc1cd271f" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-13 15:07:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.99, Lon 114.21<br>                 <b>Magnitudo:</b> 2.9<br>                 <b>Kedalaman:</b> 5 km<br>                 <b>Radius Prediksi:</b> 5.30 km<br>                 <b>Risk Score (0–1):</b> 0.6582<br>                 <b>Risk Index (0–100):</b> 65.82                 </div>`)[0];
-                popup_48e81dff80b9685042cc1162575323f5.setContent(html_335ac3fbf72249bd084f69cfc1cd271f);
-            
-        
-
-        circle_cc96066abf49b7f1f0c3c73c20695062.bindPopup(popup_48e81dff80b9685042cc1162575323f5)
-        ;
-
-        
-    
-    
-            var circle_marker_80c374e5662df4cb294c5d0bc6e85dcf = L.circleMarker(
-                [-7.99, 114.21],
-                {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 1.0, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3, "stroke": true, "weight": 3}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-            var circle_7163d11c39d391d65b89e6adbffb37cb = L.circle(
-                [-7.99, 114.22],
-                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 5018.351325334156, "stroke": true, "weight": 1.5}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-        var popup_41873f82727764d50308a9ae850242ca = L.popup({
-  "maxWidth": 320,
-});
-
-        
-            
-                var html_bb2dbba757bcab428f3c0cf90fc7ec86 = $(`<div id="html_bb2dbba757bcab428f3c0cf90fc7ec86" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-13 23:27:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.99, Lon 114.22<br>                 <b>Magnitudo:</b> 2.9<br>                 <b>Kedalaman:</b> 5 km<br>                 <b>Radius Prediksi:</b> 5.02 km<br>                 <b>Risk Score (0–1):</b> 0.5146<br>                 <b>Risk Index (0–100):</b> 51.46                 </div>`)[0];
-                popup_41873f82727764d50308a9ae850242ca.setContent(html_bb2dbba757bcab428f3c0cf90fc7ec86);
-            
-        
-
-        circle_7163d11c39d391d65b89e6adbffb37cb.bindPopup(popup_41873f82727764d50308a9ae850242ca)
-        ;
-
-        
-    
-    
-            var circle_marker_9ca96cd168db45f0cd6eae24cf812d9f = L.circleMarker(
-                [-7.99, 114.22],
-                {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 1.0, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3, "stroke": true, "weight": 3}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-            var circle_8ee704e817eb7f6d3849c71dc2c126c7 = L.circle(
-                [-7.99, 114.22],
-                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4979.789369785192, "stroke": true, "weight": 1.5}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-        var popup_21d87272f6a188a9683151ff1890098a = L.popup({
-  "maxWidth": 320,
-});
-
-        
-            
-                var html_7909a7dee629da41e43adf21c25bbedd = $(`<div id="html_7909a7dee629da41e43adf21c25bbedd" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-13 23:27:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.99, Lon 114.22<br>                 <b>Magnitudo:</b> 2.9<br>                 <b>Kedalaman:</b> 5 km<br>                 <b>Radius Prediksi:</b> 4.98 km<br>                 <b>Risk Score (0–1):</b> 0.4953<br>                 <b>Risk Index (0–100):</b> 49.53                 </div>`)[0];
-                popup_21d87272f6a188a9683151ff1890098a.setContent(html_7909a7dee629da41e43adf21c25bbedd);
-            
-        
-
-        circle_8ee704e817eb7f6d3849c71dc2c126c7.bindPopup(popup_21d87272f6a188a9683151ff1890098a)
-        ;
-
-        
-    
-    
-            var circle_marker_373c791a7ca06cb020f0db5594627af3 = L.circleMarker(
-                [-7.99, 114.22],
-                {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 1.0, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3, "stroke": true, "weight": 3}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
-        
-    
-            var circle_1b4e462d1052d445b22a745746ce4ce2 = L.circle(
+            var circle_c63dec05031f587f3b5bef4c1cb36f14 = L.circle(
                 [-7.97, 114.16],
-                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4113.867288164345, "stroke": true, "weight": 1.5}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
+                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3691.103301765151, "stroke": true, "weight": 1.5}
+            ).addTo(map_e4c9fa294ca38ebc63fb58219b6a3381);
         
     
-        var popup_94053c798346ec3ea1f1a0095bca87f8 = L.popup({
+        var popup_cc0dc02c61319034f98438be5c6094f4 = L.popup({
   "maxWidth": 320,
 });
 
         
             
-                var html_5b90ca393de65f71f6609704b23a2c09 = $(`<div id="html_5b90ca393de65f71f6609704b23a2c09" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-13 23:54:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.97, Lon 114.16<br>                 <b>Magnitudo:</b> 2.3<br>                 <b>Kedalaman:</b> 6 km<br>                 <b>Radius Prediksi:</b> 4.11 km<br>                 <b>Risk Score (0–1):</b> 0.7863<br>                 <b>Risk Index (0–100):</b> 78.63                 </div>`)[0];
-                popup_94053c798346ec3ea1f1a0095bca87f8.setContent(html_5b90ca393de65f71f6609704b23a2c09);
+                var html_537a586b72aa6c94ed63f73b2fec6799 = $(`<div id="html_537a586b72aa6c94ed63f73b2fec6799" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-13 23:54:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.97, Lon 114.16<br>                 <b>Magnitudo:</b> 2.3<br>                 <b>Kedalaman:</b> 6 km<br>                 <b>Radius Prediksi:</b> 3.69 km<br>                 <b>Risk Score (0–1):</b> 0.5000<br>                 <b>Risk Index (0–100):</b> 50.00                 </div>`)[0];
+                popup_cc0dc02c61319034f98438be5c6094f4.setContent(html_537a586b72aa6c94ed63f73b2fec6799);
             
         
 
-        circle_1b4e462d1052d445b22a745746ce4ce2.bindPopup(popup_94053c798346ec3ea1f1a0095bca87f8)
+        circle_c63dec05031f587f3b5bef4c1cb36f14.bindPopup(popup_cc0dc02c61319034f98438be5c6094f4)
         ;
 
         
     
     
-            var circle_marker_ef8d137b63708c1a573705e49c52c3f4 = L.circleMarker(
+            var circle_marker_3a893cb6c6b40ca2215026f762045910 = L.circleMarker(
                 [-7.97, 114.16],
                 {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 1.0, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3, "stroke": true, "weight": 3}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
+            ).addTo(map_e4c9fa294ca38ebc63fb58219b6a3381);
         
     
-            var circle_7ea9833eaaa9343cafb61e3429f56404 = L.circle(
+            var circle_9202571273b7373a7f1ddd9aaab1e23e = L.circle(
                 [-7.97, 114.15],
-                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3964.490412458913, "stroke": true, "weight": 1.5}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
+                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3483.850403030317, "stroke": true, "weight": 1.5}
+            ).addTo(map_e4c9fa294ca38ebc63fb58219b6a3381);
         
     
-        var popup_0f38a9b4d9d9f189d683b77525e363f2 = L.popup({
+        var popup_d0d2d1f29344b6a9bd56a9645ecefd6b = L.popup({
   "maxWidth": 320,
 });
 
         
             
-                var html_42b9244d62c830c81a91ed943190da5c = $(`<div id="html_42b9244d62c830c81a91ed943190da5c" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-15 00:12:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.97, Lon 114.15<br>                 <b>Magnitudo:</b> 2.2<br>                 <b>Kedalaman:</b> 11 km<br>                 <b>Radius Prediksi:</b> 3.96 km<br>                 <b>Risk Score (0–1):</b> 0.8449<br>                 <b>Risk Index (0–100):</b> 84.49                 </div>`)[0];
-                popup_0f38a9b4d9d9f189d683b77525e363f2.setContent(html_42b9244d62c830c81a91ed943190da5c);
+                var html_f510df114285eb624c0e5d2bd15b17c2 = $(`<div id="html_f510df114285eb624c0e5d2bd15b17c2" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-15 00:12:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.97, Lon 114.15<br>                 <b>Magnitudo:</b> 2.2<br>                 <b>Kedalaman:</b> 11 km<br>                 <b>Radius Prediksi:</b> 3.48 km<br>                 <b>Risk Score (0–1):</b> 0.5000<br>                 <b>Risk Index (0–100):</b> 50.00                 </div>`)[0];
+                popup_d0d2d1f29344b6a9bd56a9645ecefd6b.setContent(html_f510df114285eb624c0e5d2bd15b17c2);
             
         
 
-        circle_7ea9833eaaa9343cafb61e3429f56404.bindPopup(popup_0f38a9b4d9d9f189d683b77525e363f2)
+        circle_9202571273b7373a7f1ddd9aaab1e23e.bindPopup(popup_d0d2d1f29344b6a9bd56a9645ecefd6b)
         ;
 
         
     
     
-            var circle_marker_2e8df1d09eb41a3d47626ae36fe3d3b0 = L.circleMarker(
+            var circle_marker_6a13782765e8183742d5212bd16516e6 = L.circleMarker(
                 [-7.97, 114.15],
                 {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 1.0, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3, "stroke": true, "weight": 3}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
+            ).addTo(map_e4c9fa294ca38ebc63fb58219b6a3381);
         
     
-            var circle_3e549b773d0376ee036fb922b6006299 = L.circle(
+            var circle_c973253a5a9e71ba1637f14352cc26be = L.circle(
                 [-7.99, 114.19],
-                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 5194.653827605501, "stroke": true, "weight": 1.5}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
+                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4328.878189671251, "stroke": true, "weight": 1.5}
+            ).addTo(map_e4c9fa294ca38ebc63fb58219b6a3381);
         
     
-        var popup_cec8ce8bc0fdee7eae1128a68873a16f = L.popup({
+        var popup_303be2c1f3e82b2138e50d2d2efe5983 = L.popup({
   "maxWidth": 320,
 });
 
         
             
-                var html_7b97345607fa9647f79240ab72ac3e2d = $(`<div id="html_7b97345607fa9647f79240ab72ac3e2d" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-15 11:35:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.99, Lon 114.19<br>                 <b>Magnitudo:</b> 2.6<br>                 <b>Kedalaman:</b> 12 km<br>                 <b>Radius Prediksi:</b> 5.19 km<br>                 <b>Risk Score (0–1):</b> 1.0000<br>                 <b>Risk Index (0–100):</b> 100.00                 </div>`)[0];
-                popup_cec8ce8bc0fdee7eae1128a68873a16f.setContent(html_7b97345607fa9647f79240ab72ac3e2d);
+                var html_c37156e0342432f8cb0647fb9ff3b7b3 = $(`<div id="html_c37156e0342432f8cb0647fb9ff3b7b3" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-15 11:35:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.99, Lon 114.19<br>                 <b>Magnitudo:</b> 2.6<br>                 <b>Kedalaman:</b> 12 km<br>                 <b>Radius Prediksi:</b> 4.33 km<br>                 <b>Risk Score (0–1):</b> 0.5000<br>                 <b>Risk Index (0–100):</b> 50.00                 </div>`)[0];
+                popup_303be2c1f3e82b2138e50d2d2efe5983.setContent(html_c37156e0342432f8cb0647fb9ff3b7b3);
             
         
 
-        circle_3e549b773d0376ee036fb922b6006299.bindPopup(popup_cec8ce8bc0fdee7eae1128a68873a16f)
+        circle_c973253a5a9e71ba1637f14352cc26be.bindPopup(popup_303be2c1f3e82b2138e50d2d2efe5983)
         ;
 
         
     
     
-            var circle_marker_6e4ad514fd277bd135082d89c18b2462 = L.circleMarker(
+            var circle_marker_404b020ccbc43e36a80621f2469d456b = L.circleMarker(
                 [-7.99, 114.19],
                 {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 1.0, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3, "stroke": true, "weight": 3}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
+            ).addTo(map_e4c9fa294ca38ebc63fb58219b6a3381);
         
     
-            var circle_db875465bbbea7733be0e150e5625317 = L.circle(
+            var circle_b0da544327f5053fd36f360dd63f34cb = L.circle(
                 [-7.96, 114.15],
-                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4631.2945771321565, "stroke": true, "weight": 1.5}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
+                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.25, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4113.6943885444925, "stroke": true, "weight": 1.5}
+            ).addTo(map_e4c9fa294ca38ebc63fb58219b6a3381);
         
     
-        var popup_30efb244b191077741fcf1562f5c682d = L.popup({
+        var popup_821ef4bf774ecd38c5d3bcfacd79f72f = L.popup({
   "maxWidth": 320,
 });
 
         
             
-                var html_aaa612c0b977cc55aba101e82f0e5b32 = $(`<div id="html_aaa612c0b977cc55aba101e82f0e5b32" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-15 20:39:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.96, Lon 114.15<br>                 <b>Magnitudo:</b> 2.5<br>                 <b>Kedalaman:</b> 10 km<br>                 <b>Radius Prediksi:</b> 4.63 km<br>                 <b>Risk Score (0–1):</b> 0.8146<br>                 <b>Risk Index (0–100):</b> 81.46                 </div>`)[0];
-                popup_30efb244b191077741fcf1562f5c682d.setContent(html_aaa612c0b977cc55aba101e82f0e5b32);
+                var html_3c67d0b8243bd2af85d0092fa22b0c80 = $(`<div id="html_3c67d0b8243bd2af85d0092fa22b0c80" style="width: 100.0%; height: 100.0%;">                 <b>Tanggal Kejadian:</b> 2025-12-15 20:39:00<br>                 <b>Lokasi (Estimasi):</b> Lat -7.96, Lon 114.15<br>                 <b>Magnitudo:</b> 2.5<br>                 <b>Kedalaman:</b> 10 km<br>                 <b>Radius Prediksi:</b> 4.11 km<br>                 <b>Risk Score (0–1):</b> 0.5000<br>                 <b>Risk Index (0–100):</b> 50.00                 </div>`)[0];
+                popup_821ef4bf774ecd38c5d3bcfacd79f72f.setContent(html_3c67d0b8243bd2af85d0092fa22b0c80);
             
         
 
-        circle_db875465bbbea7733be0e150e5625317.bindPopup(popup_30efb244b191077741fcf1562f5c682d)
+        circle_b0da544327f5053fd36f360dd63f34cb.bindPopup(popup_821ef4bf774ecd38c5d3bcfacd79f72f)
         ;
 
         
     
     
-            var circle_marker_411b9b861bf0b666cc71c8db397f8555 = L.circleMarker(
+            var circle_marker_4eded8c758de4af0eaeffbf3f27d9693 = L.circleMarker(
                 [-7.96, 114.15],
                 {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 1.0, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 3, "stroke": true, "weight": 3}
-            ).addTo(map_d2a9de9564902159984ec38a15355fa9);
+            ).addTo(map_e4c9fa294ca38ebc63fb58219b6a3381);
         
 </script>
 </html>
