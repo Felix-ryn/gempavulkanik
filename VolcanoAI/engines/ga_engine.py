@@ -819,7 +819,6 @@ class MultiLayerVisualizer:
 
         # DIRECTION VISUALIZATION
         if pred_info and "bearing_degree" in pred_info:
-            # Gunakan center yang sudah ditentukan di awal fungsi
             start_lat = center_lat
             start_lon = center_lon
 
@@ -832,6 +831,7 @@ class MultiLayerVisualizer:
 
             popup_dir = f"<b>Predicted Direction</b><br>Bearing: {bearing:.1f}°"
 
+            # Draw main ray
             folium.PolyLine(
                 [[start_lat, start_lon], [end_lat, end_lon]],
                 color="orange", weight=4, opacity=0.8, tooltip="Prediction Vector"
@@ -843,22 +843,51 @@ class MultiLayerVisualizer:
                 icon=folium.DivIcon(html="<div style='font-size:20px'>➤</div>")
             ).add_to(m)
 
+            # Draw radius circle and spokes (like ACO case)
+            folium.Circle(
+                location=[start_lat, start_lon],
+                radius=max(100.0, distance_km * 1000.0),
+                color="orange",
+                weight=2,
+                opacity=0.7,
+                fill=True,
+                fill_opacity=0.06,
+                popup=folium.Popup(f"Predicted radius {distance_km:.2f} km", max_width=240)
+            ).add_to(m)
+
+            # spokes
+            for s in range(12):  # finer spokes for single vector
+                b_spoke = s * (360.0 / 12)
+                sp_lat, sp_lon = GeoMathCore.destination_point(start_lat, start_lon, b_spoke, distance_km)
+                folium.PolyLine(
+                    [[start_lat, start_lon], [sp_lat, sp_lon]],
+                    color="orange",
+                    weight=1,
+                    opacity=0.35
+                ).add_to(m)
+
+
         # =========================
         # GA VECTOR FROM ACO
         # =========================
         if ga_vectors:
             ga_layer = folium.FeatureGroup(name="GA Direction (Per ACO Node)", show=True)
 
-            for v in ga_vectors:
-                start_lat = v["base_lat"]
-                start_lon = v["base_lon"]
-                bearing = v["bearing_degree"]
-                dist = v["distance_km"]
+            # track centers already drawn to avoid duplicate circles
+            seen_centers = set()
 
+            for v in ga_vectors:
+                start_lat = float(v["base_lat"])
+                start_lon = float(v["base_lon"])
+                bearing = float(v["bearing_degree"])
+                dist = float(v["distance_km"])  # in km
+
+                # End point (existing behavior)
                 end_lat, end_lon = GeoMathCore.destination_point(
                     start_lat, start_lon, bearing, dist
                 )
 
+                # 1) Draw the main vector ray (kept as-is)
                 folium.PolyLine(
                     [[start_lat, start_lon], [end_lat, end_lon]],
                     color="orange",
@@ -866,6 +895,7 @@ class MultiLayerVisualizer:
                     opacity=0.9
                 ).add_to(ga_layer)
 
+                # 2) Draw arrow marker at end (kept as-is)
                 folium.Marker(
                     [end_lat, end_lon],
                     icon=folium.DivIcon(
@@ -879,7 +909,38 @@ class MultiLayerVisualizer:
                     """
                 ).add_to(ga_layer)
 
+                # 3) Draw circle (radius = dist km) centered at start (non-filled, semi-transparent)
+                # Use tuple rounded as key to prevent duplicate circles for same center+radius
+                center_key = (round(start_lat, 6), round(start_lon, 6), round(dist, 3))
+                if center_key not in seen_centers:
+                    seen_centers.add(center_key)
+
+                    folium.Circle(
+                        location=[start_lat, start_lon],
+                        radius=max(100.0, dist * 1000.0),  # ensure minimal visible radius 100 m
+                        color="orange",
+                        weight=2,
+                        opacity=0.7,
+                        fill=True,
+                        fill_opacity=0.06,
+                        popup=folium.Popup(f"Radius {dist:.2f} km from ACO idx {v['from_aco_index']}", max_width=240)
+                    ).add_to(ga_layer)
+
+                    # 4) Optional: Draw radial spokes (jari-jari)
+                    #    - number of spokes bisa disesuaikan (default 8)
+                    n_spokes = 8
+                    for s in range(n_spokes):
+                        b_spoke = s * (360.0 / n_spokes)
+                        sp_lat, sp_lon = GeoMathCore.destination_point(start_lat, start_lon, b_spoke, dist)
+                        folium.PolyLine(
+                            [[start_lat, start_lon], [sp_lat, sp_lon]],
+                            color="orange",
+                            weight=1,
+                            opacity=0.5
+                        ).add_to(ga_layer)
+
             ga_layer.add_to(m)
+
 
 
         # Heatmap
@@ -893,8 +954,14 @@ class MultiLayerVisualizer:
         plugins.Fullscreen().add_to(m)
         plugins.MiniMap().add_to(m)
 
-        m.save(out_path)
-        logger.info(f"GA Map saved → {out_path}")
+        from tempfile import NamedTemporaryFile
+        dirn = os.path.dirname(out_path) or "."
+        with NamedTemporaryFile("w", dir=dirn, delete=False, suffix=".html", encoding="utf-8") as tf:
+            tmpname = tf.name
+            m.save(tmpname)
+        os.replace(tmpname, out_path)
+        logger.info(f"GA Map saved (atomic) → {out_path}")
+
 # Excel Data Exporter
 class DataExporter:
     def __init__(self, output_dir: str): # inisialisasi exporter

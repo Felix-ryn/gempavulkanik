@@ -5,7 +5,7 @@
     "Siaga",
     "Awas"
   ],
-  "accuracy": 0.0,
+  "accuracy": 1.0,
   "confusion_matrix": [
     [
       0,
@@ -27,15 +27,18 @@
     ],
     [
       0,
-      6,
-      3,
-      0
+      0,
+      0,
+      9
     ]
   ],
-  "report_str": "              precision    recall  f1-score   support\n\n      Normal       0.00      0.00      0.00       0.0\n     Waspada       0.00      0.00      0.00       0.0\n       Siaga       0.00      0.00      0.00       0.0\n        Awas       0.00      0.00      0.00       9.0\n\n    accuracy                           0.00       9.0\n   macro avg       0.00      0.00      0.00       9.0\nweighted avg       0.00      0.00      0.00       9.0\n",
+  "report_str": "              precision    recall  f1-score   support\n\n      Normal       0.00      0.00      0.00         0\n     Waspada       0.00      0.00      0.00         0\n       Siaga       0.00      0.00      0.00         0\n        Awas       1.00      1.00      1.00         9\n\n    accuracy                           1.00         9\n   macro avg       0.25      0.25      0.25         9\nweighted avg       1.00      1.00      1.00         9\n",
   "roc_auc": {
     "fpr": {
       "3": [
+        NaN,
+        NaN,
+        NaN,
         NaN,
         NaN
       ]
@@ -43,6 +46,9 @@
     "tpr": {
       "3": [
         0.0,
+        0.1111111111111111,
+        0.4444444444444444,
+        0.6666666666666666,
         1.0
       ]
     },

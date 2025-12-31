@@ -1,10 +1,10 @@
               precision    recall  f1-score   support
 
-      Normal       0.00      0.00      0.00       0.0
-     Waspada       0.00      0.00      0.00       0.0
-       Siaga       0.00      0.00      0.00       0.0
-        Awas       0.00      0.00      0.00       9.0
+      Normal       0.00      0.00      0.00         0
+     Waspada       0.00      0.00      0.00         0
+       Siaga       0.00      0.00      0.00         0
+        Awas       1.00      1.00      1.00         9
 
-    accuracy                           0.00       9.0
-   macro avg       0.00      0.00      0.00       9.0
-weighted avg       0.00      0.00      0.00       9.0
+    accuracy                           1.00         9
+   macro avg       0.25      0.25      0.25         9
+weighted avg       1.00      1.00      1.00         9
