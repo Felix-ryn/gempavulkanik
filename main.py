@@ -827,24 +827,31 @@ def main(): # Fungsi utama sebagai titik masuk program
     pipeline.run() # Jalankan pipeline
 
 # === START: Flask dashboard integration (paste di akhir main.py) ===
-import threading # Untuk menjalankan server Flask di thread terpisah
-import webbrowser # Untuk membuka browser web secara otomatis
-from pathlib import Path # manipulasi path file dan direktori
-from flask import Flask, send_from_directory, Response # framework web ringan
-from jinja2 import Template # untuk rendering template HTML
+import os
+import time
+import json
+import logging
+import threading
+import webbrowser
+from pathlib import Path
+from datetime import datetime
+import pandas as pd
+from flask import Flask, send_from_directory, Response
+from jinja2 import Template
 
-# konfigurasi default
-FLASK_HOST = "127.0.0.1" # localhost
-FLASK_PORT = 5000 # port default
-# lokasi template file kamu (sudah kamu sebutkan)
-TEMPLATE_PATH = Path("VolcanoAI/reporting/templates/monitor_live_template.html") # path ke template HTML
-PROJECT_ROOT = Path.cwd() # root project saat ini
+# ===============================
+# CONFIG DEFAULTS
+# ===============================
+FLASK_HOST = "127.0.0.1"
+FLASK_PORT = 5000
+TEMPLATE_PATH = Path("VolcanoAI/reporting/templates/monitor_live_template.html")
+PROJECT_ROOT = Path.cwd()
 
-def _file_url_for(path: Path) -> str: 
-    """ 
-    Convert file-system path to URL served by /files/... route.
-    keeps path relative to project root.
-    """
+# ===============================
+# UTILITY FUNCTIONS
+# ===============================
+def _file_url_for(path: Path) -> str:
+    """Convert file-system path to URL served by /files/... route."""
     try:
         rel = path.resolve().relative_to(PROJECT_ROOT.resolve())
     except Exception:
@@ -852,12 +859,10 @@ def _file_url_for(path: Path) -> str:
     return f"/files/{rel.as_posix()}"
 
 def build_dashboard_context(output_dir: Path) -> dict:
-    """
-    Baca file-file output dan isi context dict untuk menggantikan placeholder template.
-    Gunakan safe defaults bila file tidak ada.
-    """
+    """Baca semua file output untuk dashboard, isi context dict."""
     ctx = {
         "TIMESTAMP": datetime.now().isoformat(sep=' '),
+        "NOW_TS": int(time.time()),
         "ACO_IMPACT_CENTER": "N/A",
         "ACO_IMPACT_AREA": "N/A",
         "ACO_MAP": "#",
@@ -885,122 +890,103 @@ def build_dashboard_context(output_dir: Path) -> dict:
 
     out = output_dir
 
-    # ACO json
-    aco_json = out / "aco_results" / "aco_to_ga.json" # Path ke file JSON hasil ACO
-    if aco_json.exists(): # Cek apakah file JSON hasil ACO ada
-        try: # Blok try untuk menangani potensi error saat membaca file JSON
-            j = json.loads(aco_json.read_text(encoding="utf-8")) # Baca dan parse file JSON
-            lat = j.get("center_lat")   # Dapatkan nilai latitude dari JSON
-            lon = j.get("center_lon")  # Dapatkan nilai longitude dari JSON
-            if lat is not None and lon is not None: # Cek apakah latitude dan longitude tidak None
-                ctx["ACO_IMPACT_CENTER"] = f"{lat}, {lon}"  # Simpan koordinat pusat ACO dalam format string
-            ctx["ACO_IMPACT_AREA"] = j.get("impact_area_km2", ctx["ACO_IMPACT_AREA"]) # Simpan area dampak ACO
-            aco_map_file = out / "aco_results" / "aco_impact_zones.html" # ACO map (HTML)
-            if aco_map_file.exists():  # Cek apakah file peta ACO ada
-                ctx["ACO_MAP"] = _file_url_for(aco_map_file) # Simpan path ke peta ACO
+    # ===============================
+    # ACO RESULTS
+    # ===============================
+    aco_json = out / "aco_results" / "aco_to_ga.json"
+    if aco_json.exists():
+        try:
+            j = json.loads(aco_json.read_text(encoding="utf-8"))
+            lat = j.get("center_lat")
+            lon = j.get("center_lon")
+            if lat is not None and lon is not None:
+                ctx["ACO_IMPACT_CENTER"] = f"{lat}, {lon}"
+            ctx["ACO_IMPACT_AREA"] = j.get("impact_area_km2", ctx["ACO_IMPACT_AREA"])
+            aco_map_file = out / "aco_results" / "aco_impact_zones.html"
+            if aco_map_file.exists():
+                ctx["ACO_MAP"] = _file_url_for(aco_map_file)
         except Exception:
             pass
 
-    # GA map (path json produced earlier)
-    ga_map = out / "ga_results" / "ga_from_aco_map.html" # Path ke file peta hasil GA
-    if ga_map.exists(): # Cek apakah file peta hasil GA ada 
-        ctx["GA_MAP"] = _file_url_for(ga_map) # Simpan path ke peta GA
+    # ===============================
+    # GA RESULTS
+    # ===============================
+    ga_map = out / "ga_results" / "ga_from_aco_map.html"
+    if ga_map.exists():
+        ctx["GA_MAP"] = _file_url_for(ga_map)
 
-    # try to read GA predicted fields (if aco_to_ga.json contains next_event)
     try:
-        # === 1. Ambil bearing & arah dari aco_to_ga.json (next_event) ===
         if aco_json.exists():
             j = json.loads(aco_json.read_text(encoding="utf-8"))
-            # ==========================
-            # GA PATH (FROM ACO → GA)
-            # ==========================
             ga_path = j.get("ga_path", [])
-
             if isinstance(ga_path, list) and len(ga_path) > 0:
                 first = ga_path[0]
-
                 angle = first.get("angle_deg")
                 direction = first.get("direction")
                 distance = first.get("distance_km")
-
                 if angle is not None:
                     ctx["GA_BEARING"] = f"{angle}° ({direction})" if direction else f"{angle}°"
-
                 if distance is not None:
                     ctx["GA_DISTANCE"] = f"{distance:.2f} km"
-
-
-        # === 2. Ambil distance numerik dari ga_vector.json ===
         ga_vec = out / "ga_results" / "ga_vector.json"
         if ga_vec.exists():
             gv = json.loads(ga_vec.read_text(encoding="utf-8"))
-
             if "distance_km" in gv:
                 ctx["GA_DISTANCE"] = f"{gv['distance_km']:.2f} km"
-
-            # OPTIONAL fallback: jika bearing belum terisi, pakai bearing_degree
             if ctx["GA_BEARING"] == "N/A" and "bearing_degree" in gv:
                 ctx["GA_BEARING"] = f"{gv['bearing_degree']}°"
-
     except Exception:
         pass
 
-
-    # LSTM CSVs
-    lstm_dir = out / "lstm_results" # Direktori hasil LSTM
-    if lstm_dir.exists(): # Cek apakah direktori hasil LSTM ada
-        for f in ["lstm_records_2y_20241230.csv", "master.csv"]: # Cari file master LSTM
-            p = lstm_dir / f # Path ke file master LSTM
-            if p.exists(): # Cek apakah file master LSTM ada
-                ctx["LSTM_MASTER_CSV"] = _file_url_for(p) # Simpan path ke file master LSTM
-                ctx["LSTM_MASTER_FILENAME"] = p.name # Simpan nama file master LSTM
-                break # Hentikan pencarian setelah menemukan file pertama yang ada
-        for f in ["lstm_recent_15d_20241230.csv", "recent.csv"]:    # Cari file recent LSTM
-            p = lstm_dir / f # Path ke file recent LSTM
-            if p.exists(): # Cek apakah file recent LSTM ada
-                ctx["LSTM_RECENT_CSV"] = _file_url_for(p) # Simpan path ke file recent LSTM
-                ctx["LSTM_RECENT_FILENAME"] = p.name # Simpan nama file recent LSTM
+    # ===============================
+    # LSTM RESULTS
+    # ===============================
+    lstm_dir = out / "lstm_results"
+    if lstm_dir.exists():
+        for f in ["lstm_records_2y_20241230.csv", "master.csv"]:
+            p = lstm_dir / f
+            if p.exists():
+                ctx["LSTM_MASTER_CSV"] = _file_url_for(p)
+                ctx["LSTM_MASTER_FILENAME"] = p.name
                 break
-        for f in ["lstm_anomalies_20241230.csv", "anomalies.csv"]:  # Cari file anomali LSTM
-            p = lstm_dir / f # Path ke file anomali LSTM
-            if p.exists(): # Cek apakah file anomali LSTM ada
-                ctx["LSTM_ANOMALIES_CSV"] = _file_url_for(p) # Simpan path ke file anomali LSTM
-                ctx["LSTM_ANOMALIES_FILENAME"] = p.name # Simpan nama file anomali LSTM
+        for f in ["lstm_recent_15d_20241230.csv", "recent.csv"]:
+            p = lstm_dir / f
+            if p.exists():
+                ctx["LSTM_RECENT_CSV"] = _file_url_for(p)
+                ctx["LSTM_RECENT_FILENAME"] = p.name
+                break
+        for f in ["lstm_anomalies_20241230.csv", "anomalies.csv"]:
+            p = lstm_dir / f
+            if p.exists():
+                ctx["LSTM_ANOMALIES_CSV"] = _file_url_for(p)
+                ctx["LSTM_ANOMALIES_FILENAME"] = p.name
                 break
 
-    # CNN predictions latest CSV / JSON and latest row for LATEST_ROW_HTML
+    # ===============================
+    # CNN RESULTS
+    # ===============================
     cnn_latest = out / "cnn_results" / "results" / "cnn_predictions_latest.csv"
     if cnn_latest.exists():
         ctx["CNN_PRED_CSV"] = _file_url_for(cnn_latest)
         try:
-            df = pd.read_csv(cnn_latest, parse_dates=["Acquired_Date"]) # read CSV with date parsing
+            df = pd.read_csv(cnn_latest, parse_dates=["Acquired_Date"])
             if not df.empty:
                 last = df.tail(1)
-                # render a small HTML table with last row
                 ctx["LATEST_ROW_HTML"] = last.to_html(index=False, classes="table", border=0)
         except Exception:
             pass
 
-    cnn_json = out / "cnn_results" / "cnn_predictions_latest.json" # latest JSON
-    if cnn_json.exists(): # check exists
-        ctx["CNN_PRED_JSON"] = _file_url_for(cnn_json) # set URL
-    
-    cnn_img = out / "cnn_results" / "cnn_prediction_map.png" # CNN IMAGE LIST
+    cnn_json = out / "cnn_results" / "cnn_predictions_latest.json"
+    if cnn_json.exists():
+        ctx["CNN_PRED_JSON"] = _file_url_for(cnn_json)
 
-    if cnn_img.exists(): # check exists
-        ctx["CNN_IMAGE_LIST_HTML"] = f""" 
-            <img src="{_file_url_for(cnn_img)}"
-                 class="plot"
-                 alt="CNN Prediction Map">
-        """  # set HTML
-    else:  # default empty
-        ctx["CNN_IMAGE_LIST_HTML"] = "<p class='muted'></p>" # no image
+    cnn_img = out / "cnn_results" / "cnn_prediction_map.png"
+    if cnn_img.exists():
+        ctx["CNN_IMAGE_LIST_HTML"] = f'<img src="{_file_url_for(cnn_img)}" class="plot" alt="CNN Prediction Map">'
+    else:
+        ctx["CNN_IMAGE_LIST_HTML"] = "<p class='muted'></p>"
 
-    # ===============================
-    # CNN MAP (DYNAMIC VIA POINTER)
-    # ===============================
     pointer = out / "cnn_results" / "maps" / "latest_map.txt"
-
     if pointer.exists():
         try:
             p = Path(pointer.read_text(encoding="utf-8").strip())
@@ -1013,46 +999,49 @@ def build_dashboard_context(output_dir: Path) -> dict:
     else:
         ctx["CNN_MAP"] = "#"
 
-
-    # NaiveBayes outputs (support multiple candidate dirs & files)
+    # ===============================
+    # NAIVE BAYES RESULTS
+    # ===============================
     nb_candidates = [
-        out / "naive_bayes",           # legacy
-        out / "naive_bayes_results",   # earlier assistant default
-        out / "naive_bayes_outputs"    # any other naming variant
-    ] # Daftar direktori kandidat untuk hasil Naive Bayes
-
-    nb_found = None # Tempat penyimpanan direktori hasil Naive Bayes yang ditemukan
-    for cand in nb_candidates: # Iterasi melalui direktori kandidat
-        if cand.exists(): # Cek apakah direktori kandidat ada
-            nb_found = cand # Simpan direktori yang ditemukan
-            break # Hentikan pencarian setelah menemukan direktori pertama yang ada
-
-    if nb_found: # Jika direktori hasil Naive Bayes ditemukan
-        p1 = nb_found / "confusion_matrix.png"
+        out / "naive_bayes",
+        out / "naive_bayes_results",
+        out / "naive_bayes_outputs"
+    ]
+    nb_found = None
+    for cand in nb_candidates:
+        if cand.exists():
+            nb_found = cand
+            break
+    if nb_found:
+        latest_txt = nb_found / "confusion_matrix_latest.txt"
+        if latest_txt.exists():
+            try:
+                fname = latest_txt.read_text(encoding="utf-8").strip()
+                p1 = nb_found / fname
+            except Exception:
+                p1 = nb_found / "confusion_matrix.png"
+        else:
+            p1 = nb_found / "confusion_matrix.png"
         p2 = nb_found / "roc_curves.png"
         p_csv = nb_found / "naive_bayes_predictions.csv"
         p_json = nb_found / "naive_bayes_metrics.json"
         p_report = nb_found / "classification_report.txt"
 
-        if p1.exists(): # set URL
-            ctx["NB_CONFUSION_PNG"] = _file_url_for(p1) # set URL
-        if p2.exists(): # set URL
-            ctx["NB_ROC_PNG"] = _file_url_for(p2) # set URL
-        if p_csv.exists(): # set URL
-            ctx["CNN_PRED_CSV"] = ctx.get("CNN_PRED_CSV", "#")  # avoid clobbering CNN keys
-            # add a separate key for NB predictions if you want:
-            ctx["NB_PRED_CSV"] = _file_url_for(p_csv) # set URL
+        if p1.exists():
+            ctx["NB_CONFUSION_PNG"] = f"{_file_url_for(p1)}?v={ctx['NOW_TS']}"
+        if p2.exists():
+            ctx["NB_ROC_PNG"] = f"{_file_url_for(p2)}?v={ctx['NOW_TS']}"
+        if p_csv.exists():
+            ctx["NB_PRED_CSV"] = _file_url_for(p_csv)
+
         if p_json.exists():
             try:
                 mj = json.loads(p_json.read_text(encoding="utf-8"))
                 rows = ["<table>"]
                 for k, v in mj.items():
                     if k == "roc_auc":
-                        continue   # ⬅️ INI YANG MENGHILANGKAN roc_auc
-                    rows.append(
-                        f"<tr><th style='text-align:left;padding:6px'>{k}</th>"
-                        f"<td style='padding:6px'>{v}</td></tr>"
-                    )
+                        continue
+                    rows.append(f"<tr><th style='text-align:left;padding:6px'>{k}</th><td style='padding:6px'>{v}</td></tr>")
                 rows.append("</table>")
                 ctx["NB_METRICS_HTML"] = "\n".join(rows)
             except Exception:
@@ -1062,33 +1051,19 @@ def build_dashboard_context(output_dir: Path) -> dict:
             try:
                 ctx["NB_REPORT_STR"] = p_report.read_text(encoding="utf-8")
             except Exception:
-                pass
-
-
-    # If reporter generated textual metrics in a JSON, try reading it (optional)
-    metrics_json = output_dir / "report_metrics.json" # optional reporter metrics JSON
-    if metrics_json.exists(): # check exists
-        try:
-            mj = json.loads(metrics_json.read_text(encoding="utf-8")) # read JSON
-            # simple conversion to small HTML table
-            rows = ["<table>"]
-            for k, v in mj.items():
-                rows.append(f"<tr><th style='text-align:left;padding:6px'>{k}</th><td style='padding:6px'>{v}</td></tr>")
-            rows.append("</table>") # close table
-            ctx["NB_METRICS_HTML"] = "\n".join(rows) # set HTML
-        except Exception:
-            pass
+                ctx["NB_REPORT_STR"] = "<em>Failed to read classification report</em>"
 
     return ctx
 
-# Flask app and routes
-def create_flask_app(output_dir: Path, template_path: Path) -> Flask: # Fungsi untuk membuat aplikasi Flask
+# ===============================
+# FLASK APP
+# ===============================
+def create_flask_app(output_dir: Path, template_path: Path) -> Flask:
     app = Flask(__name__)
 
-    @app.route("/") # route utama
+    @app.route("/")
     def index():
-        ctx = build_dashboard_context(output_dir=output_dir)
-        # load template file as raw HTML with placeholders
+        ctx = build_dashboard_context(output_dir)
         if template_path.exists():
             tpl_text = template_path.read_text(encoding="utf-8")
             tmpl = Template(tpl_text)
@@ -1097,25 +1072,25 @@ def create_flask_app(output_dir: Path, template_path: Path) -> Flask: # Fungsi u
         else:
             return "<h3>Template not found</h3><p>Check TEMPLATE_PATH setting.</p>", 404
 
-    @app.route("/files/<path:filename>") # route untuk melayani file statis
+    @app.route("/files/<path:filename>")
     def serve_file(filename):
-        # Serve files from project root to allow iframe loading of output HTML/CSV/PNG
-        safe_path = Path(filename)
-        # disallow path traversal outside project root
-        full = (PROJECT_ROOT / safe_path).resolve()
+        full = (PROJECT_ROOT / Path(filename)).resolve()
         try:
             full.relative_to(PROJECT_ROOT.resolve())
         except Exception:
             return "Forbidden", 403
         if not full.exists():
             return "Not found", 404
-        return send_from_directory(PROJECT_ROOT, safe_path.as_posix(), conditional=True)
+        resp = send_from_directory(PROJECT_ROOT, filename, conditional=True)
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
+        return resp
 
     return app
 
-def start_flask_in_thread(app: Flask, host="127.0.0.1", port=5000, open_browser=True): # Fungsi untuk menjalankan server Flask di thread terpisah
+def start_flask_in_thread(app: Flask, host="127.0.0.1", port=5000, open_browser=True):
     def _run():
-        # disable debug + reloader for thread-safety
         if open_browser:
             try:
                 webbrowser.open_new_tab(f"http://{host}:{port}")
@@ -1127,8 +1102,10 @@ def start_flask_in_thread(app: Flask, host="127.0.0.1", port=5000, open_browser=
     th.start()
     return th
 
-# Modify main() behavior: start flask either before pipeline (when enable_monitoring) or after
-def main_with_dashboard(): # Fungsi utama dengan integrasi dashboard Flask
+# ===============================
+# MAIN WITH DASHBOARD
+# ===============================
+def main_with_dashboard():
     parser = create_arg_parser()
     args = parser.parse_args()
 
@@ -1136,45 +1113,38 @@ def main_with_dashboard(): # Fungsi utama dengan integrasi dashboard Flask
         print("System tidak siap. Ada modul yang hilang.")
         return
 
-    os.makedirs(CONFIG.OUTPUT.directory, exist_ok=True) # pastikan folder output ada
-    setup_logging(CONFIG.OUTPUT.directory) # atur logging ke folder output
+    os.makedirs(CONFIG.OUTPUT.directory, exist_ok=True)
+    setup_logging(CONFIG.OUTPUT.directory)
+    out = Path(CONFIG.OUTPUT.directory)
+    out.mkdir(parents=True, exist_ok=True)
 
-    from pathlib import Path # manipulasi path file dan direktori
-    out = Path(CONFIG.OUTPUT.directory) # output directory
-    out.mkdir(parents=True, exist_ok=True)  # pastikan folder utama ada
-
-
-    logging.info("=" * 80)
+    logging.info("="*80)
     logging.info("  VOLCANOAI SYSTEM STARTUP  ".center(80))
-    logging.info("=" * 80)
+    logging.info("="*80)
 
     configure_pipeline_from_args(args, CONFIG)
 
-    # Create Flask app (server will serve files from project root)
-    app = create_flask_app(output_dir=Path(CONFIG.OUTPUT.directory), template_path=TEMPLATE_PATH)
+    # CREATE FLASK APP
+    app = create_flask_app(output_dir=out, template_path=TEMPLATE_PATH)
 
-    # If monitoring loop will run (blocking), start Flask in background first
-    enable_monitoring = getattr(CONFIG.REALTIME, "enable_monitoring", False) 
-    if enable_monitoring: # 
+    enable_monitoring = getattr(CONFIG.REALTIME, "enable_monitoring", False)
+    if enable_monitoring:
         logging.info("[Dashboard] Starting Flask server in background thread (monitoring enabled)...")
         start_flask_in_thread(app, host=FLASK_HOST, port=FLASK_PORT, open_browser=True)
 
     pipeline = VolcanoAiPipeline(CONFIG)
     pipeline.run()
 
-    # If monitoring not enabled, start Flask AFTER pipeline finishes
     if not enable_monitoring:
         logging.info("[Dashboard] Pipeline finished — launching Flask server (dashboard)...")
         start_flask_in_thread(app, host=FLASK_HOST, port=FLASK_PORT, open_browser=True)
-        # Keep main thread alive to keep server running
         try:
             while True:
                 time.sleep(1)
         except KeyboardInterrupt:
             logging.info("[Dashboard] KeyboardInterrupt — exiting.")
 
-# Replace the original main with main_with_dashboard when running as script
-# (so existing behavior is preserved but with dashboard)
+# Run as script
 if __name__ == "__main__":
     main_with_dashboard()
 # === END: Flask dashboard integration ===

@@ -522,6 +522,10 @@ class DynamicAcoEngine: # mesin utama ACO dengan konfigurasi dinamis
 
     # menjalankan ACO pada DataFrame input
     def run(self, df: pd.DataFrame):
+        seed = self.aco_cfg.get('random_seed', None)
+        if seed is not None:
+            np.random.seed(seed)
+
         self.logger.debug(f"[ACO] DataFrame masuk: {df.shape[0]} baris, {df.shape[1]} kolom")
         self.logger.debug(f"[ACO] Kolom: {list(df.columns)}")
         self.logger.debug(df.head(5).to_string())
@@ -532,12 +536,11 @@ class DynamicAcoEngine: # mesin utama ACO dengan konfigurasi dinamis
         else:
             print("[DEBUG ACO] Kolom koordinat EQ_Lintang/EQ_Bujur tidak ditemukan!")
 
-        if df.empty: # cek DataFrame kosong
+        if df is None or df.empty:
+            self.logger.warning("[ACO] DataFrame kosong.")
             print("DEBUG: VRP DF KOSONG, ACO Center = nan")
             return df, {}
-        if df is None or df.empty: # cek DataFrame kosong
-            self.logger.warning("[ACO] DataFrame kosong.")
-            return df, {}
+
         # inisialisasi environment manager
         self.env_manager = EnvironmentManager(df, self.logger)
         # khusus live event dengan 1 node
@@ -604,7 +607,6 @@ class DynamicAcoEngine: # mesin utama ACO dengan konfigurasi dinamis
             self.logger.warning("[ACO] Center tidak valid/terlalu kecil → tidak menulis ACO->GA JSON.")
         else:
             self._export_for_ga(df_out, center_info)
-        self._export_for_ga(df_out, center_info)
         self._save_to_disk(df_out)
         self._generate_visuals(df_out)
         return df_out, meta

@@ -7,16 +7,47 @@ import pickle
 import time
 import warnings
 from typing import Dict, Any, List, Tuple, Optional
+import tempfile
 
 import numpy as np
 import pandas as pd
 import json
-
+from datetime import datetime
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 from itertools import cycle
+
+def _convert(obj):
+    import numpy as np
+    from datetime import datetime
+
+    if isinstance(obj, (np.integer,)):
+        return int(obj)
+    if isinstance(obj, (np.floating,)):
+        return float(obj)
+    if isinstance(obj, (np.ndarray,)):
+        return obj.tolist()
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    return str(obj)
+
+import tempfile
+from datetime import datetime
+
+def _atomic_write(path, data_bytes):
+     dirn = os.path.dirname(path)
+     tmp = tempfile.NamedTemporaryFile(delete=False, dir=dirn)
+     try:
+         tmp.write(data_bytes)
+         tmp.flush()
+         tmp.close()
+         os.replace(tmp.name, path)
+     finally:
+         if os.path.exists(tmp.name):
+             try: os.remove(tmp.name)
+             except: pass
 
 # ==========================
 # SKLEARN CORE
@@ -164,21 +195,39 @@ class ModelEvaluator:
 
     def evaluate(
         self,
-        y_true: np.ndarray,
-        y_pred: np.ndarray,
-        y_prob: Optional[np.ndarray]
+        y_true,
+        y_pred,
+        y_prob: Optional[np.ndarray] = None,
+        inputs_are_encoded: bool = False
     ) -> Dict[str, Any]:
+        """
+        y_true, y_pred: bisa berupa array of ints (encoded) atau array of strings (label names).
+        Jika inputs_are_encoded=True -> function akan menganggap y_true/y_pred sudah berupa ints 0..n-1.
+        Jika False -> diharapkan strings matching self.class_names.
+        """
         metrics = {"class_names": self.class_names}
-
         try:
-            y_true_arr = np.asarray(y_true).astype(int)
-            y_pred_arr = np.asarray(y_pred).astype(int)
+            # Logging sanity
+            logger.info("Eval start - inputs_are_encoded=%s", inputs_are_encoded)
+            logger.info("unique y_true (sample): %s", np.unique(y_true))
+            logger.info("unique y_pred (sample): %s", np.unique(y_pred))
+
+            if inputs_are_encoded:
+                y_true_arr = np.asarray(y_true).astype(int)
+                y_pred_arr = np.asarray(y_pred).astype(int)
+                labels = list(range(len(self.class_names)))
+                target_names = self.class_names
+            else:
+                # treat as strings
+                y_true_arr = np.asarray(y_true).astype(object)
+                y_pred_arr = np.asarray(y_pred).astype(object)
+                labels = self.class_names
+                target_names = self.class_names
 
             # Accuracy
-            metrics["accuracy"] = accuracy_score(y_true_arr, y_pred_arr)
+            metrics["accuracy"] = float(accuracy_score(y_true_arr, y_pred_arr))
 
-            # Confusion Matrix (Force shape sesuai class_names)
-            labels = list(range(len(self.class_names)))
+            # Confusion Matrix (use explicit label list)
             metrics["confusion_matrix"] = confusion_matrix(
                 y_true_arr,
                 y_pred_arr,
@@ -190,23 +239,30 @@ class ModelEvaluator:
                 y_true_arr,
                 y_pred_arr,
                 labels=labels,
-                target_names=self.class_names,
+                target_names=target_names,
                 zero_division=0
             )
 
-            # ROC AUC (Handle multiclass)
-            if y_prob is not None:
-                # y_prob harus memiliki shape (n_samples, n_classes)
-                # Jika tidak lengkap, metrik ini mungkin diskip atau dihandle
-                if y_prob.shape[1] == len(self.class_names):
-                    metrics["roc_auc"] = self._calculate_roc_auc(y_true_arr, y_prob)
+            # ROC AUC (multiclass) - we still accept y_prob (encoded order expected)
+            if y_prob is not None and isinstance(y_prob, np.ndarray):
+                if y_prob.shape[1] >= len(self.class_names):
+                    metrics["roc_auc"] = self._calculate_roc_auc(
+                        (np.asarray(y_true).astype(int) if inputs_are_encoded else self._str_to_encoded(y_true)),
+                        y_prob
+                    )
 
             logger.info("\n=== Classification Report ===\n" + metrics["report_str"])
 
         except Exception as e:
-            logger.error(f"Evaluasi gagal: {e}")
+            logger.error(f"Evaluasi gagal: {e}", exc_info=True)
 
         return metrics
+
+    def _str_to_encoded(self, y_strs):
+        """Utility: map array of class-name strings to encoded ints using class_names order."""
+        mapping = {label: idx for idx, label in enumerate(self.class_names)}
+        return np.array([mapping.get(v, -1) for v in y_strs], dtype=int)
+
 
     def _calculate_roc_auc(self, y_true, y_prob) -> Dict[str, Any]:
         y_bin = label_binarize(y_true, classes=range(len(self.class_names)))
@@ -247,16 +303,47 @@ class ClassificationReporter:
         if "roc_auc" in metrics and "fpr" in metrics["roc_auc"]:
              self._plot_roc(metrics["roc_auc"])
 
+    import shutil
+    from datetime import datetime
+    import tempfile
+    import os
+
     def _plot_cm(self, cm, classes):
         plt.figure(figsize=(8, 6))
-        sns.heatmap(cm, annot=True, fmt="d", cmap="YlOrRd", # Warna magma-like
+        sns.heatmap(cm, annot=True, fmt="d", cmap="YlOrRd",
                     xticklabels=classes, yticklabels=classes)
         plt.title("Confusion Matrix (Magma Status)")
         plt.ylabel("Actual")
         plt.xlabel("Predicted")
         plt.tight_layout()
-        plt.savefig(os.path.join(self.output_dir, "confusion_matrix.png"))
+
+        ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        fname = f"confusion_matrix_{ts}.png"
+        fullpath = os.path.join(self.output_dir, fname)
+        generic = os.path.join(self.output_dir, "confusion_matrix.png")
+        latest_txt = os.path.join(self.output_dir, "confusion_matrix_latest.txt")
+
+        # 1) Simpan timestamped file
+        plt.savefig(fullpath)
         plt.close()
+
+        # 2) Atomically update generic pointer by copying then replace
+        tmp_generic = generic + ".tmp"
+        try:
+            shutil.copy2(fullpath, tmp_generic)   # salin ke temp file di same dir
+            os.replace(tmp_generic, generic)      # atomically move into place
+        finally:
+            if os.path.exists(tmp_generic):
+                try: os.remove(tmp_generic)
+                except: pass
+
+        # 3) update latest pointer filename (atomic write)
+        tmp_latest = latest_txt + ".tmp"
+        with open(tmp_latest, "w", encoding="utf-8") as f:
+            f.write(fname)
+        os.replace(tmp_latest, latest_txt)
+
+
 
     def _plot_roc(self, roc_data):
         plt.figure(figsize=(8, 6))
@@ -384,71 +471,72 @@ class NaiveBayesEngine:
         X_processed = self.preprocessor.transform(df_out)
         
         # Predict
-        preds = self.model.predict(X_processed)
+        preds = self.model.predict(X_processed)               # encoded ints (model's encoding)
         probs_raw = self.model.predict_proba(X_processed)
 
-        # --- SAFETY FIX: Padding Probabilitas ---
-        # GaussianNB hanya output kolom sebanyak kelas yang dia lihat saat training.
-        # Jika training cuma ada data "Normal" (1 kelas), probs_raw shape (n, 1).
-        # Kita perlu mapping ini ke shape (n, 4) sesuai self.le.classes_
-        
+        # Build full prob matrix aligned to global class indices (you already have this)
         probs_full = np.zeros((len(df_out), len(self.class_names)))
-        
-        # Mapping index model -> index label encoder global
-        # self.model.classes_ berisi subset dari [0, 1, 2, 3] yang ada di training
         for model_idx, class_label in enumerate(self.model.classes_):
-            # class_label adalah int hasil encoding (misal 0 utk Normal)
-            # Masukkan kolom probabilitas ke posisi yang benar
             if model_idx < probs_raw.shape[1]:
                 probs_full[:, class_label] = probs_raw[:, model_idx]
 
-        # Metrics Calculation
-        max_probs = np.max(probs_full, axis=1)
-        
-        # Decode prediksi
-        df_out["kelas_prediksi"] = self.le.inverse_transform(preds)
-        df_out["nb_confidence"] = max_probs
-        
-        # Anomaly Score (Kebalikan confidence)
-        df_out["anomaly_score"] = 1.0 - max_probs
-        df_out["is_anomaly"] = df_out["anomaly_score"] > 0.5 # Threshold sederhana
-
-        # Evaluasi
-        metrics = {}
+        # Create readable predictions (string labels) using le inverse_transform
         try:
-            y_true_encoded = self.le.transform(y_true_raw)
-            metrics = self.evaluator.evaluate(y_true_encoded, preds, probs_full)
+            pred_labels = self.le.inverse_transform(preds)
+        except Exception:
+            # fallback: map using class_names if inverse_transform fails
+            pred_labels = np.array([self.class_names[int(p)] if int(p) < len(self.class_names) else "Unknown" for p in preds])
+
+        df_out["kelas_prediksi"] = pred_labels
+        df_out["nb_confidence"] = np.max(probs_full, axis=1)
+        df_out["anomaly_score"] = 1.0 - df_out["nb_confidence"]
+        df_out["is_anomaly"] = df_out["anomaly_score"] > 0.5
+
+        # Sanity logging before eval
+        logger.info("Unique true labels (raw): %s", df_out[self.target_col].unique())
+        logger.info("Unique pred labels (str): %s", df_out["kelas_prediksi"].unique())
+        logger.info("LabelEncoder classes (global): %s", list(self.le.classes_))
+
+        # Call evaluator WITH string labels (safer)
+        try:
+            metrics = self.evaluator.evaluate(
+                df_out[self.target_col].astype(str).tolist(),
+                df_out["kelas_prediksi"].astype(str).tolist(),
+                probs_full,
+                inputs_are_encoded=False
+            )
             self.reporter.generate_plots(metrics)
         except Exception as e:
-            logger.warning(f"Evaluasi skip (data mungkin kurang): {e}")
+            logger.warning(f"Evaluasi skip (data mungkin kurang / error): {e}", exc_info=True)
+
 
         self._save_outputs(df_out, metrics)
         return df_out, metrics
 
+    
+
     def _save_outputs(self, df_out, metrics):
-        # Simpan CSV
         pred_path = os.path.join(self.output_dir, "naive_bayes_predictions.csv")
-        df_out.to_csv(pred_path, index=False)
+        tmp_csv = pred_path + f".{int(time.time())}.tmp"
+        df_out.to_csv(tmp_csv, index=False)
+        os.replace(tmp_csv, pred_path)
 
-        # Simpan Metrics JSON
-        def _convert(o):
-            if isinstance(o, np.integer): return int(o)
-            if isinstance(o, np.floating): return float(o)
-            if isinstance(o, np.ndarray): return o.tolist()
-            return o
-
+        # Metrics JSON atomic
         metrics_path = os.path.join(self.output_dir, "naive_bayes_metrics.json")
-        try:
-            with open(metrics_path, "w", encoding="utf-8") as f:
-                json.dump(metrics, f, indent=2, default=_convert)
-        except Exception:
-            pass
+        metrics_ts_path = os.path.join(self.output_dir, f"naive_bayes_metrics_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json")
+        metrics_bytes = json.dumps(metrics, indent=2, default=_convert).encode("utf-8")
+        _atomic_write(metrics_ts_path, metrics_bytes)
+        # update latest pointer (atomic replace)
+        _atomic_write(metrics_path, metrics_bytes)
 
-        # Simpan Report Text
+        # Save classification report
         if "report_str" in metrics:
             report_path = os.path.join(self.output_dir, "classification_report.txt")
-            with open(report_path, "w", encoding="utf-8") as f:
-                f.write(metrics["report_str"])
+            _atomic_write(report_path, metrics["report_str"].encode("utf-8"))
+
+        # Also write a simple 'latest' pointer file for images
+        with open(os.path.join(self.output_dir, "latest_metrics.json"), "w", encoding="utf-8") as f:
+            f.write(os.path.basename(metrics_path))
 
     def _save_artifacts(self):
         try:
