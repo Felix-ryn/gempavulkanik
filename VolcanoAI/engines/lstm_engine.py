@@ -690,146 +690,226 @@ class LstmEngine:
             df_proc = self.processor.prepare(df_history)
             feats = [c for c in df_proc.columns if c in self.cfg.features]
             self.drift_mon.update_baseline(df_proc, feats)
-        # fungsi integrasi prediksi GA ke buffer
-        def integrate_ga_prediction(self, pred: Dict[str, Any], cid: Optional[int] = None, attach_to: str = "nearest"):
-            """
-            Integrasi output GA (pred dict) ke buffer LSTM.
-            - pred: dict seperti {'pred_lat', 'pred_lon', 'bearing_degree', 'distance_km', 'confidence', ...}
-            - cid: jika known cluster_id, gunakan mapping langsung; jika None, akan dicari row terdekat di buffer
-            - attach_to: "nearest" | "append_row"
-            Efek: menambah kolom GA ke baris yang relevan di self.buffer.buffer_df
-            """
-            try: # validasi input pred 
-                if not pred or ('pred_lat' not in pred or 'pred_lon' not in pred): # jika pred kosong atau tidak ada lat/lon
-                    logger.warning("[LSTM] integrate_ga_prediction: pred kosong atau tidak punya lat/lon.") # log peringatan
-                    return None # kembalikan None
-                # ambil salinan buffer saat ini
-                buf = self.buffer.get_context() # ambil salinan buffer
-                if buf is None or buf.empty: # jika buffer kosong
-                    logger.warning("[LSTM] Buffer kosong, tidak ada tempat integrasi GA; opsi append_row dipertimbangkan.")
-                    if attach_to == "append_row":
-                        row = {
-                            'Acquired_Date': pd.Timestamp.now(),
-                            'EQ_Lintang': pred.get('pred_lat'),
-                            'EQ_Bujur': pred.get('pred_lon'),
-                            'Nama': 'GA_PRED',
-                        } # buat row baru
-                        row.update({
-                            'ga_pred_lat': pred.get('pred_lat'),
-                            'ga_pred_lon': pred.get('pred_lon'),
-                            'ga_bearing': pred.get('bearing_degree'),
-                            'ga_distance_km': pred.get('distance_km'),
-                            'ga_confidence': pred.get('confidence'),
-                        }) # update row dengan data GA
-                        self.buffer.update(pd.DataFrame([row]))
-                        return True
-                    return None
 
-                # jika cluster id diberikan -> filter buffer per cluster
-                if cid is not None and 'cluster_id' in buf.columns:
-                    sub = buf[buf['cluster_id'] == cid]
-                    if sub.empty: 
-                        candidates = buf
-                    else:
-                        candidates = sub
-                else:
+    def integrate_aco_prediction(self, pred: Dict[str, Any], cid: Optional[int] = None, attach_to: str = "nearest"):
+        """
+        Integrasi output ACO ke buffer LSTM.
+        pred: dict mis. {'center_lat':.., 'center_lon':.., 'area_km2':.., 'confidence':..}
+        attach_to: "nearest" | "append_row"
+        """
+        try:
+            if not pred or ('center_lat' not in pred or 'center_lon' not in pred):
+                logger.warning("[LSTM] integrate_aco_prediction: pred kosong atau tidak punya center coords.")
+                return None
+
+            buf = self.buffer.get_context()
+            if buf is None or buf.empty:
+                logger.warning("[LSTM] Buffer kosong, mencoba append_row.")
+                if attach_to == "append_row":
+                    row = {
+                        'Acquired_Date': pd.Timestamp.now(),
+                        'EQ_Lintang': pred.get('center_lat'),
+                        'EQ_Bujur': pred.get('center_lon'),
+                        'Nama': 'ACO_PRED',
+                        'aco_center_lat': pred.get('center_lat'),
+                        'aco_center_lon': pred.get('center_lon'),
+                        'aco_area_km2': pred.get('area_km2'),
+                        'aco_confidence': pred.get('confidence', 1.0)
+                    }
+                    self.buffer.update(pd.DataFrame([row]))
+                    return True
+                return None
+
+            # Cari kandidat (cluster filter bila cid disediakan)
+            candidates = buf if cid is None else (buf[buf['cluster_id'] == cid] if 'cluster_id' in buf.columns else buf)
+            coords = candidates[['EQ_Lintang', 'EQ_Bujur']].dropna()
+            if coords.empty:
+                if attach_to == "append_row":
+                    row = {'Acquired_Date': pd.Timestamp.now(), 'EQ_Lintang': pred.get('center_lat'), 'EQ_Bujur': pred.get('center_lon'), 'Nama': 'ACO_PRED'}
+                    row.update({
+                        'aco_center_lat': pred.get('center_lat'),
+                        'aco_center_lon': pred.get('center_lon'),
+                        'aco_area_km2': pred.get('area_km2'),
+                        'aco_confidence': pred.get('confidence', 1.0)
+                    })
+                    self.buffer.update(pd.DataFrame([row]))
+                    return True
+                return None
+
+            lat_p = float(pred.get('center_lat'))
+            lon_p = float(pred.get('center_lon'))
+            lat_arr = coords['EQ_Lintang'].astype(float).values
+            lon_arr = coords['EQ_Bujur'].astype(float).values
+
+            # gunakan GeoMathCore.haversine jika tersedia, fallback simple euclidean approx jika tidak
+            try:
+                dists = np.array([GeoMathCore.haversine(lat_p, lon_p, la, lo) for la, lo in zip(lat_arr, lon_arr)])
+            except Exception:
+                dists = np.sqrt((lat_arr - lat_p)**2 + (lon_arr - lon_p)**2)
+
+            nearest_idx_local = coords.index[np.argmin(dists)]
+
+            self.buffer.buffer_df.loc[nearest_idx_local, 'aco_center_lat'] = lat_p
+            self.buffer.buffer_df.loc[nearest_idx_local, 'aco_center_lon'] = lon_p
+            self.buffer.buffer_df.loc[nearest_idx_local, 'aco_area_km2'] = pred.get('area_km2')
+            self.buffer.buffer_df.loc[nearest_idx_local, 'aco_confidence'] = pred.get('confidence', 1.0)
+
+            logger.info(f"[LSTM] ACO pred integrated to buffer index {nearest_idx_local} (cid={cid})")
+            return nearest_idx_local
+
+        except Exception as e:
+            logger.error(f"[LSTM] integrate_aco_prediction failed: {e}")
+            return None
+
+
+    # fungsi integrasi prediksi GA ke buffer
+    def integrate_ga_prediction(self, pred: Dict[str, Any], cid: Optional[int] = None, attach_to: str = "nearest"):
+        """
+        Integrasi output GA (pred dict) ke buffer LSTM.
+        - pred: dict seperti {'pred_lat', 'pred_lon', 'bearing_degree', 'distance_km', 'confidence', ...}
+        - cid: jika known cluster_id, gunakan mapping langsung; jika None, akan dicari row terdekat di buffer
+        - attach_to: "nearest" | "append_row"
+        Efek: menambah kolom GA ke baris yang relevan di self.buffer.buffer_df
+        """
+        try: # validasi input pred 
+            if not pred or ('pred_lat' not in pred or 'pred_lon' not in pred): # jika pred kosong atau tidak ada lat/lon
+                logger.warning("[LSTM] integrate_ga_prediction: pred kosong atau tidak punya lat/lon.") # log peringatan
+                return None # kembalikan None
+            # ambil salinan buffer saat ini
+            buf = self.buffer.get_context() # ambil salinan buffer
+            if buf is None or buf.empty: # jika buffer kosong
+                logger.warning("[LSTM] Buffer kosong, tidak ada tempat integrasi GA; opsi append_row dipertimbangkan.")
+                if attach_to == "append_row":
+                    row = {
+                        'Acquired_Date': pd.Timestamp.now(),
+                        'EQ_Lintang': pred.get('pred_lat'),
+                        'EQ_Bujur': pred.get('pred_lon'),
+                        'Nama': 'GA_PRED',
+                    } # buat row baru
+                    row.update({
+                        'ga_pred_lat': pred.get('pred_lat'),
+                        'ga_pred_lon': pred.get('pred_lon'),
+                        'ga_bearing': pred.get('bearing_degree'),
+                        'ga_distance_km': pred.get('distance_km'),
+                        'ga_confidence': pred.get('confidence'),
+                    }) # update row dengan data GA
+                    self.buffer.update(pd.DataFrame([row]))
+                    return True
+                return None
+
+            # jika cluster id diberikan -> filter buffer per cluster
+            if cid is not None and 'cluster_id' in buf.columns:
+                sub = buf[buf['cluster_id'] == cid]
+                if sub.empty: 
                     candidates = buf
+                else:
+                    candidates = sub
+            else:
+                candidates = buf
 
-                # hitung index terdekat (haversine) ke pred point
-                lat_p = float(pred.get('pred_lat')) 
-                lon_p = float(pred.get('pred_lon'))
+            # hitung index terdekat (haversine) ke pred point
+            lat_p = float(pred.get('pred_lat')) 
+            lon_p = float(pred.get('pred_lon'))
 
-                # vectorized haversine
-                coords = candidates[['EQ_Lintang', 'EQ_Bujur']].dropna() # ambil koordinat valid 
-                if coords.empty: # jika tidak ada koordinat valid
-                    # fallback append
-                    if attach_to == "append_row": # jika opsi append_row
-                        row = {'Acquired_Date': pd.Timestamp.now(), 'EQ_Lintang': lat_p, 'EQ_Bujur': lon_p, 'Nama': 'GA_PRED'} # buat row baru
-                        row.update({
-                            'ga_pred_lat': lat_p,
-                            'ga_pred_lon': lon_p,
-                            'ga_bearing': pred.get('bearing_degree'),
-                            'ga_distance_km': pred.get('distance_km'),
-                            'ga_confidence': pred.get('confidence'),
-                        }) # update row dengan data GA
-                        self.buffer.update(pd.DataFrame([row]))
-                        return True
-                    return None
-
-                # fungsi untuk hitung haversine (tidak dipakai, hanya referensi)
-                def _h(lat1, lon1, lat2_arr, lon2_arr):
-                    return np.array([GeoClusterer(0,1).model.metric if False else
-                                     GeoMathCore.haversine(lat1, lon1, rlat, rlon)
-                                     for rlat, rlon in zip(lat2_arr, lon2_arr)])
-
-                # faster vector compute
-                lat_arr = coords['EQ_Lintang'].astype(float).values # ambil array lat
-                lon_arr = coords['EQ_Bujur'].astype(float).values # ambil array lon
-                # compute distances vectorized using GeoMathCore.haversine in loop (numpy vectorization with listcomp)
-                dists = np.array([GeoMathCore.haversine(lat_p, lon_p, la, lo) for la, lo in zip(lat_arr, lon_arr)]) # hitung jarak
-                nearest_idx_local = coords.index[np.argmin(dists)] # ambil index terdekat
-
-                # update buffer row with GA fields
-                self.buffer.buffer_df.loc[nearest_idx_local, 'ga_pred_lat'] = lat_p # update lat
-                self.buffer.buffer_df.loc[nearest_idx_local, 'ga_pred_lon'] = lon_p # update lon
-                self.buffer.buffer_df.loc[nearest_idx_local, 'ga_bearing'] = pred.get('bearing_degree') # update bearing
-                self.buffer.buffer_df.loc[nearest_idx_local, 'ga_distance_km'] = pred.get('distance_km') # update distance
-                self.buffer.buffer_df.loc[nearest_idx_local, 'ga_confidence'] = pred.get('confidence') # update confidence
-
-                logger.info(f"[LSTM] GA pred integrated to buffer index {nearest_idx_local} (cid={cid})")
-                return nearest_idx_local
-
-            except Exception as e:
-                logger.error(f"[LSTM] integrate_ga_prediction failed: {e}")
+            # vectorized haversine
+            coords = candidates[['EQ_Lintang', 'EQ_Bujur']].dropna() # ambil koordinat valid 
+            if coords.empty: # jika tidak ada koordinat valid
+                # fallback append
+                if attach_to == "append_row": # jika opsi append_row
+                    row = {'Acquired_Date': pd.Timestamp.now(), 'EQ_Lintang': lat_p, 'EQ_Bujur': lon_p, 'Nama': 'GA_PRED'} # buat row baru
+                    row.update({
+                        'ga_pred_lat': lat_p,
+                        'ga_pred_lon': lon_p,
+                        'ga_bearing': pred.get('bearing_degree'),
+                        'ga_distance_km': pred.get('distance_km'),
+                        'ga_confidence': pred.get('confidence'),
+                    }) # update row dengan data GA
+                    self.buffer.update(pd.DataFrame([row]))
+                    return True
                 return None
-        def load_ga_json_and_integrate(self, ga_json_path: str, cid: Optional[int] = None): # fungsi muat file JSON GA dan integrasi ke buffer 
-            """
-            Load GA vector JSON file and integrate into buffer.
-            Returns True/False
-            """
-            try:
-                if not os.path.exists(ga_json_path):
-                    logger.warning(f"[LSTM] GA json not found: {ga_json_path}")
-                    return False
-                with open(ga_json_path, 'r') as f:
-                    pred = json.load(f)
-                if isinstance(pred, dict) and 'pred_lat' in pred:
-                    return bool(self.integrate_ga_prediction(pred, cid=cid))
-                logger.warning("[LSTM] GA JSON doesn't contain 'pred_lat'/'pred_lon'")
-                return False
-            except Exception as e:
-                logger.error(f"[LSTM] load_ga_json_and_integrate failed: {e}")
-                return False
-        # Tambahkan method ini di bawah integrate_ga_prediction
-        def integrate_cnn_prediction(self, pred: Dict[str, Any], attach_to: str = "nearest"):
-            """
-            Integrasi output CNN (pred dict) ke buffer LSTM untuk record lengkap.
-            """
-            try:
-                # Validasi input minimal
-                if not pred:
-                    return None
-            
-                # Ambil data buffer terakhir (latest row)
-                buf = self.buffer.get_context()
-                if buf is None or buf.empty:
-                    return None
 
-                # Kita tempelkan prediksi CNN ke data paling akhir (event terbaru)
-                latest_idx = buf.index[-1]
-            
-                # Update kolom CNN
-                # Pastikan nama key sesuai dengan output JSON CNN Anda
-                self.buffer.buffer_df.loc[latest_idx, 'cnn_bearing'] = pred.get('bearing_degree', pred.get('predicted_bearing'))
-                self.buffer.buffer_df.loc[latest_idx, 'cnn_distance'] = pred.get('distance_km', pred.get('predicted_distance'))
-                self.buffer.buffer_df.loc[latest_idx, 'cnn_confidence'] = pred.get('confidence', 0.0)
-            
-                logger.info(f"[LSTM] CNN pred integrated to buffer index {latest_idx}")
-                return latest_idx
+            # fungsi untuk hitung haversine (tidak dipakai, hanya referensi)
+            def _h(lat1, lon1, lat2_arr, lon2_arr):
+                return np.array([GeoClusterer(0,1).model.metric if False else
+                                 GeoMathCore.haversine(lat1, lon1, rlat, rlon)
+                                 for rlat, rlon in zip(lat2_arr, lon2_arr)])
 
-            except Exception as e:
-                logger.error(f"[LSTM] integrate_cnn_prediction failed: {e}")
+            # faster vector compute
+            lat_arr = coords['EQ_Lintang'].astype(float).values # ambil array lat
+            lon_arr = coords['EQ_Bujur'].astype(float).values # ambil array lon
+            # compute distances vectorized using GeoMathCore.haversine in loop (numpy vectorization with listcomp)
+            dists = np.array([GeoMathCore.haversine(lat_p, lon_p, la, lo) for la, lo in zip(lat_arr, lon_arr)]) # hitung jarak
+            nearest_idx_local = coords.index[np.argmin(dists)] # ambil index terdekat
+
+            # update buffer row with GA fields
+            self.buffer.buffer_df.loc[nearest_idx_local, 'ga_pred_lat'] = lat_p # update lat
+            self.buffer.buffer_df.loc[nearest_idx_local, 'ga_pred_lon'] = lon_p # update lon
+            self.buffer.buffer_df.loc[nearest_idx_local, 'ga_bearing'] = pred.get('bearing_degree') # update bearing
+            self.buffer.buffer_df.loc[nearest_idx_local, 'ga_distance_km'] = pred.get('distance_km') # update distance
+            self.buffer.buffer_df.loc[nearest_idx_local, 'ga_confidence'] = pred.get('confidence') # update confidence
+
+            logger.info(f"[LSTM] GA pred integrated to buffer index {nearest_idx_local} (cid={cid})")
+            return nearest_idx_local
+
+        except Exception as e:
+            logger.error(f"[LSTM] integrate_ga_prediction failed: {e}")
+            return None
+
+    def load_ga_json_and_integrate(self, ga_json_path: str, cid: Optional[int] = None): # fungsi muat file JSON GA dan integrasi ke buffer 
+        """
+        Load GA vector JSON file and integrate into buffer.
+        Returns True/False
+        """
+        try:
+            if not os.path.exists(ga_json_path):
+                logger.warning(f"[LSTM] GA json not found: {ga_json_path}")
+                return False
+            with open(ga_json_path, 'r') as f:
+                pred = json.load(f)
+            if isinstance(pred, dict) and 'pred_lat' in pred:
+                return bool(self.integrate_ga_prediction(pred, cid=cid))
+            logger.warning("[LSTM] GA JSON doesn't contain 'pred_lat'/'pred_lon'")
+            return False
+        except Exception as e:
+            logger.error(f"[LSTM] load_ga_json_and_integrate failed: {e}")
+            return False
+    # Tambahkan method ini di bawah integrate_ga_prediction
+    def integrate_cnn_prediction(self, pred: Dict[str, Any], attach_to: str = "nearest"):
+        try:
+            if not pred: return None
+            buf = self.buffer.get_context()
+            if buf is None or buf.empty:
                 return None
+
+            # Jika payload CNN berisi coords, gunakan nearest; else gunakan latest
+            if 'pred_lat' in pred and 'pred_lon' in pred:
+                coords = buf[['EQ_Lintang', 'EQ_Bujur']].dropna()
+                if not coords.empty:
+                    lat_p = float(pred.get('pred_lat'))
+                    lon_p = float(pred.get('pred_lon'))
+                    lat_arr = coords['EQ_Lintang'].astype(float).values
+                    lon_arr = coords['EQ_Bujur'].astype(float).values
+                    try:
+                        dists = np.array([GeoMathCore.haversine(lat_p, lon_p, la, lo) for la, lo in zip(lat_arr, lon_arr)])
+                    except Exception:
+                        dists = np.sqrt((lat_arr - lat_p)**2 + (lon_arr - lon_p)**2)
+                    nearest_idx_local = coords.index[np.argmin(dists)]
+                    idx_to_update = nearest_idx_local
+                else:
+                    idx_to_update = buf.index[-1]
+            else:
+                idx_to_update = buf.index[-1]
+
+            self.buffer.buffer_df.loc[idx_to_update, 'cnn_bearing'] = pred.get('bearing_degree', pred.get('predicted_bearing'))
+            self.buffer.buffer_df.loc[idx_to_update, 'cnn_distance'] = pred.get('distance_km', pred.get('predicted_distance'))
+            self.buffer.buffer_df.loc[idx_to_update, 'cnn_confidence'] = pred.get('confidence', 0.0)
+
+            logger.info(f"[LSTM] CNN pred integrated to buffer index {idx_to_update}")
+            return idx_to_update
+
+        except Exception as e:
+            logger.error(f"[LSTM] integrate_cnn_prediction failed: {e}")
+            return None
 
     # fungsi mendapatkan data buffer 
     def get_buffer(self) -> pd.DataFrame:
@@ -969,100 +1049,99 @@ class LstmEngine:
 
     @execution_telemetry
     def predict_on_static(self, df_test): # fungsi prediksi pada data statis    
-        if df_test is None or df_test.empty: # jika data kosong 
-            return df_test, pd.DataFrame() # kembalikan data kosong
+        if df_test is None or df_test.empty: 
+            return df_test, pd.DataFrame() 
 
         # Prepare Cleanly
-        df_proc = self.processor.prepare(df_test) # proses data
-        df_out = df_proc.copy() # salin data untuk output
+        df_proc = self.processor.prepare(df_test)
+        df_out = df_proc.copy()
 
         # Init Columns
-        df_out['lstm_prediction'] = np.nan # inisialisasi kolom prediksi
-        df_out['prediction_sigma'] = np.nan # inisialisasi kolom sigma
-        df_out['prediction_error'] = np.nan # inisialisasi kolom error
-        df_out['anomaly_score'] = 0.0 # inisialisasi kolom skor anomali
+        df_out['lstm_prediction'] = np.nan 
+        df_out['prediction_sigma'] = np.nan 
+        df_out['prediction_error'] = np.nan 
+        df_out['anomaly_score'] = 0.0 
 
-        anomalies = [] # list untuk menyimpan anomali
-        if 'cluster_id' not in df_out.columns: # jika kolom cluster_id tidak ada
-            df_out['cluster_id'] = -1 # set default -1 (noise)
+        anomalies = [] 
+        if 'cluster_id' not in df_out.columns: 
+            df_out['cluster_id'] = -1 
 
-        for cid in self.vault.list_clusters(): # iterasi setiap cluster
-            mask = df_out['cluster_id'] == cid # buat mask untuk cluster
-            if not mask.any(): # jika tidak ada data untuk cluster ini
+        for cid in self.vault.list_clusters(): 
+            mask = df_out['cluster_id'] == cid 
+            if not mask.any(): 
                 continue
-            # Filter Data per Cluster & Sort
+            
             df_c = df_out.loc[mask].sort_values('Acquired_Date')
 
             # Cache Lookup
-            if cid in self.models_cache: # jika model ada di cache
-                model, scaler = self.models_cache[cid] # ambil dari cache
-            else: # jika tidak ada di cache
-                model, scaler = self.vault.load_cluster_state(cid) # muat dari vault
-                if model:# simpan ke cache
-                    self.models_cache[cid] = (model, scaler) # simpan ke cache
+            if cid in self.models_cache: 
+                model, scaler = self.models_cache[cid] 
+            else: 
+                model, scaler = self.vault.load_cluster_state(cid) 
+                if model:
+                    self.models_cache[cid] = (model, scaler) 
 
-            if not model: # jika model tidak ada
-                continue # lanjut ke cluster berikutnya
+            if not model: 
+                continue 
 
             # Feature check
-            feats = getattr(scaler, 'feature_names_in_', None) # ambil fitur dari scaler
-            if feats is None: # jika tidak ada, gunakan dari config
-                feats = list(self.cfg.features) # salin fitur dari config
+            feats = getattr(scaler, 'feature_names_in_', None) 
+            if feats is None: 
+                feats = list(self.cfg.features) 
 
-            # ensure GA cols present in df_c are included
+            # Preserve Extra Columns
             ga_cols = [c for c in df_c.columns if c.startswith('ga_') or c in 
-                       ('ga_pred_lat', 'ga_pred_lon', 'ga_bearing', 'ga_distance_km', 'ga_confidence')] # cari kolom GA
-            for g in ga_cols: # iterasi kolom GA 
-                if g not in feats:
-                    feats.append(g)
+                       ('ga_pred_lat', 'ga_pred_lon', 'ga_bearing', 'ga_distance_km', 'ga_confidence')]
+            for g in ga_cols:
+                if g not in feats: feats.append(g)
 
-            if not all(f in df_c.columns for f in feats): # jika ada fitur yang hilang
-                logger.warning(f"[LSTM] Missing features for cluster {cid}. Required: {feats}") # log peringatan
-                continue # lanjut ke cluster berikutnya
+            aco_cols = [c for c in df_c.columns if c.startswith('aco_') or c in 
+                       ('aco_center_lat', 'aco_center_lon', 'aco_area_km2', 'aco_confidence')]
+            for a in aco_cols:
+                if a not in feats: feats.append(a)
+
+            if not all(f in df_c.columns for f in feats): 
+                logger.warning(f"[LSTM] Missing features for cluster {cid}. Required: {feats}") 
+                continue 
 
             # Transform & Tensor
-            expected_feats = list(feats) # salin fitur yang diharapkan
-            for ef in expected_feats: # iterasi fitur yang diharapkan
-                if ef not in df_c.columns: # jika fitur tidak ada di data cluster
-                    df_c[ef] = 0.0 # tambahkan kolom dengan nilai 0.0
-            # Transform data menggunakan scaler
-            data_mtx = scaler.transform(df_c[expected_feats].fillna(0)) # transform data
-            tfactory = TensorFactory(list(feats), self.cfg.target_feature, self.cfg.input_seq_len, self.cfg.target_seq_len) # inisialisasi tensor factory
-            X_enc = tfactory.construct_inference_tensor(data_mtx) # buat tensor inferensi
-            # Skip jika tidak ada sampel
-            if len(X_enc) == 0: # jika tidak ada sampel
-                continue # lanjut ke cluster berikutnya
+            expected_feats = list(feats) 
+            for ef in expected_feats: 
+                if ef not in df_c.columns: 
+                    df_c[ef] = 0.0 
+            
+            data_to_transform = df_c[expected_feats].fillna(0)
+            
+            if data_to_transform.shape[1] != scaler.n_features_in_:
+                 valid_feats = getattr(scaler, 'feature_names_in_', self.cfg.features)
+                 data_to_transform = df_c[valid_feats].fillna(0)
 
-            # Predict
-            X_dec_dummy = np.zeros((len(X_enc), self.cfg.target_seq_len, len(feats))) # buat dummy decoder input
-            preds = model.predict([X_enc, X_dec_dummy], verbose=0) # prediksi
+            data_mtx = scaler.transform(data_to_transform) 
+            
+            tfactory = TensorFactory(list(data_to_transform.columns), self.cfg.target_feature, self.cfg.input_seq_len, self.cfg.target_seq_len) 
+            X_enc = tfactory.construct_inference_tensor(data_mtx) 
+            
+            if len(X_enc) == 0: 
+                continue 
 
-            # preds shape: (n_samples, pred_len, 1) OR (n_samples, pred_len)
+            X_dec_dummy = np.zeros((len(X_enc), self.cfg.target_seq_len, X_enc.shape[2])) 
+            preds = model.predict([X_enc, X_dec_dummy], verbose=0) 
+
             preds = np.squeeze(preds)
             if preds.ndim == 2:
-                # pilih horizon pertama sebagai prediksi "next event"
                 mu_seq = preds[:, 0]
             else:
-                mu_seq = preds  # shape (n_samples,)
+                mu_seq = preds  
 
-            # sigma not available in current architecture -> zeros
             sigma_seq = np.zeros_like(mu_seq)
 
-            # Inverse transform target saja menggunakan MinMaxScaler 
             from sklearn.preprocessing import MinMaxScaler 
-
-            # Buat scaler hanya untuk target
             target_scaler = MinMaxScaler()
             target_scaler.fit(df_c[[self.cfg.target_feature]].values)
 
-            # Inverse transform prediksi mu_seq
             res_mu = target_scaler.inverse_transform(mu_seq.reshape(-1, 1)).ravel()
-
-            # Sigma tetap nol karena arsitektur saat ini tidak memprediksi sigma
             res_sigma = np.zeros_like(res_mu)
 
-
-            # Map Back -> each mu_seq corresponds to prediction time starting at index = seq_len
             start_idx = self.cfg.input_seq_len
             valid_idx = df_c.index[start_idx : start_idx + len(res_mu)]
             min_l = min(len(valid_idx), len(res_mu))
@@ -1074,17 +1153,28 @@ class LstmEngine:
             df_out.loc[final_idx, 'lstm_prediction'] = res_mu[:min_l]
             df_out.loc[final_idx, 'prediction_sigma'] = res_sigma[:min_l]
 
-            # Error & Anomaly (Z-Score Logic)
             actual = df_c.loc[final_idx, self.cfg.target_feature].values
             err = np.abs(res_mu[:min_l] - actual)
             df_out.loc[final_idx, 'prediction_error'] = err
 
+            # ---------------------------------------------------------
+            # INTEGRATION BLOCK (FIXED FOR JSON STRUCTURE)
+            # ---------------------------------------------------------
             try:
-                # Ambil baris terakhir (data terbaru)
                 if not df_out.empty:
                     last_idx = df_out.index[-1]
                 
-                    # 1. Load Output GA (Arah & Sudut)
+                    # 1. ACO
+                    aco_path = os.path.join("output", "aco_results", "aco_to_ga.json")
+                    if os.path.exists(aco_path):
+                        with open(aco_path, 'r') as f:
+                            aco_data = json.load(f)
+                        df_out.loc[last_idx, 'aco_center_lat'] = aco_data.get('center_lat')
+                        df_out.loc[last_idx, 'aco_center_lon'] = aco_data.get('center_lon')
+                        df_out.loc[last_idx, 'aco_area_km2'] = aco_data.get('area_km2')
+                        df_out.loc[last_idx, 'aco_confidence'] = aco_data.get('confidence', 1.0)
+
+                    # 2. GA 
                     ga_path = os.path.join("output", "ga_results", "ga_vector.json")
                     if os.path.exists(ga_path):
                         with open(ga_path, 'r') as f:
@@ -1092,23 +1182,30 @@ class LstmEngine:
                         df_out.loc[last_idx, 'ga_bearing'] = ga_data.get('bearing_degree')
                         df_out.loc[last_idx, 'ga_distance_km'] = ga_data.get('distance_km')
                 
-                    # 2. Load Output CNN (Prediksi Arah & Sudut)
+                    # 3. CNN (FIXED HERE)
                     cnn_path = os.path.join("output", "cnn_results", "cnn_predictions_latest.json")
                     if os.path.exists(cnn_path):
                         with open(cnn_path, 'r') as f:
                             cnn_data = json.load(f)
-                        # Mapping nama field sesuai JSON CNN Anda
-                        df_out.loc[last_idx, 'cnn_bearing'] = cnn_data.get('bearing_degree', cnn_data.get('predicted_bearing'))
-                        df_out.loc[last_idx, 'cnn_angle'] = cnn_data.get('angle', 0.0) 
+                        
+                        # Cek struktur nested 'next_event'
+                        if 'next_event' in cnn_data:
+                            event = cnn_data['next_event']
+                            df_out.loc[last_idx, 'cnn_bearing'] = event.get('direction_deg')
+                            df_out.loc[last_idx, 'cnn_angle'] = event.get('direction_deg')
+                            df_out.loc[last_idx, 'cnn_distance'] = event.get('distance_km')
+                            df_out.loc[last_idx, 'cnn_confidence'] = event.get('confidence')
+                        else:
+                            # Fallback struktur lama
+                            df_out.loc[last_idx, 'cnn_bearing'] = cnn_data.get('bearing_degree')
+                            df_out.loc[last_idx, 'cnn_angle'] = cnn_data.get('angle', 0.0)
                     
-                    logger.info("[LSTM] Data terbaru berhasil diperkaya dengan vektor GA & CNN.")
+                    logger.info("[LSTM] Data terbaru berhasil diperkaya dengan vektor ACO, GA & CNN.")
                 
             except Exception as e:
                 logger.warning(f"[LSTM] Gagal integrasi data eksternal ke record: {e}")
+            # ---------------------------------------------------------
 
-            # ===============================
-            # ANOMALY DETECTION (ERROR-BASED)
-            # ===============================
             err_mean = err.mean()
             err_std = err.std()
 
@@ -1119,123 +1216,122 @@ class LstmEngine:
 
             df_out.loc[final_idx, 'anomaly_score'] = z_score
 
-
-            is_anom = z_score > 2.5  # 2.5 Sigma threshold
+            is_anom = z_score > 2.5 
             if is_anom.any():
                 anomalies.append(df_out.loc[final_idx][is_anom])
 
-            # Visualize (silently warn jika gagal)
             try:
                 self.viz_manager.plot_probabilistic_forecast(actual, res_mu[:min_l], res_sigma[:min_l], cid)
             except Exception as e:
                 logger.warning(f"[Viz] plotting failed c{cid}: {e}")
 
-        final_anoms = pd.concat(anomalies) if anomalies else pd.DataFrame() # gabungkan anomali
+        final_anoms = pd.concat(anomalies) if anomalies else pd.DataFrame() 
 
-        # --- SAVE CSV OUTPUT (two-year + 15-day + anomalies) ---
-        try: # simpan record LSTM
-            self._save_lstm_records(df_out, pd.concat(anomalies) if anomalies else pd.DataFrame())
+        try: 
+            self._save_lstm_records(df_out, final_anoms)
         except Exception as e:
             logger.warning(f"[LSTM] Failed to save LSTM records: {e}")
 
-        return df_out, pd.concat(anomalies) if anomalies else pd.DataFrame()
+        return df_out, final_anoms
 
-        # fungsi merekam event aktual ke buffer 
-        def record_actual_events(self, df_actual: pd.DataFrame):
-            """
-            Merekam event aktual (ground truth) ke buffer & vault
-            untuk pembelajaran lanjutan LSTM (integrasi CNN).
-            """
-            if df_actual is None or df_actual.empty: # jika data kosong
-                logger.warning("[LSTM] record_actual_events: df_actual kosong") # log peringatan
-                return False # kembalikan False
+    # fungsi merekam event aktual ke buffer 
+    def record_actual_events(self, df_actual: pd.DataFrame):
+        """
+        Merekam event aktual (ground truth) ke buffer & vault
+        untuk pembelajaran lanjutan LSTM (integrasi CNN).
+        """
+        if df_actual is None or df_actual.empty: # jika data kosong
+            logger.warning("[LSTM] record_actual_events: df_actual kosong") # log peringatan
+            return False # kembalikan False
 
-            try: # proses perekaman untuk event aktual 
-                # 1️⃣ Update buffer realtime
-                self.buffer.update(df_actual)
+        try: # proses perekaman untuk event aktual 
+            # 1️⃣ Update buffer realtime
+            self.buffer.update(df_actual)
 
-                # 2️⃣ (Opsional) Simpan ke vault sebagai arsip learning
-                if hasattr(self.vault, 'append'):
-                    self.vault.append(df_actual)
+            # 2️⃣ (Opsional) Simpan ke vault sebagai arsip learning
+            if hasattr(self.vault, 'append'):
+                self.vault.append(df_actual)
 
-                # 3️⃣ Persist state
-                self.save_state()
+            # 3️⃣ Persist state
+            self.save_state()
 
-                logger.info(f"[LSTM] Recorded {len(df_actual)} actual events")
-                return True
+            logger.info(f"[LSTM] Recorded {len(df_actual)} actual events")
+            return True
 
-            except Exception as e:
-                logger.error(f"[LSTM] record_actual_events failed: {e}")
-                return False
-        
-        # fungsi simpan state LSTM
-        def save_state(self):
-            """
-            Simpan state LSTM (buffer, metadata).
-            """
-            try:
-                # Simpan buffer ke pickle
-                state_dir = Path(self.cfg.model_dir)
-                state_dir.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            logger.error(f"[LSTM] record_actual_events failed: {e}")
+            return False
 
-                buffer_path = state_dir / "lstm_buffer.pkl"
-                with open(buffer_path, "wb") as f:
-                    pickle.dump(self.buffer.get_context(), f)
+    # fungsi simpan state LSTM
+    def save_state(self):
+        """
+        Simpan state LSTM (buffer, metadata).
+        """
+        try:
+            # Simpan buffer ke pickle
+            state_dir = Path(self.cfg.model_dir)
+            state_dir.mkdir(parents=True, exist_ok=True)
 
-                logger.info(f"[LSTM] State saved: {buffer_path}")
+            buffer_path = state_dir / "lstm_buffer.pkl"
+            with open(buffer_path, "wb") as f:
+                pickle.dump(self.buffer.get_context(), f)
 
-            except Exception as e:
-                logger.warning(f"[LSTM] save_state failed: {e}")
+            logger.info(f"[LSTM] State saved: {buffer_path}")
 
-        # fungsi ekstrak hidden states dari LSTM untuk CNN 
-        def extract_hidden_states(self, X_input, cid):
-            # Robust extractor for encoder states for CNN
-            try:
-                if cid in self.models_cache: # jika model ada di cache
-                    model, _ = self.models_cache[cid] # ambil dari cache
-                else:
-                    model, _ = self.vault.load_cluster_state(cid) # muat dari vault
+        except Exception as e:
+            logger.warning(f"[LSTM] save_state failed: {e}")
 
-                if not model:
-                    return None
+    def extract_hidden_states(self, model, X_enc, X_dec=None): # Tambahkan =None
+        """
+        Mengambil hidden state dari encoder LSTM
+        """
+        try:
+            # Handle jika X_dec tidak diberikan oleh pemanggil
+            if X_dec is None:
+                # Buat dummy X_dec sesuai shape yang diharapkan model (batch_size, target_len, features)
+                # Kita ambil shape dari X_enc: (batch, seq_len, features)
+                batch_size = X_enc.shape[0]
+                n_features = X_enc.shape[2]
+                target_len = self.cfg.target_seq_len
+                X_dec = np.zeros((batch_size, target_len, n_features))
+            # Ambil layer encoder
+            enc_layer = model.get_layer('encoder_bi_lstm')
+            enc_model = Model(
+                inputs=model.input,
+                outputs=enc_layer.output
+            )
 
-                # try to get named layer
-                try:
-                    enc = model.get_layer('encoder_bi_lstm')
-                except Exception:
-                    # fallback: find first Bidirectional layer
-                    from keras.layers import Bidirectional
-                    enc = None
-                    for l in model.layers:
-                        if isinstance(l, Bidirectional):
-                            enc = l
-                            break
-                    if enc is None:
-                        return None
+            outputs = enc_model.predict([X_enc, X_dec], verbose=0)
+            return outputs
 
-                # Build sub-model to extract states; many Keras versions differ on outputs
-                # We'll attempt to call enc.cell or use sub-model and then infer outputs shape
-                sub_model = Model(inputs=model.inputs[0], outputs=enc.output)
-                outs = sub_model.predict(X_input, verbose=0)
+        except Exception as e:
+            logger.warning(f"[LSTM] extract_hidden_states failed: {e}")
+            return None
 
-                # enc.output may be a sequence (seq_out) or tuple; try to find hidden states from original model
-                # Fallback strategy: call model.predict and use intermediary states via function if available
-                # Typical bidirectional LSTM with return_state returns [seq_out, fh, fc, bh, bc]
-                if isinstance(outs, list) or isinstance(outs, tuple):
-                    # try get h states at position 1 and 3
-                    if len(outs) >= 4:
-                        fh = outs[1]
-                        bh = outs[3]
-                        return np.concatenate([fh, bh], axis=-1)
-                # If enc.output returned only sequence (n_samples, timesteps, features)
-                # we can't extract states directly -> fallback to pooling
-                # Use GlobalAveragePooling over timesteps as a proxy
-                if outs.ndim == 3:
-                    return np.mean(outs, axis=1)
-                return None
-            except Exception as e:
-                logger.warning(f"[LSTM] extract_hidden_states failed for c{cid}: {e}")
-                return None
+            # Build sub-model to extract states; many Keras versions differ on outputs
+            # We'll attempt to call enc.cell or use sub-model and then infer outputs shape
+            sub_model = Model(inputs=model.inputs[0], outputs=enc.output)
+            outs = sub_model.predict(X_input, verbose=0)
+
+            # enc.output may be a sequence (seq_out) or tuple; try to find hidden states from original model
+            # Fallback strategy: call model.predict and use intermediary states via function if available
+            # Typical bidirectional LSTM with return_state returns [seq_out, fh, fc, bh, bc]
+            if isinstance(outs, list) or isinstance(outs, tuple):
+                # try get h states at position 1 and 3
+                if len(outs) >= 4:
+                    fh = outs[1]
+                    bh = outs[3]
+                    return np.concatenate([fh, bh], axis=-1)
+            # If enc.output returned only sequence (n_samples, timesteps, features)
+            # we can't extract states directly -> fallback to pooling
+            # Use GlobalAveragePooling over timesteps as a proxy
+            if outs.ndim == 3:
+                return np.mean(outs, axis=1)
+            return None
+        except Exception as e:
+            logger.warning(f"[LSTM] extract_hidden_states failed for c{cid}: {e}")
+            return None
+
     # fungsi proses data live stream 
     def process_live_stream(self, df_new):
         if df_new.empty: return pd.DataFrame(), pd.DataFrame()
@@ -1266,103 +1362,119 @@ class LstmEngine:
         return final_pred, final_anom
     # fungsi simpan record LSTM ke CSV 
     def _save_lstm_records(self, df_full: pd.DataFrame, anomalies: pd.DataFrame):
-        """
-        Simpan file CSV:
-         - master file: semua record 2 tahun terakhir
-         - recent file: 15 hari terakhir
-         - anomalies file: hasil deteksi anomaly
+            """
+            Simpan file CSV:
+             - master file: semua record 2 tahun terakhir
+             - recent file: 15 hari terakhir
+             - anomalies file: hasil deteksi anomaly
+             - summary files: ringkasan khusus ACO, GA, dan CNN (Sesuai Request Client)
 
-        Timestamp diambil dari TANGGAL DATA TERBARU (Acquired_Date),
-        dan file akan DITIMPA jika timestamp sama.
-        """
+            Timestamp diambil dari TANGGAL DATA TERBARU (Acquired_Date),
+            dan file akan DITIMPA jika timestamp sama.
+            """
 
-        out_root = getattr(self.cfg, 'output_dir', 'output/lstm_results') # direktori output
-        os.makedirs(out_root, exist_ok=True) # buat direktori jika belum ada
+            out_root = getattr(self.cfg, 'output_dir', 'output/lstm_results') # direktori output
+            os.makedirs(out_root, exist_ok=True) # buat direktori jika belum ada
 
-        df = df_full.copy() # salin data
+            df = df_full.copy() # salin data
 
-        # ===============================
-        # 1️⃣ Pastikan kolom waktu valid
-        # ===============================
-        if 'Acquired_Date' not in df.columns: # jika kolom waktu tidak ada
-            logger.error("[LSTM] Acquired_Date tidak ditemukan, batal simpan CSV.") # log error
-            return {} # kembalikan dict kosong
+            # ===============================
+            # 1. Pastikan kolom waktu valid
+            # ===============================
+            if 'Acquired_Date' not in df.columns:
+                logger.error("[LSTM] Acquired_Date tidak ditemukan, batal simpan CSV.")
+                return {}
 
-        df['Acquired_Date'] = pd.to_datetime(df['Acquired_Date'], errors='coerce') # parsing tanggal
-        df = df.dropna(subset=['Acquired_Date']) # buang baris dengan tanggal tidak valid
+            df['Acquired_Date'] = pd.to_datetime(df['Acquired_Date'], errors='coerce')
+            df = df.dropna(subset=['Acquired_Date'])
 
-        if df.empty: # jika data kosong setelah parsing
-            logger.warning("[LSTM] Data kosong setelah parsing tanggal.") # log peringatan
-            return {} # kembalikan dict kosong
+            if df.empty:
+                logger.warning("[LSTM] Data kosong setelah parsing tanggal.")
+                return {}
 
-        df = df.sort_values("Acquired_Date") # urutkan berdasarkan tanggal
-        # ===============================
-        # 2️⃣ Ambil timestamp dari DATA TERBARU
-        # ===============================
-        latest_date = pd.Timestamp.now() # default ke sekarang
-        ts = latest_date.strftime("%Y%m%d") # default format tanggal
+            df = df.sort_values("Acquired_Date")
+        
+            # ===============================
+            # 2. Ambil timestamp & Filter Waktu
+            # ===============================
+            latest_date = pd.Timestamp.now()
+            ts = latest_date.strftime("%Y%m%d")
 
-        # ===============================
-        # 3️⃣ Filter rentang waktu
-        # ===============================
-        two_years_ago = latest_date - pd.Timedelta(days=365 * 2) # dua tahun lalu
-        recent_15d = latest_date - pd.Timedelta(days=15) # 15 hari lalu
-        # Filter data
-        df_2y = df[df['Acquired_Date'] >= two_years_ago].copy() # data 2 tahun terakhir
-        df_recent = df[df['Acquired_Date'] >= recent_15d].copy() # data 15 hari terakhir
+            two_years_ago = latest_date - pd.Timedelta(days=365 * 2)
+            recent_15d = latest_date - pd.Timedelta(days=15)
+        
+            df_2y = df[df['Acquired_Date'] >= two_years_ago].copy()
+            df_recent = df[df['Acquired_Date'] >= recent_15d].copy()
 
-        # ===============================
-        # 4️⃣ PATH FILE (DITIMPA)
-        # ===============================
-        master_path = os.path.join(out_root, f"lstm_records_2y_{ts}.csv") # path master
-        recent_path = os.path.join(out_root, f"lstm_recent_15d_{ts}.csv") # path recent 
-        anom_path   = os.path.join(out_root, f"lstm_anomalies_{ts}.csv")# path anomalies
-
-        # ===============================
-        # 5️⃣ SIMPAN CSV
-        # ===============================
-        try:
-            df_2y.to_csv(master_path, index=False)
-            df_recent.to_csv(recent_path, index=False)
-
-            if anomalies is not None and not anomalies.empty:
-                anomalies.to_csv(anom_path, index=False)
-            else:
-                pd.DataFrame().to_csv(anom_path, index=False)
-
-            logger.info(
-                f"[LSTM] Saved CSV (overwrite-safe): "
-                f"master={master_path}, recent={recent_path}, anomalies={anom_path}"
-            )
-
-            return {
-                "master": master_path,
-                "recent": recent_path,
-                "anomalies": anom_path
-            }
-
-        except Exception as e:
-            logger.error(f"[LSTM] Gagal menyimpan CSV LSTM: {e}")
-            return {}
-
-        ga_cols = [c for c in df.columns if c.startswith('ga_') or c in (
-            'ga_pred_lat',
-            'ga_pred_lon',
-            'ga_bearing',
-            'ga_distance_km',
-            'ga_confidence'
-        )]
-
-        if ga_cols:
+            # ===============================
+            # 3. Definisikan Path
+            # ===============================
+            master_path = os.path.join(out_root, f"lstm_records_2y_{ts}.csv")
+            recent_path = os.path.join(out_root, f"lstm_recent_15d_{ts}.csv")
+            anom_path   = os.path.join(out_root, f"lstm_anomalies_{ts}.csv")
+        
+            # Path untuk Summary External Engines (Sesuai Request Client)
             ga_summary_path = os.path.join(out_root, f"lstm_ga_summary_{ts}.csv")
-            (
-                df[ga_cols]
-                .dropna(how='all')
-                .drop_duplicates()
-                .to_csv(ga_summary_path, index=False)
-            )
+            aco_summary_path = os.path.join(out_root, f"lstm_aco_summary_{ts}.csv")
+            cnn_summary_path = os.path.join(out_root, f"lstm_cnn_summary_{ts}.csv")
 
-            logger.info(f"[LSTM] GA summary saved: {ga_summary_path}")
+            # ===============================
+            # 4. EKSEKUSI PENYIMPANAN
+            # ===============================
+            try:
+                # A. Simpan Master & Recent (Data Utama - Termasuk hasil integrasi)
+                df_2y.to_csv(master_path, index=False)
+                df_recent.to_csv(recent_path, index=False)
+
+                # B. Simpan Anomali
+                if anomalies is not None and not anomalies.empty:
+                    anomalies.to_csv(anom_path, index=False)
+                else:
+                    pd.DataFrame().to_csv(anom_path, index=False) # Keep structure consistent
+
+                # C. Simpan GA Summary (Sekarang kode ini DAPAT DIJALANKAN)
+                ga_cols = [c for c in df.columns if c.startswith('ga_') or c in (
+                    'ga_pred_lat', 'ga_pred_lon', 'ga_bearing', 'ga_distance_km', 'ga_confidence'
+                )]
+                if ga_cols:
+                    (df[ga_cols].dropna(how='all').drop_duplicates()
+                     .to_csv(ga_summary_path, index=False))
+                    logger.info(f"[LSTM] GA summary saved: {ga_summary_path}")
+
+                # D. Simpan ACO Summary (Sekarang kode ini DAPAT DIJALANKAN)
+                aco_cols = [c for c in df.columns if c.startswith('aco_') or c in (
+                    'aco_center_lat', 'aco_center_lon', 'aco_area_km2', 'aco_confidence'
+                )]
+                if aco_cols:
+                    (df[aco_cols].dropna(how='all').drop_duplicates()
+                     .to_csv(aco_summary_path, index=False))
+                    logger.info(f"[LSTM] ACO summary saved: {aco_summary_path}")
+
+                # E. Simpan CNN Summary (TAMBAHAN BARU agar sesuai request client)
+                cnn_cols = [c for c in df.columns if c.startswith('cnn_') or c in (
+                    'cnn_bearing', 'cnn_distance', 'cnn_confidence', 'cnn_angle'
+                )]
+                if cnn_cols:
+                    (df[cnn_cols].dropna(how='all').drop_duplicates()
+                     .to_csv(cnn_summary_path, index=False))
+                    logger.info(f"[LSTM] CNN summary saved: {cnn_summary_path}")
+
+                logger.info(f"[LSTM] All records saved successfully for timestamp {ts}")
+
+                # Return dict berisi semua path yang berhasil dibuat
+                return {
+                    "master": master_path,
+                    "recent": recent_path,
+                    "anomalies": anom_path,
+                    "ga_summary": ga_summary_path if ga_cols else None,
+                    "aco_summary": aco_summary_path if aco_cols else None,
+                    "cnn_summary": cnn_summary_path if cnn_cols else None
+                }
+
+            except Exception as e:
+                logger.error(f"[LSTM] Gagal menyimpan CSV LSTM: {e}")
+                return {}
+
     # fungsi prediksi realtime (dummy untuk kompatibilitas)
     def predict_realtime(self, *args):
         return pd.DataFrame(), pd.DataFrame()
