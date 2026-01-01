@@ -6,6 +6,8 @@ import ast
 import logging
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple, Optional, Any
+from pathlib import Path
+from dataclasses import dataclass, field
 
 # =============================================================================
 # 1. CONSTANTS & KEYWORDS
@@ -40,15 +42,22 @@ TYPE_KEYWORDS: Dict[str, List[str]] = {
 # 2. SUB-CONFIGURATIONS (MODULAR)
 # =============================================================================
 
+from pathlib import Path
+from dataclasses import dataclass, field
+
 @dataclass
 class DataLoaderConfig:
     """Konfigurasi lokasi data dan parameter penggabungan awal."""
-    volcanic_data_path: str = "data_volcano/Hasil_Ekstraksi_Data_Vulkanik_Final.xlsx"
-    earthquake_data_path: str = "data/Volcanic_Earthquake_Data.xlsx"
-    merged_output_path: str = "output/data_merged.xlsx"
+    # gunakan path relatif terhadap root project (pakai folder data/)
+    volcanic_data_path: str = str(Path("data") / "Data 15 Hari.xlsx")     # file extra (VRP/volcano) atau ganti sesuai
+    earthquake_data_path: str = str(Path("data") / "Volcanic_Earthquake_Data.xlsx")  # main earthquake file
+    # tambahkan explicit extra path supaya DataLoader tidak bergantung pada fallback string
+    earthquake_extra_path: str = str(Path("data") / "Data 15 Hari.xlsx")
+    merged_output_path: str = str(Path("output") / "data_merged.xlsx")
     
     date_tolerance_days: int = 30
     distance_tolerance_km: float = 150.0
+
 
 @dataclass
 class DataSplitConfig:

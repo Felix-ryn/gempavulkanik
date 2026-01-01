@@ -1,0 +1,47 @@
+2026-01-01 13:59:41,148 [INFO    ] [root                ] [MainThread] --- Logging diinisialisasi. File: output\pipeline_20260101_135941.log
+2026-01-01 13:59:41,150 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2026-01-01 13:59:41,150 [INFO    ] [root                ] [MainThread] ---                             VOLCANOAI SYSTEM STARTUP                            
+2026-01-01 13:59:41,151 [INFO    ] [root                ] [MainThread] --- ================================================================================
+2026-01-01 13:59:41,157 [INFO    ] [root                ] [MainThread] --- [Dashboard] Starting Flask server in background thread (monitoring enabled)...
+2026-01-01 13:59:41,179 [INFO    ] [RealtimeSensorManager] [MainThread] --- [MIROVA] Menggunakan log terbaru: output/realtime\mirova_log_20251003-094000.txt
+2026-01-01 13:59:41,180 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Pipeline VolcanoAI 5.2.0-TITAN-EXCEL initialized successfully.
+2026-01-01 13:59:41,180 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- Starting Pipeline Execution...
+2026-01-01 13:59:41,181 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- 
+========== PHASE 1: DATA LOADING ==========
+2026-01-01 13:59:41,963 [INFO    ] [werkzeug            ] [Thread-1 (_run)] --- [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-01-01 13:59:41,966 [INFO    ] [werkzeug            ] [Thread-1 (_run)] --- [33mPress CTRL+C to quit[0m
+2026-01-01 13:59:42,058 [INFO    ] [VolcanoAI.DataLoader] [MainThread] --- [DataSource] Excel sheets in C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\data\Volcanic_Earthquake_Data.xlsx: ['Sheet1']
+2026-01-01 13:59:42,703 [INFO    ] [werkzeug            ] [Thread-2 (process_request_thread)] --- 127.0.0.1 - - [01/Jan/2026 13:59:42] "GET / HTTP/1.1" 200 -
+2026-01-01 13:59:43,396 [WARNING ] [VolcanoAI.DataLoader] [MainThread] --- [DataGuard] Kolom datetime 'Acquired_Date' tidak ditemukan. Skip.
+2026-01-01 13:59:43,458 [INFO    ] [werkzeug            ] [Thread-3 (process_request_thread)] --- 127.0.0.1 - - [01/Jan/2026 13:59:43] "GET / HTTP/1.1" 200 -
+2026-01-01 13:59:43,522 [INFO    ] [werkzeug            ] [Thread-4 (process_request_thread)] --- 127.0.0.1 - - [01/Jan/2026 13:59:43] "GET / HTTP/1.1" 200 -
+2026-01-01 13:59:43,606 [INFO    ] [VolcanoAI.DataLoader] [MainThread] --- [DataSource] Excel sheets in C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\data\Data 15 Hari.xlsx: ['Sheet1']
+2026-01-01 13:59:43,636 [INFO    ] [werkzeug            ] [Thread-5 (process_request_thread)] --- 127.0.0.1 - - [01/Jan/2026 13:59:43] "GET / HTTP/1.1" 200 -
+2026-01-01 13:59:43,777 [INFO    ] [werkzeug            ] [Thread-6 (process_request_thread)] --- 127.0.0.1 - - [01/Jan/2026 13:59:43] "GET / HTTP/1.1" 200 -
+2026-01-01 13:59:44,049 [INFO    ] [werkzeug            ] [Thread-7 (process_request_thread)] --- 127.0.0.1 - - [01/Jan/2026 13:59:44] "GET / HTTP/1.1" 200 -
+2026-01-01 13:59:44,107 [INFO    ] [VolcanoAI.DataLoader] [MainThread] --- [EarthquakeSource] Rows main=1868, extra=30
+2026-01-01 13:59:44,221 [INFO    ] [VolcanoAI.DataLoader] [MainThread] --- [DataLoader] df_eq rows after load_and_clean: 30
+2026-01-01 13:59:44,238 [INFO    ] [VolcanoAI.DataLoader] [MainThread] --- [DataLoader] Spatial filter applied: 30/30 rows kept.
+2026-01-01 13:59:44,303 [INFO    ] [VolcanoAI.DataLoader] [MainThread] --- [DataSource] Excel sheets in C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\data\Data 15 Hari.xlsx: ['Sheet1']
+2026-01-01 13:59:44,602 [CRITICAL] [PipelineGuard       ] [MainThread] --- CRASH di _step_load_and_split_data: 'Nama'
+2026-01-01 13:59:45,255 [CRITICAL] [VolcanoAiPipeline   ] [MainThread] --- PIPELINE FAILED: 'Nama'
+Traceback (most recent call last):
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 648, in run
+    if not self._step_load_and_split_data(): # Panggil fungsi untuk memuat dan membagi data
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 102, in wrapper
+    raise e
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 95, in wrapper
+    return func(*args, **kwargs) # coba jalankan fungsi asli yang dilindungi
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\main.py", line 233, in _step_load_and_split_data
+    df_full = self.data_loader.run() # Panggil modul pemuat data untuk mendapatkan data gabungan
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\VolcanoAI\processing\data_loader.py", line 517, in run
+    df_vol.sort_values(["Nama", "VRP_Date"], inplace=True)
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\env\lib\site-packages\pandas\core\frame.py", line 7194, in sort_values
+    keys = [self._get_label_or_level_values(x, axis=axis) for x in by]
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\env\lib\site-packages\pandas\core\frame.py", line 7194, in <listcomp>
+    keys = [self._get_label_or_level_values(x, axis=axis) for x in by]
+  File "C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\env\lib\site-packages\pandas\core\generic.py", line 1914, in _get_label_or_level_values
+    raise KeyError(key)
+KeyError: 'Nama'
+2026-01-01 13:59:45,261 [INFO    ] [VolcanoAiPipeline   ] [MainThread] --- System shutdown. Uptime: 4.08s

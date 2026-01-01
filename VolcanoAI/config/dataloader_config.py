@@ -1,19 +1,16 @@
-﻿# VolcanoAI/config/dataloader_config.py
-
-from dataclasses import dataclass, field
+﻿from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, List
 
 @dataclass
 class DataLoaderConfig:
     """
-    Konfigurasi utama untuk proses pemuatan data
-    yang digunakan oleh pipeline LSTM, CNN, dan NaiveBayes.
+    Konfigurasi utama DataLoader menggunakan path relatif.
     """
 
-    # Path utama dataset
+    # Path relatif terhadap root project
     volcano_data_path: str = "data/volcano.xlsx"
-    earthquake_data_path: str = "data/earthquake.xlsx"
+    earthquake_data_path: str = "data/Volcanic_Earthquake_Data.xlsx"
     merged_output_path: str = "output/datasets/merged_dataset.xlsx"
 
     # Streaming & real-time
@@ -36,7 +33,7 @@ class DataLoaderConfig:
     # Data preprocessing
     fill_missing: bool = True
     normalize: bool = True
-    scaling_method: str = "minmax"  # atau 'standard'
+    scaling_method: str = "minmax"
     feature_columns: List[str] = field(default_factory=lambda: [
         "Magnitudo", "Kedalaman (km)", "num_nearby_eqs",
         "max_nearby_mag", "VRP_Max", "OLI_total (W)", "MSI_total (W)"
@@ -51,8 +48,11 @@ class DataLoaderConfig:
     # Random seed untuk reproducibility
     random_seed: Optional[int] = 42
 
+    # Tambahan untuk merge temporal
+    date_tolerance_days: int = 1
+
     def __post_init__(self):
-        # Pastikan direktori cache dan dataset ada
+        # Pastikan direktori cache dan dataset ada (relative ke project root)
         Path(self.cache_dir).mkdir(parents=True, exist_ok=True)
         Path("data").mkdir(parents=True, exist_ok=True)
         Path("output/datasets").mkdir(parents=True, exist_ok=True)
