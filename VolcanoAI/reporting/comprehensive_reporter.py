@@ -1,9 +1,11 @@
 ﻿# VolcanoAI/reporting/comprehensive_reporter.py  # File utama untuk pembuatan laporan & dashboard VolcanoAI
 # -- coding: utf-8 --  # Deklarasi encoding UTF-8
-
+import glob
+import base64
 import datetime  # modul untuk menangani tanggal dan waktu
 import os  # modul operasi filesystem dan path
 import logging  # modul logging
+import shutil
 import base64  # encode/decode base64 (mis. gambar ke HTML)
 import glob  # pencarian file dengan pola
 import numpy as np  # operasi numerik array
@@ -360,6 +362,33 @@ class ComprehensiveReporter(MapGenerator):  # reporter komprehensif yang mewaris
             latest_row = latest_row[
                 [c for c in latest_row.index if not any(p in c.lower() for p in forbidden_patterns)]
             ]
+
+        # =========================
+        # NAIVE BAYES CONFUSION MATRIX
+        # =========================
+        nb_dir = os.path.abspath(
+            os.path.join(self.output_dir, "naive_bayes_results")
+        )
+
+        nb_cm_files = glob.glob(
+            os.path.join(nb_dir, "confusion_matrix_*.png")
+        )
+
+        nb_cm_files.sort(reverse=True)  # terbaru di depan
+
+        nb_cm_path = nb_cm_files[0] if nb_cm_files else ""
+        
+        self.logger.warning(f"[NB DEBUG] nb_dir = {nb_dir}")
+        self.logger.warning(f"[NB DEBUG] nb_cm_files = {nb_cm_files}")
+        self.logger.warning(f"[NB DEBUG] chosen = {nb_cm_path}")
+
+        def _image_to_base64(path: str) -> str:
+            if not path or not os.path.exists(path):
+                return ""
+            with open(path, "rb") as f:
+                return "data:image/png;base64," + base64.b64encode(f.read()).decode("utf-8")
+
+        nb_confusion_png = _image_to_base64(nb_cm_path)
         data = {
             "TIMESTAMP": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),  # timestamp sekarang
             "ACO_IMPACT_CENTER": getm("aco_center"),  # center impact ACO
@@ -378,7 +407,8 @@ class ComprehensiveReporter(MapGenerator):  # reporter komprehensif yang mewaris
             "CNN_PRED_CSV": getm("cnn_pred_csv", ""),  # link/placeholder CNN predictions CSV
             "CNN_PRED_JSON": getm("cnn_pred_json", ""),  # link/placeholder CNN predictions JSON
             "NB_METRICS_HTML": nb_metrics_html,
-            "NB_REPORT_STR": nb_report_clean  
+            "NB_REPORT_STR": nb_report_clean,
+            "NB_CONFUSION_PNG": nb_confusion_png
         }
         template_html = _safe_read_text(template_path, self.logger)
         for k, v in data.items():
@@ -404,3 +434,13 @@ def _safe_read_text(path: Path, logger=None) -> str:
                 logger.warning(f"Error baca {path} dengan {enc}: {e}")  # log error baca file
     raw = path.read_bytes()  # baca byte mentah jika semua encoding gagal
     return raw.decode("utf-8", errors="replace")  # decode byte dengan replace untuk karakter problematik
+
+def _image_to_base64(img_path: str) -> str:
+    if not img_path or not os.path.exists(img_path):
+        return ""
+    try:
+        with open(img_path, "rb") as f:
+            return "data:image/png;base64," + base64.b64encode(f.read()).decode("utf-8")
+    except Exception:
+        return ""
+

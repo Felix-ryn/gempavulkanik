@@ -35,7 +35,7 @@
     },
     {
       "from_aco": 5,
-      "angle_deg": 259.0,
+      "angle_deg": 262.0,
       "direction": "W",
       "distance_km": 9.223552424994118
     },
@@ -47,8 +47,8 @@
     },
     {
       "from_aco": 7,
-      "angle_deg": 165.0,
-      "direction": "S",
+      "angle_deg": 157.0,
+      "direction": "SE",
       "distance_km": 9.223552424994118
     },
     {
@@ -77,13 +77,13 @@
     },
     {
       "from_aco": 12,
-      "angle_deg": 19.0,
-      "direction": "N",
+      "angle_deg": 151.0,
+      "direction": "SE",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 13,
-      "angle_deg": 348.0,
+      "angle_deg": 351.0,
       "direction": "N",
       "distance_km": 9.223552424994118
     },
@@ -119,8 +119,8 @@
     },
     {
       "from_aco": 19,
-      "angle_deg": 28.0,
-      "direction": "NE",
+      "angle_deg": 124.0,
+      "direction": "SE",
       "distance_km": 9.223552424994118
     },
     {
@@ -137,7 +137,7 @@
     },
     {
       "from_aco": 22,
-      "angle_deg": 231.0,
+      "angle_deg": 218.0,
       "direction": "SW",
       "distance_km": 9.223552424994118
     },
@@ -149,8 +149,8 @@
     },
     {
       "from_aco": 24,
-      "angle_deg": 204.0,
-      "direction": "SW",
+      "angle_deg": 202.0,
+      "direction": "S",
       "distance_km": 9.223552424994118
     },
     {
@@ -227,14 +227,14 @@
     },
     {
       "from_aco": 37,
-      "angle_deg": 56.0,
-      "direction": "NE",
+      "angle_deg": 162.0,
+      "direction": "S",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 38,
-      "angle_deg": 205.0,
-      "direction": "SW",
+      "angle_deg": 181.0,
+      "direction": "S",
       "distance_km": 9.223552424994118
     },
     {
@@ -269,7 +269,7 @@
     },
     {
       "from_aco": 44,
-      "angle_deg": 183.0,
+      "angle_deg": 185.0,
       "direction": "S",
       "distance_km": 9.223552424994118
     },
@@ -359,8 +359,8 @@
     },
     {
       "from_aco": 59,
-      "angle_deg": 269.0,
-      "direction": "W",
+      "angle_deg": 331.0,
+      "direction": "NW",
       "distance_km": 9.223552424994118
     },
     {
@@ -395,8 +395,8 @@
     },
     {
       "from_aco": 65,
-      "angle_deg": 248.0,
-      "direction": "W",
+      "angle_deg": 242.0,
+      "direction": "SW",
       "distance_km": 9.223552424994118
     },
     {
@@ -407,7 +407,7 @@
     },
     {
       "from_aco": 67,
-      "angle_deg": 193.0,
+      "angle_deg": 185.0,
       "direction": "S",
       "distance_km": 9.223552424994118
     },
@@ -419,13 +419,13 @@
     },
     {
       "from_aco": 69,
-      "angle_deg": 296.0,
-      "direction": "NW",
+      "angle_deg": 287.0,
+      "direction": "W",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 70,
-      "angle_deg": 60.0,
+      "angle_deg": 56.0,
       "direction": "NE",
       "distance_km": 9.223552424994118
     },
@@ -437,7 +437,7 @@
     },
     {
       "from_aco": 72,
-      "angle_deg": 330.0,
+      "angle_deg": 334.0,
       "direction": "NW",
       "distance_km": 9.223552424994118
     },
@@ -467,8 +467,8 @@
     },
     {
       "from_aco": 77,
-      "angle_deg": 65.0,
-      "direction": "NE",
+      "angle_deg": 70.0,
+      "direction": "E",
       "distance_km": 9.223552424994118
     },
     {
@@ -491,14 +491,14 @@
     },
     {
       "from_aco": 81,
-      "angle_deg": 227.0,
+      "angle_deg": 221.0,
       "direction": "SW",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 82,
-      "angle_deg": 289.0,
-      "direction": "W",
+      "angle_deg": 332.0,
+      "direction": "NW",
       "distance_km": 9.223552424994118
     },
     {
@@ -509,14 +509,14 @@
     },
     {
       "from_aco": 84,
-      "angle_deg": 196.0,
-      "direction": "S",
+      "angle_deg": 140.0,
+      "direction": "SE",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 85,
-      "angle_deg": 68.0,
-      "direction": "E",
+      "angle_deg": 66.0,
+      "direction": "NE",
       "distance_km": 9.223552424994118
     },
     {
@@ -539,8 +539,8 @@
     },
     {
       "from_aco": 89,
-      "angle_deg": 209.0,
-      "direction": "SW",
+      "angle_deg": 155.0,
+      "direction": "SE",
       "distance_km": 9.223552424994118
     },
     {
@@ -551,8 +551,8 @@
     },
     {
       "from_aco": 91,
-      "angle_deg": 354.0,
-      "direction": "N",
+      "angle_deg": 104.0,
+      "direction": "E",
       "distance_km": 9.223552424994118
     },
     {
@@ -605,8 +605,8 @@
     },
     {
       "from_aco": 100,
-      "angle_deg": 26.0,
-      "direction": "NE",
+      "angle_deg": 15.0,
+      "direction": "N",
       "distance_km": 9.223552424994118
     },
     {
@@ -617,7 +617,7 @@
     },
     {
       "from_aco": 102,
-      "angle_deg": 39.0,
+      "angle_deg": 28.0,
       "direction": "NE",
       "distance_km": 9.223552424994118
     },
@@ -647,7 +647,7 @@
     },
     {
       "from_aco": 107,
-      "angle_deg": 166.0,
+      "angle_deg": 161.0,
       "direction": "S",
       "distance_km": 9.223552424994118
     },
@@ -671,7 +671,7 @@
     },
     {
       "from_aco": 111,
-      "angle_deg": 101.0,
+      "angle_deg": 96.0,
       "direction": "E",
       "distance_km": 9.223552424994118
     },
@@ -689,7 +689,7 @@
     },
     {
       "from_aco": 114,
-      "angle_deg": 112.0,
+      "angle_deg": 105.0,
       "direction": "E",
       "distance_km": 9.223552424994118
     },
@@ -725,7 +725,7 @@
     },
     {
       "from_aco": 120,
-      "angle_deg": 356.0,
+      "angle_deg": 3.0,
       "direction": "N",
       "distance_km": 9.223552424994118
     },
@@ -869,19 +869,19 @@
     },
     {
       "from_aco": 144,
-      "angle_deg": 354.0,
+      "angle_deg": 351.0,
       "direction": "N",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 145,
-      "angle_deg": 107.0,
-      "direction": "E",
+      "angle_deg": 116.0,
+      "direction": "SE",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 146,
-      "angle_deg": 58.0,
+      "angle_deg": 61.0,
       "direction": "NE",
       "distance_km": 9.223552424994118
     },
@@ -905,7 +905,7 @@
     },
     {
       "from_aco": 150,
-      "angle_deg": 136.0,
+      "angle_deg": 132.0,
       "direction": "SE",
       "distance_km": 9.223552424994118
     },
@@ -929,8 +929,8 @@
     },
     {
       "from_aco": 154,
-      "angle_deg": 23.0,
-      "direction": "NE",
+      "angle_deg": 19.0,
+      "direction": "N",
       "distance_km": 9.223552424994118
     },
     {
@@ -941,8 +941,8 @@
     },
     {
       "from_aco": 156,
-      "angle_deg": 229.0,
-      "direction": "SW",
+      "angle_deg": 122.0,
+      "direction": "SE",
       "distance_km": 9.223552424994118
     },
     {
@@ -965,14 +965,14 @@
     },
     {
       "from_aco": 160,
-      "angle_deg": 148.0,
+      "angle_deg": 149.0,
       "direction": "SE",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 161,
-      "angle_deg": 251.0,
-      "direction": "W",
+      "angle_deg": 294.0,
+      "direction": "NW",
       "distance_km": 9.223552424994118
     },
     {
@@ -983,14 +983,14 @@
     },
     {
       "from_aco": 163,
-      "angle_deg": 262.0,
-      "direction": "W",
+      "angle_deg": 324.0,
+      "direction": "NW",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 164,
-      "angle_deg": 240.0,
-      "direction": "SW",
+      "angle_deg": 254.0,
+      "direction": "W",
       "distance_km": 9.223552424994118
     },
     {
@@ -1007,13 +1007,13 @@
     },
     {
       "from_aco": 167,
-      "angle_deg": 150.0,
+      "angle_deg": 147.0,
       "direction": "SE",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 168,
-      "angle_deg": 309.0,
+      "angle_deg": 310.0,
       "direction": "NW",
       "distance_km": 9.223552424994118
     },
@@ -1061,7 +1061,7 @@
     },
     {
       "from_aco": 176,
-      "angle_deg": 247.0,
+      "angle_deg": 243.0,
       "direction": "SW",
       "distance_km": 9.223552424994118
     },
@@ -1085,7 +1085,7 @@
     },
     {
       "from_aco": 180,
-      "angle_deg": 345.0,
+      "angle_deg": 352.0,
       "direction": "N",
       "distance_km": 9.223552424994118
     },
@@ -1115,7 +1115,7 @@
     },
     {
       "from_aco": 185,
-      "angle_deg": 359.0,
+      "angle_deg": 351.0,
       "direction": "N",
       "distance_km": 9.223552424994118
     },
@@ -1127,8 +1127,8 @@
     },
     {
       "from_aco": 187,
-      "angle_deg": 358.0,
-      "direction": "N",
+      "angle_deg": 208.0,
+      "direction": "SW",
       "distance_km": 9.223552424994118
     },
     {
@@ -1139,7 +1139,7 @@
     },
     {
       "from_aco": 189,
-      "angle_deg": 351.0,
+      "angle_deg": 353.0,
       "direction": "N",
       "distance_km": 9.223552424994118
     },
@@ -1175,8 +1175,8 @@
     },
     {
       "from_aco": 195,
-      "angle_deg": 195.0,
-      "direction": "S",
+      "angle_deg": 203.0,
+      "direction": "SW",
       "distance_km": 9.223552424994118
     },
     {
@@ -1199,7 +1199,7 @@
     },
     {
       "from_aco": 199,
-      "angle_deg": 211.0,
+      "angle_deg": 207.0,
       "direction": "SW",
       "distance_km": 9.223552424994118
     },
@@ -1211,25 +1211,25 @@
     },
     {
       "from_aco": 201,
-      "angle_deg": 209.0,
-      "direction": "SW",
+      "angle_deg": 48.0,
+      "direction": "NE",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 202,
-      "angle_deg": 164.0,
-      "direction": "S",
+      "angle_deg": 84.0,
+      "direction": "E",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 203,
-      "angle_deg": 165.0,
+      "angle_deg": 163.0,
       "direction": "S",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 204,
-      "angle_deg": 222.0,
+      "angle_deg": 223.0,
       "direction": "SW",
       "distance_km": 9.223552424994118
     },
@@ -1241,7 +1241,7 @@
     },
     {
       "from_aco": 206,
-      "angle_deg": 235.0,
+      "angle_deg": 222.0,
       "direction": "SW",
       "distance_km": 9.223552424994118
     },
@@ -1295,7 +1295,7 @@
     },
     {
       "from_aco": 215,
-      "angle_deg": 297.0,
+      "angle_deg": 302.0,
       "direction": "NW",
       "distance_km": 9.223552424994118
     },
@@ -1367,8 +1367,8 @@
     },
     {
       "from_aco": 227,
-      "angle_deg": 161.0,
-      "direction": "S",
+      "angle_deg": 153.0,
+      "direction": "SE",
       "distance_km": 9.223552424994118
     },
     {
@@ -1379,8 +1379,8 @@
     },
     {
       "from_aco": 229,
-      "angle_deg": 122.0,
-      "direction": "SE",
+      "angle_deg": 110.0,
+      "direction": "E",
       "distance_km": 9.223552424994118
     },
     {
@@ -1403,7 +1403,7 @@
     },
     {
       "from_aco": 233,
-      "angle_deg": 127.0,
+      "angle_deg": 113.0,
       "direction": "SE",
       "distance_km": 9.223552424994118
     },
@@ -1433,8 +1433,8 @@
     },
     {
       "from_aco": 238,
-      "angle_deg": 12.0,
-      "direction": "N",
+      "angle_deg": 152.0,
+      "direction": "SE",
       "distance_km": 9.223552424994118
     },
     {
@@ -1451,14 +1451,14 @@
     },
     {
       "from_aco": 241,
-      "angle_deg": 17.0,
+      "angle_deg": 15.0,
       "direction": "N",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 242,
-      "angle_deg": 0.0,
-      "direction": "N",
+      "angle_deg": 118.0,
+      "direction": "SE",
       "distance_km": 9.223552424994118
     },
     {
@@ -1475,7 +1475,7 @@
     },
     {
       "from_aco": 245,
-      "angle_deg": 132.0,
+      "angle_deg": 115.0,
       "direction": "SE",
       "distance_km": 9.223552424994118
     },
@@ -1505,8 +1505,8 @@
     },
     {
       "from_aco": 250,
-      "angle_deg": 247.0,
-      "direction": "SW",
+      "angle_deg": 256.0,
+      "direction": "W",
       "distance_km": 9.223552424994118
     },
     {
@@ -1541,7 +1541,7 @@
     },
     {
       "from_aco": 256,
-      "angle_deg": 18.0,
+      "angle_deg": 19.0,
       "direction": "N",
       "distance_km": 9.223552424994118
     },
@@ -1565,7 +1565,7 @@
     },
     {
       "from_aco": 260,
-      "angle_deg": 76.0,
+      "angle_deg": 80.0,
       "direction": "E",
       "distance_km": 9.223552424994118
     },
@@ -1607,8 +1607,8 @@
     },
     {
       "from_aco": 267,
-      "angle_deg": 338.0,
-      "direction": "N",
+      "angle_deg": 296.0,
+      "direction": "NW",
       "distance_km": 9.223552424994118
     },
     {
@@ -1619,7 +1619,7 @@
     },
     {
       "from_aco": 269,
-      "angle_deg": 207.0,
+      "angle_deg": 217.0,
       "direction": "SW",
       "distance_km": 9.223552424994118
     },
@@ -1643,13 +1643,13 @@
     },
     {
       "from_aco": 273,
-      "angle_deg": 212.0,
+      "angle_deg": 211.0,
       "direction": "SW",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 274,
-      "angle_deg": 113.0,
+      "angle_deg": 132.0,
       "direction": "SE",
       "distance_km": 9.223552424994118
     },
@@ -1661,7 +1661,7 @@
     },
     {
       "from_aco": 276,
-      "angle_deg": 225.0,
+      "angle_deg": 220.0,
       "direction": "SW",
       "distance_km": 9.223552424994118
     },
@@ -1673,13 +1673,13 @@
     },
     {
       "from_aco": 278,
-      "angle_deg": 298.0,
-      "direction": "NW",
+      "angle_deg": 287.0,
+      "direction": "W",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 279,
-      "angle_deg": 190.0,
+      "angle_deg": 187.0,
       "direction": "S",
       "distance_km": 9.223552424994118
     },
@@ -1721,14 +1721,14 @@
     },
     {
       "from_aco": 286,
-      "angle_deg": 334.0,
-      "direction": "NW",
+      "angle_deg": 346.0,
+      "direction": "N",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 287,
-      "angle_deg": 0.0,
-      "direction": "N",
+      "angle_deg": 166.0,
+      "direction": "S",
       "distance_km": 9.223552424994118
     },
     {
@@ -1757,8 +1757,8 @@
     },
     {
       "from_aco": 292,
-      "angle_deg": 260.0,
-      "direction": "W",
+      "angle_deg": 300.0,
+      "direction": "NW",
       "distance_km": 9.223552424994118
     },
     {
@@ -1775,7 +1775,7 @@
     },
     {
       "from_aco": 295,
-      "angle_deg": 331.0,
+      "angle_deg": 333.0,
       "direction": "NW",
       "distance_km": 9.223552424994118
     },
@@ -1787,7 +1787,7 @@
     },
     {
       "from_aco": 297,
-      "angle_deg": 201.0,
+      "angle_deg": 202.0,
       "direction": "S",
       "distance_km": 9.223552424994118
     },
@@ -1799,7 +1799,7 @@
     },
     {
       "from_aco": 299,
-      "angle_deg": 67.0,
+      "angle_deg": 63.0,
       "direction": "NE",
       "distance_km": 9.223552424994118
     },
@@ -1811,7 +1811,7 @@
     },
     {
       "from_aco": 301,
-      "angle_deg": 245.0,
+      "angle_deg": 246.0,
       "direction": "SW",
       "distance_km": 9.223552424994118
     },
@@ -1847,8 +1847,8 @@
     },
     {
       "from_aco": 307,
-      "angle_deg": 204.0,
-      "direction": "SW",
+      "angle_deg": 107.0,
+      "direction": "E",
       "distance_km": 9.223552424994118
     },
     {
@@ -1889,14 +1889,14 @@
     },
     {
       "from_aco": 314,
-      "angle_deg": 135.0,
-      "direction": "SE",
+      "angle_deg": 96.0,
+      "direction": "E",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 315,
-      "angle_deg": 286.0,
-      "direction": "W",
+      "angle_deg": 323.0,
+      "direction": "NW",
       "distance_km": 9.223552424994118
     },
     {
@@ -1919,25 +1919,25 @@
     },
     {
       "from_aco": 319,
-      "angle_deg": 277.0,
+      "angle_deg": 265.0,
       "direction": "W",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 320,
-      "angle_deg": 213.0,
+      "angle_deg": 226.0,
       "direction": "SW",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 321,
-      "angle_deg": 100.0,
-      "direction": "E",
+      "angle_deg": 114.0,
+      "direction": "SE",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 322,
-      "angle_deg": 128.0,
+      "angle_deg": 131.0,
       "direction": "SE",
       "distance_km": 9.223552424994118
     },
@@ -1997,31 +1997,31 @@
     },
     {
       "from_aco": 332,
-      "angle_deg": 222.0,
+      "angle_deg": 225.0,
       "direction": "SW",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 333,
-      "angle_deg": 78.0,
+      "angle_deg": 75.0,
       "direction": "E",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 334,
-      "angle_deg": 234.0,
+      "angle_deg": 218.0,
       "direction": "SW",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 335,
-      "angle_deg": 246.0,
-      "direction": "SW",
+      "angle_deg": 258.0,
+      "direction": "W",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 336,
-      "angle_deg": 251.0,
+      "angle_deg": 256.0,
       "direction": "W",
       "distance_km": 9.223552424994118
     },
@@ -2045,7 +2045,7 @@
     },
     {
       "from_aco": 340,
-      "angle_deg": 215.0,
+      "angle_deg": 231.0,
       "direction": "SW",
       "distance_km": 9.223552424994118
     },
@@ -2075,8 +2075,8 @@
     },
     {
       "from_aco": 345,
-      "angle_deg": 262.0,
-      "direction": "W",
+      "angle_deg": 169.0,
+      "direction": "S",
       "distance_km": 9.223552424994118
     },
     {
@@ -2135,7 +2135,7 @@
     },
     {
       "from_aco": 355,
-      "angle_deg": 294.0,
+      "angle_deg": 305.0,
       "direction": "NW",
       "distance_km": 9.223552424994118
     },
@@ -2159,7 +2159,7 @@
     },
     {
       "from_aco": 359,
-      "angle_deg": 338.0,
+      "angle_deg": 354.0,
       "direction": "N",
       "distance_km": 9.223552424994118
     },
@@ -2189,13 +2189,13 @@
     },
     {
       "from_aco": 364,
-      "angle_deg": 143.0,
+      "angle_deg": 141.0,
       "direction": "SE",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 365,
-      "angle_deg": 255.0,
+      "angle_deg": 267.0,
       "direction": "W",
       "distance_km": 9.223552424994118
     },
@@ -2243,13 +2243,13 @@
     },
     {
       "from_aco": 373,
-      "angle_deg": 355.0,
+      "angle_deg": 356.0,
       "direction": "N",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 374,
-      "angle_deg": 238.0,
+      "angle_deg": 247.0,
       "direction": "SW",
       "distance_km": 9.223552424994118
     },
@@ -2261,7 +2261,7 @@
     },
     {
       "from_aco": 376,
-      "angle_deg": 249.0,
+      "angle_deg": 255.0,
       "direction": "W",
       "distance_km": 9.223552424994118
     },
@@ -2279,7 +2279,7 @@
     },
     {
       "from_aco": 379,
-      "angle_deg": 96.0,
+      "angle_deg": 95.0,
       "direction": "E",
       "distance_km": 9.223552424994118
     },
@@ -2339,8 +2339,8 @@
     },
     {
       "from_aco": 389,
-      "angle_deg": 279.0,
-      "direction": "W",
+      "angle_deg": 319.0,
+      "direction": "NW",
       "distance_km": 9.223552424994118
     },
     {
@@ -2399,7 +2399,7 @@
     },
     {
       "from_aco": 399,
-      "angle_deg": 346.0,
+      "angle_deg": 341.0,
       "direction": "N",
       "distance_km": 9.223552424994118
     },
@@ -2411,7 +2411,7 @@
     },
     {
       "from_aco": 401,
-      "angle_deg": 207.0,
+      "angle_deg": 213.0,
       "direction": "SW",
       "distance_km": 9.223552424994118
     },
@@ -2465,7 +2465,7 @@
     },
     {
       "from_aco": 410,
-      "angle_deg": 224.0,
+      "angle_deg": 214.0,
       "direction": "SW",
       "distance_km": 9.223552424994118
     },
@@ -2483,7 +2483,7 @@
     },
     {
       "from_aco": 413,
-      "angle_deg": 44.0,
+      "angle_deg": 53.0,
       "direction": "NE",
       "distance_km": 9.223552424994118
     },
@@ -2507,13 +2507,13 @@
     },
     {
       "from_aco": 417,
-      "angle_deg": 11.0,
+      "angle_deg": 2.0,
       "direction": "N",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 418,
-      "angle_deg": 213.0,
+      "angle_deg": 218.0,
       "direction": "SW",
       "distance_km": 9.223552424994118
     },
@@ -2537,19 +2537,19 @@
     },
     {
       "from_aco": 422,
-      "angle_deg": 233.0,
+      "angle_deg": 231.0,
       "direction": "SW",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 423,
-      "angle_deg": 271.0,
+      "angle_deg": 274.0,
       "direction": "W",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 424,
-      "angle_deg": 34.0,
+      "angle_deg": 27.0,
       "direction": "NE",
       "distance_km": 9.223552424994118
     },
@@ -2573,8 +2573,8 @@
     },
     {
       "from_aco": 428,
-      "angle_deg": 22.0,
-      "direction": "N",
+      "angle_deg": 31.0,
+      "direction": "NE",
       "distance_km": 9.223552424994118
     },
     {
@@ -2591,7 +2591,7 @@
     },
     {
       "from_aco": 431,
-      "angle_deg": 139.0,
+      "angle_deg": 131.0,
       "direction": "SE",
       "distance_km": 9.223552424994118
     },
@@ -2609,8 +2609,8 @@
     },
     {
       "from_aco": 434,
-      "angle_deg": 346.0,
-      "direction": "N",
+      "angle_deg": 118.0,
+      "direction": "SE",
       "distance_km": 9.223552424994118
     },
     {
@@ -2621,7 +2621,7 @@
     },
     {
       "from_aco": 436,
-      "angle_deg": 346.0,
+      "angle_deg": 351.0,
       "direction": "N",
       "distance_km": 9.223552424994118
     },
@@ -2639,8 +2639,8 @@
     },
     {
       "from_aco": 439,
-      "angle_deg": 249.0,
-      "direction": "W",
+      "angle_deg": 247.0,
+      "direction": "SW",
       "distance_km": 9.223552424994118
     },
     {
@@ -2669,19 +2669,19 @@
     },
     {
       "from_aco": 444,
-      "angle_deg": 239.0,
-      "direction": "SW",
+      "angle_deg": 249.0,
+      "direction": "W",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 445,
-      "angle_deg": 90.0,
+      "angle_deg": 75.0,
       "direction": "E",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 446,
-      "angle_deg": 197.0,
+      "angle_deg": 191.0,
       "direction": "S",
       "distance_km": 9.223552424994118
     },
@@ -2741,7 +2741,7 @@
     },
     {
       "from_aco": 456,
-      "angle_deg": 241.0,
+      "angle_deg": 247.0,
       "direction": "SW",
       "distance_km": 9.223552424994118
     },
@@ -2765,7 +2765,7 @@
     },
     {
       "from_aco": 460,
-      "angle_deg": 283.0,
+      "angle_deg": 285.0,
       "direction": "W",
       "distance_km": 9.223552424994118
     },
@@ -2783,8 +2783,8 @@
     },
     {
       "from_aco": 463,
-      "angle_deg": 315.0,
-      "direction": "NW",
+      "angle_deg": 195.0,
+      "direction": "S",
       "distance_km": 9.223552424994118
     },
     {
@@ -2801,7 +2801,7 @@
     },
     {
       "from_aco": 466,
-      "angle_deg": 342.0,
+      "angle_deg": 346.0,
       "direction": "N",
       "distance_km": 9.223552424994118
     },
@@ -2813,7 +2813,7 @@
     },
     {
       "from_aco": 468,
-      "angle_deg": 156.0,
+      "angle_deg": 154.0,
       "direction": "SE",
       "distance_km": 9.223552424994118
     },
@@ -2849,7 +2849,7 @@
     },
     {
       "from_aco": 474,
-      "angle_deg": 172.0,
+      "angle_deg": 161.0,
       "direction": "S",
       "distance_km": 9.223552424994118
     },
@@ -2861,7 +2861,7 @@
     },
     {
       "from_aco": 476,
-      "angle_deg": 10.0,
+      "angle_deg": 6.0,
       "direction": "N",
       "distance_km": 9.223552424994118
     },
@@ -2873,7 +2873,7 @@
     },
     {
       "from_aco": 478,
-      "angle_deg": 356.0,
+      "angle_deg": 6.0,
       "direction": "N",
       "distance_km": 9.223552424994118
     },
@@ -2897,7 +2897,7 @@
     },
     {
       "from_aco": 482,
-      "angle_deg": 328.0,
+      "angle_deg": 335.0,
       "direction": "NW",
       "distance_km": 9.223552424994118
     },
@@ -2927,8 +2927,8 @@
     },
     {
       "from_aco": 487,
-      "angle_deg": 276.0,
-      "direction": "W",
+      "angle_deg": 322.0,
+      "direction": "NW",
       "distance_km": 9.223552424994118
     },
     {
@@ -2945,7 +2945,7 @@
     },
     {
       "from_aco": 490,
-      "angle_deg": 169.0,
+      "angle_deg": 166.0,
       "direction": "S",
       "distance_km": 9.223552424994118
     },
@@ -2963,7 +2963,7 @@
     },
     {
       "from_aco": 493,
-      "angle_deg": 304.0,
+      "angle_deg": 307.0,
       "direction": "NW",
       "distance_km": 9.223552424994118
     },
@@ -2987,7 +2987,7 @@
     },
     {
       "from_aco": 497,
-      "angle_deg": 131.0,
+      "angle_deg": 137.0,
       "direction": "SE",
       "distance_km": 9.223552424994118
     },
@@ -3041,8 +3041,8 @@
     },
     {
       "from_aco": 506,
-      "angle_deg": 337.0,
-      "direction": "NW",
+      "angle_deg": 349.0,
+      "direction": "N",
       "distance_km": 9.223552424994118
     },
     {
@@ -3053,7 +3053,7 @@
     },
     {
       "from_aco": 508,
-      "angle_deg": 38.0,
+      "angle_deg": 36.0,
       "direction": "NE",
       "distance_km": 9.223552424994118
     },
@@ -3113,13 +3113,13 @@
     },
     {
       "from_aco": 518,
-      "angle_deg": 154.0,
+      "angle_deg": 155.0,
       "direction": "SE",
       "distance_km": 9.223552424994118
     },
     {
       "from_aco": 519,
-      "angle_deg": 154.0,
+      "angle_deg": 155.0,
       "direction": "SE",
       "distance_km": 9.223552424994118
     },
@@ -3214,5 +3214,9 @@
       "distance_km": 9.223552424994118
     }
   ],
-  "_ga_generated_at": "2026-01-01T14:12:37.764201"
+  "_ga_generated_at": "2026-01-01T16:24:53.247151",
+  "next_event": {
+    "angle_deg": 78.85560336177036,
+    "direction": "E"
+  }
 }

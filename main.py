@@ -858,6 +858,33 @@ def _file_url_for(path: Path) -> str:
         rel = path
     return f"/files/{rel.as_posix()}"
 
+def get_latest_confusion_matrix(nb_dir: Path) -> Path | None:
+    """
+    Ambil path confusion matrix terbaru sesuai mekanisme NB engine.
+    Priority:
+    1) confusion_matrix_latest.txt (paling akurat)
+    2) confusion_matrix_*.png (fallback)
+    """
+    if not nb_dir.exists():
+        return None
+
+    pointer = nb_dir / "confusion_matrix_latest.txt"
+    if pointer.exists():
+        try:
+            fname = pointer.read_text(encoding="utf-8").strip()
+            p = nb_dir / fname
+            if p.exists():
+                return p
+        except Exception:
+            pass
+
+    # fallback: glob timestamped
+    files = sorted(
+        nb_dir.glob("confusion_matrix_*.png"),
+        reverse=True
+    )
+    return files[0] if files else None
+
 def build_dashboard_context(output_dir: Path) -> dict:
     """Baca semua file output untuk dashboard, isi context dict."""
     ctx = {
@@ -1003,10 +1030,11 @@ def build_dashboard_context(output_dir: Path) -> dict:
     # NAIVE BAYES RESULTS
     # ===============================
     nb_candidates = [
-        out / "naive_bayes",
         out / "naive_bayes_results",
-        out / "naive_bayes_outputs"
+        out / "naive_bayes",
+        out / "naive_bayes_outputs",
     ]
+
     nb_found = None
     for cand in nb_candidates:
         if cand.exists():

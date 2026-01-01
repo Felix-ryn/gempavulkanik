@@ -8,6 +8,7 @@ import time
 import warnings
 from typing import Dict, Any, List, Tuple, Optional
 import tempfile
+import shutil
 
 import numpy as np
 import pandas as pd
