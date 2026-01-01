@@ -1,7 +1,7 @@
 {
-  "center_lat": -8.027342411108695,
-  "center_lon": 113.27680553664025,
-  "impact_area_km2": 580.44,
+  "center_lat": -8.036202556282896,
+  "center_lon": 113.37089147690618,
+  "impact_area_km2": 742.41,
   "ga_path": [
     {
       "from_aco": 0,
@@ -3214,7 +3214,7 @@
       "distance_km": 9.223552424994118
     }
   ],
-  "_ga_generated_at": "2026-01-01T19:24:06.432926",
+  "_ga_generated_at": "2026-01-01T19:37:00.664605",
   "next_event": {
     "angle_deg": 78.85560336177036,
     "direction": "E"
