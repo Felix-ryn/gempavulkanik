@@ -239,9 +239,10 @@ class CnnEngineConfig:
 
 @dataclass
 class NaiveBayesEngineConfig:
-    """Parameter Klasifikasi Probabilistik Akhir."""
-    target_column: str = "impact_level"
-    class_names: List[str] = field(default_factory=lambda: ["Ringan", "Sedang", "Parah"])
+    """Parameter Klasifikasi Probabilistik Akhir (BINARY)."""
+    # target sekarang binary
+    target_column: str = "binary_status"
+    class_names: List[str] = field(default_factory=lambda: ["Normal", "Tidak Normal"])
     
     features: List[str] = field(
         default_factory=lambda: [
@@ -250,7 +251,14 @@ class NaiveBayesEngineConfig:
         ]
     )
     k_best_features: int = 7
-    
+
+    # thresholds untuk heuristik NB (dipakai engine)
+    nb_dist_threshold_km: float = 50.0
+    nb_mag_threshold: float = 4.5
+    nb_pheromone_threshold: float = 0.1
+    nb_r3_threshold: float = 0.01
+
+    # output dir default (ProjectConfig akan menimpa output_dir di __post_init__)
     output_dir: str = field(init=False, default="")
 
 
@@ -260,7 +268,7 @@ class HybridTrainingConfig:
     """
     Konfigurasi Hybrid Training (CNN + LSTM + GA feedback).
     """
-    window_days: int = 15
+    window_days: int = None
     split_ratio: float = 0.7
     min_success_rate: float = 0.8
     max_retries: int = 3

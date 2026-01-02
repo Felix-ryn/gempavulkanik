@@ -194,6 +194,50 @@ class SpatialDataGenerator: # buat input spatial dari tabel
 
         return self._create_gaussian_heatmap(float(d)).reshape(gs, gs, 1) # buat dan reshape
 
+    # ------------------ Angle / Cardinal helpers (CNN) ------------------
+    @staticmethod
+    def _normalize_angle_deg(angle_deg):
+        """Normalize to [0,360). Accept scalar or numpy array."""
+        a = np.asarray(angle_deg, dtype=float)
+        return (a % 360.0 + 360.0) % 360.0
+    
+    @staticmethod
+    def _angle_diff_deg(a, b):
+        """Minimum absolute difference between angles a and b (deg). scalar or arrays."""
+        a = np.asarray(a, dtype=float)
+        b = np.asarray(b, dtype=float)
+        diff = (((a - b + 180.0) % 360.0) - 180.0)
+        return np.abs(diff)
+
+    @staticmethod
+    def snap_to_cardinal(angle_deg):
+        """
+        Snap angle(s) in degrees to nearest cardinal: Timur(0), Utara(90), Barat(180), Selatan(270).
+        Returns (names, angles, devs) as numpy arrays (or scalars if input scalar).
+        """
+        one = np.isscalar(angle_deg)
+        a = _normalize_angle_deg(angle_deg)
+        card_map = [("Timur", 0.0), ("Utara", 90.0), ("Barat", 180.0), ("Selatan", 270.0)]
+
+        a_flat = np.atleast_1d(a).ravel()
+        names = []
+        c_angles = []
+        devs = []
+        for ang in a_flat:
+            best_name, best_ca, best_dev = None, None, 1e9
+            for nm, ca in card_map:
+                d = _angle_diff_deg(ang, ca)
+                if d < best_dev:
+                    best_dev = float(d)
+                    best_name = nm
+                    best_ca = float(ca)
+            names.append(best_name)
+            c_angles.append(best_ca)
+            devs.append(best_dev)
+        if one:
+            return names[0], float(c_angles[0]), float(devs[0])
+        return np.array(names), np.array(c_angles, dtype=float), np.array(devs, dtype=float)
+
 class CnnDataGenerator(Sequence):
     def __init__(self, spatial_data, temporal_data, targets, config):
         """
@@ -873,28 +917,38 @@ class CnnEngine:
                 confidence_to_write = confidence[:min_len]  # Gunakan confidence asli CNN
 
             # convert vector outputs
-            sin_vals = preds_vec[:min_len, 0]  # Komponen sinus arah dari output CNN
-            cos_vals = preds_vec[:min_len, 1]  # Komponen cosinus arah dari output CNN
-            dist_vals = preds_vec[:min_len, 2]  # Jarak prediksi (km) dari output CNN
-            angles_rad = np.arctan2(sin_vals, cos_vals)  # Konversi vektor (sin, cos) ke sudut radian
-            angles_deg = (np.degrees(angles_rad) + 360) % 360  # Normalisasi sudut ke rentang 0–360 derajat
+            sin_vals = preds_vec[:min_len, 0]
+            cos_vals = preds_vec[:min_len, 1]
+            dist_vals = preds_vec[:min_len, 2]
 
-            # Ambil divisor dari config (default 1000.0 untuk menampilkan "dalam ribuan")
+            # vector → angle
+            angles_rad = np.arctan2(sin_vals, cos_vals)
+            angles_deg = _normalize_angle_deg(np.degrees(angles_rad)).astype(float)
+
+            # snap to cardinal direction
+            card_names, card_angles, card_devs = snap_to_cardinal(angles_deg)
+
+            # Ambil divisor dari config
             divisor = float(self.cfg.get('luas_unit_divisor', 1.0))
             if divisor == 0:
-                divisor = 1.0  # guard safety
+                divisor = 1.0
 
-            # lakukan scaling: ubah unit km^2 -> km^2 / divisor
             areas_to_write = np.array(areas_to_write, dtype=float) / divisor
 
-            # map back to original df indices (valid_idx contains original indices)
-            idxs_to_write = list(valid_idx[:min_len])  # Ambil indeks asli DataFrame untuk penulisan hasil
-            df_out.loc[idxs_to_write, 'luas_cnn'] = areas_to_write  # Menulis luas area CNN ke DataFrame output
-            df_out.loc[idxs_to_write, 'cnn_confidence'] = confidence_to_write  # Menulis confidence CNN
-            df_out.loc[idxs_to_write, 'cnn_angle_deg'] = angles_deg  # Menulis sudut arah prediksi CNN
-            df_out.loc[idxs_to_write, 'cnn_distance_km'] = dist_vals  # Menulis jarak prediksi CNN
+            # map back to original df indices
+            idxs_to_write = list(valid_idx[:min_len])
 
-        return df_out  # Mengembalikan DataFrame akhir berisi hasil CNN
+            df_out.loc[idxs_to_write, 'luas_cnn'] = areas_to_write
+            df_out.loc[idxs_to_write, 'cnn_confidence'] = confidence_to_write
+            df_out.loc[idxs_to_write, 'cnn_angle_deg'] = angles_deg
+            df_out.loc[idxs_to_write, 'cnn_distance_km'] = dist_vals
+
+            # ✅ tambahan interpretasi arah
+            df_out.loc[idxs_to_write, 'cnn_cardinal'] = card_names
+            df_out.loc[idxs_to_write, 'cnn_cardinal_deg'] = card_angles
+            df_out.loc[idxs_to_write, 'cnn_cardinal_dev_deg'] = card_devs
+
+            return df_out
 
  
 

@@ -243,6 +243,50 @@ class GeoMathCore: # Kelas utilitas untuk perhitungan geodesik
         lon2 = (lon2 + 180) % 360 - 180
         return float(lat2), float(lon2)
 
+    # ------------------ Angle / Cardinal helpers ------------------
+    @staticmethod
+    def _normalize_angle_deg(angle_deg):
+        """Normalize to [0,360). Accept scalar or numpy array."""
+        a = np.asarray(angle_deg, dtype=float)
+        return (a % 360.0 + 360.0) % 360.0
+
+    @staticmethod
+    def _angle_diff_deg(a, b):
+        """Minimum absolute difference between angles a and b (deg). scalar or arrays."""
+        a = np.asarray(a, dtype=float)
+        b = np.asarray(b, dtype=float)
+        diff = (((a - b + 180.0) % 360.0) - 180.0)
+        return np.abs(diff)
+
+    @staticmethod
+    def snap_to_cardinal(angle_deg):
+        """
+        Snap angle(s) to nearest cardinal: Timur(0), Utara(90), Barat(180), Selatan(270).
+        Returns (name, angle_deg_cardinal, dev_deg) for scalar input; arrays for vector input.
+        """
+        one = np.isscalar(angle_deg)
+        a = GeoMathCore._normalize_angle_deg(angle_deg)
+        card_map = [("Timur", 0.0), ("Utara", 90.0), ("Barat", 180.0), ("Selatan", 270.0)]
+
+        a_flat = np.atleast_1d(a).ravel()
+        names = []
+        c_angles = []
+        devs = []
+        for ang in a_flat:
+            best_name, best_ca, best_dev = None, None, 1e9
+            for nm, ca in card_map:
+                d = GeoMathCore._angle_diff_deg(ang, ca)
+                if d < best_dev:
+                    best_dev = float(d)
+                    best_name = nm
+                    best_ca = float(ca)
+            names.append(best_name)
+            c_angles.append(best_ca)
+            devs.append(best_dev)
+        if one:
+            return names[0], float(c_angles[0]), float(devs[0])
+        return np.array(names), np.array(c_angles, dtype=float), np.array(devs, dtype=float)
+
     # -------------------------------------------------
     # Bearing → Compass Direction (STATIC)
     # -------------------------------------------------
@@ -388,84 +432,116 @@ class PhysicsFitnessEngine:
             return self.compute_vector_from_segment(df_seg)    # komputasi vektor dari segmen data
 
     def compute_vector_from_segment(self, df_seg: pd.DataFrame) -> Dict[str, float]:
-            """
-            REVISI: Perhitungan vektor arah HANYA berbasis Spasial dan Pheromone (Output ACO).
-            Magnitudo dihapus dari pembobotan (weights) dan scaling.
-            """
-            if df_seg is None or len(df_seg) < 2:
-                return {}
+        """
+        REVISI: Perhitungan vektor arah HANYA berbasis Spasial dan Pheromone (Output ACO).
+        Magnitudo dihapus dari pembobotan (weights) dan scaling.
 
-            lats = df_seg['EQ_Lintang'].astype(float).values
-            lons = df_seg['EQ_Bujur'].astype(float).values
-            # REVISI: Hapus pengambilan kolom Magnitudo
-            risks = df_seg['PheromoneScore'].astype(float).values if 'PheromoneScore' in df_seg.columns else np.ones(len(df_seg)) * 0.1
+        Mengembalikan dict yang memuat:
+          - pred_lat, pred_lon (internal plotting)
+          - base_lat, base_lon
+          - movement_scale
+          - bearing_degree (0..360)
+          - distance_km
+          - movement_direction (kardinal: 'Timur','Utara','Barat','Selatan')
+          - cardinal_deg (derajat kardinal yang dipakai, 0/90/180/270)
+          - cardinal_dev_deg (deviasi sudut dari kardinal dalam derajat)
+          - confidence
+        """
+        if df_seg is None or len(df_seg) < 2:
+            return {}
 
-            bearings = []
-            distances = []
-            weights = []
+        # Ambil arrays
+        lats = df_seg['EQ_Lintang'].astype(float).values
+        lons = df_seg['EQ_Bujur'].astype(float).values
+        risks = df_seg['PheromoneScore'].astype(float).values if 'PheromoneScore' in df_seg.columns else np.ones(len(df_seg)) * 0.1
 
-            for i in range(len(lats) - 1):
-                lat_a, lon_a = lats[i], lons[i] 
-                lat_b, lon_b = lats[i + 1], lons[i + 1]
-                dkm = GeoMathCore.haversine(lat_a, lon_a, lat_b, lon_b)
-                bdeg = GeoMathCore.calculate_bearing(lat_a, lon_a, lat_b, lon_b)
-            
-                # REVISI: Bobot (Weight) hanya berdasarkan Pheromone Score (ACO Output)
-                # Semakin tinggi pheromone, semakin kuat arah tersebut mempengaruhi prediksi.
-                w = ((risks[i] + risks[i + 1]) / 2.0) + 1e-9
-            
-                distances.append(float(dkm))
-                bearings.append(float(bdeg))
-                weights.append(float(w))
+        bearings = []
+        distances = []
+        weights = []
 
-            distances = np.array(distances, dtype=float)
-            weights = np.array(weights, dtype=float)
-            # Normalize weights
-            weights = weights / (np.sum(weights) + 1e-12)
+        for i in range(len(lats) - 1):
+            lat_a, lon_a = lats[i], lons[i]
+            lat_b, lon_b = lats[i + 1], lons[i + 1]
+            # haversine distance and bearing (GeoMathCore methods)
+            dkm = GeoMathCore.haversine(lat_a, lon_a, lat_b, lon_b)
+            bdeg = GeoMathCore.calculate_bearing(lat_a, lon_a, lat_b, lon_b)
 
-            # --- Circular Mean (Arah Rata-rata) ---
-            thetas = np.radians(np.array(bearings))
-            x = np.sum(weights * np.cos(thetas))
-            y = np.sum(weights * np.sin(thetas))
-            mean_theta = math.atan2(y, x) if not (x == 0 and y == 0) else 0.0
-            mean_bearing_deg = (math.degrees(mean_theta) + 360.0) % 360.0
+            # weight based only on pheromone (average of two adjacent points)
+            w = ((risks[i] + risks[i + 1]) / 2.0) + 1e-9
 
-            # Angular concentration R
-            R = math.sqrt(x * x + y * y)
+            distances.append(float(dkm))
+            bearings.append(float(bdeg))
+            weights.append(float(w))
 
-            # --- Weighted Average Distance ---
-            mean_distance_km = float(np.sum(distances * weights)) if len(distances) > 0 else 0.0
+        distances = np.array(distances, dtype=float)
+        weights = np.array(weights, dtype=float)
+        # Normalize weights safely
+        weights = weights / (np.sum(weights) + 1e-12)
 
-            # REVISI: Scaling Factor (Seberapa jauh prediksi ke depan)
-            # HAPUS pengaruh Magnitudo. Gunakan hanya Pheromone (Risk).
-            last_risk = float(risks[-1]) if len(risks) > 0 else 0.1
-            # Scale: Base 0.5 + Risk factor. Jika area High Risk (Output ACO), prediksi lebih jauh.
-            scale = 0.5 + float(last_risk) 
+        # --- Circular mean for bearing ---
+        thetas = np.radians(np.array(bearings))
+        x = float(np.sum(weights * np.cos(thetas)))
+        y = float(np.sum(weights * np.sin(thetas)))
+        mean_theta = math.atan2(y, x) if not (x == 0 and y == 0) else 0.0
+        mean_bearing_deg = (math.degrees(mean_theta) + 360.0) % 360.0
 
-            pred_distance_km = float(mean_distance_km * scale)
+        # Angular concentration R (0..1 approx)
+        R = math.sqrt(x * x + y * y)
 
-            # Hitung titik prediksi (Lat/Lon)
-            # Perhatikan: Client minta Output GA cuma arah & sudut. 
-            # Lat/Lon ini hanya result internal untuk plotting vektor, 
-            # output JSON nanti difilter di method `run`.
-            pred_lat, pred_lon = GeoMathCore.destination_point(float(lats[-1]), float(lons[-1]), mean_bearing_deg, pred_distance_km)
+        # --- Weighted average distance ---
+        mean_distance_km = float(np.sum(distances * weights)) if distances.size > 0 else 0.0
 
-            # Confidence Calculation
-            conf_risk = self.compute_confidence(df_seg)
-            combined_conf = conf_risk * (0.5 + 0.5 * R)
-            combined_conf = min(max(0.0, combined_conf), 0.85)
+        # Scaling factor based on last risk (0.5 base + risk)
+        last_risk = float(risks[-1]) if len(risks) > 0 else 0.1
+        scale = 0.5 + float(last_risk)
+        pred_distance_km = float(mean_distance_km * scale)
 
-            return {
-                "pred_lat": float(pred_lat),
-                "pred_lon": float(pred_lon),
-                "base_lat": float(lats[-1]),
-                "base_lon": float(lons[-1]),
-                "movement_scale": float(scale),
-                "bearing_degree": float(mean_bearing_deg),
-                "distance_km": float(pred_distance_km),
-                "movement_direction": self.bearing_to_compass(mean_bearing_deg),
-                "confidence": float(combined_conf)
-            }
+        # Predicted lat/lon for plotting internal use
+        pred_lat, pred_lon = GeoMathCore.destination_point(float(lats[-1]), float(lons[-1]), mean_bearing_deg, pred_distance_km)
+
+        # Confidence: combine pheromone-based confidence + angular concentration
+        conf_risk = self.compute_confidence(df_seg)
+        combined_conf = conf_risk * (0.5 + 0.5 * R)
+        combined_conf = min(max(0.0, combined_conf), 0.85)
+
+        # -------------------------
+        # SNAP bearing to 4 cardinal directions
+        # -------------------------
+        def _angle_diff_deg(a, b):
+            return abs(((a - b + 180.0) % 360.0) - 180.0)
+
+        card_map = [("Timur", 0.0), ("Utara", 90.0), ("Barat", 180.0), ("Selatan", 270.0)]
+        best_name, best_card_deg, best_dev = None, None, 1e9
+        for nm, ca in card_map:
+            d = _angle_diff_deg(mean_bearing_deg, ca)
+            if d < best_dev:
+                best_dev = float(d)
+                best_name = nm
+                best_card_deg = float(ca)
+
+        # Fallbacks safety
+        if best_name is None:
+            best_name = self.bearing_to_compass(mean_bearing_deg) if hasattr(self, "bearing_to_compass") else "N/A"
+            best_card_deg = 0.0
+            best_dev = _angle_diff_deg(mean_bearing_deg, 0.0)
+
+        # Build result payload
+        return {
+            "pred_lat": float(pred_lat),
+            "pred_lon": float(pred_lon),
+            "base_lat": float(lats[-1]),
+            "base_lon": float(lons[-1]),
+            "movement_scale": float(scale),
+            "bearing_degree": float(mean_bearing_deg),
+            "distance_km": float(pred_distance_km),
+            # movement_direction replaced with CARDINAL NAME (Indonesian)
+            "movement_direction": best_name,
+            # include cardinal metadata for downstream use
+            "cardinal_deg": float(best_card_deg),
+            "cardinal_dev_deg": float(best_dev),
+            "confidence": float(combined_conf)
+        }
+
 
     @staticmethod
     def bearing_to_compass(bearing: float) -> str:

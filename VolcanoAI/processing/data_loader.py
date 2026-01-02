@@ -189,6 +189,20 @@ class DataLoader:
             return pd.DataFrame()
 
         df_eq = self._filter_spatial(df_eq)
+        window_days = getattr(self.cfg, "window_days", None)
+
+        if window_days is not None and window_days > 0:
+            if "Acquired_Date" in df_eq.columns:
+                cutoff = datetime.utcnow() - timedelta(days=window_days)
+                before = len(df_eq)
+
+                df_eq = df_eq[df_eq["Acquired_Date"] >= cutoff]
+
+                after = len(df_eq)
+                logger.info(
+                    f"[DataLoader] window_days={window_days} "
+                    f"rows kept: {after}/{before}"
+                )
 
         if "Nama" in df_eq.columns and "Acquired_Date" in df_eq.columns:
             df_eq = df_eq.sort_values(["Nama", "Acquired_Date"])

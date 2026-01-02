@@ -1,99 +1,114 @@
-# -*- coding: utf-8 -*-  # deklarasi encoding file
-# VolcanoAI/engines/cnn_map_generator.py  # path & nama file modul
+﻿# -*- coding: utf-8 -*-
+# VolcanoAI/engines/cnn_map_generator.py
 
-import json  # modul untuk parsing JSON
-import math  # fungsi matematika (cos, sin, radians)
-from pathlib import Path  # kelas Path untuk operasi path
-import folium  # library peta interaktif Folium
-import logging  # logging untuk pesan runtime
+import json
+import math
+from pathlib import Path
+import folium
+import logging
+from datetime import datetime
 
-logger = logging.getLogger(__name__)  # buat logger modul berdasar nama modul
-
-
-class CNNMapGenerator:  # kelas pembuat peta prediksi CNN
-    def __init__(self, output_dir: str):  # inisialisasi dengan direktori output
-        self.output_dir = Path(output_dir)  # simpan Path output
-        self.output_dir.mkdir(parents=True, exist_ok=True)  # buat folder jika belum ada
-        from datetime import datetime
-
-        self.map_path = self.output_dir / f"cnn_prediction_map_{datetime.now():%Y%m%d_%H%M%S}.html"
+logger = logging.getLogger(__name__)
 
 
-    def _load_json_robust(self, json_path: Path):  # baca JSON dengan fallback encoding
-        """
-        Read JSON safely with multiple encodings.
-        """  # docstring fungsi pembaca JSON yang robust
-        raw = json_path.read_bytes()  # baca semua byte file JSON
-        for enc in ("utf-8", "utf-8-sig", "latin-1", "cp1252"):  # daftar encoding coba
+class CNNMapGenerator:
+    """
+    Generator peta prediksi CNN (Folium HTML)
+    + menulis latest_map.txt agar dashboard tahu peta terbaru
+    """
+
+    def __init__(self, output_dir: str):
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+    def _load_json_robust(self, json_path: Path):
+        """Read JSON safely with multiple encodings."""
+        raw = json_path.read_bytes()
+        for enc in ("utf-8", "utf-8-sig", "latin-1", "cp1252"):
             try:
-                text = raw.decode(enc)  # coba decode dengan encoding saat ini
-                return json.loads(text), enc  # kembalikan dict dan encoding yang berhasil
+                text = raw.decode(enc)
+                return json.loads(text), enc
             except Exception:
-                continue  # jika gagal, lanjut ke encoding selanjutnya
-        return None, None  # jika semua gagal, kembalikan None
+                continue
+        return None, None
 
-    def generate(self, json_path: str):  # fungsi utama generate peta dari file JSON
-        json_path = Path(json_path)  # konversi ke Path
+    def generate(self, json_path: str):
+        json_path = Path(json_path)
 
-        if not json_path.exists():  # cek keberadaan file
-            logger.warning(f"CNNMapGenerator: JSON not found: {json_path}")  # log peringatan
-            return None  # hentikan fungsi jika file tidak ada
+        if not json_path.exists():
+            logger.warning(f"CNNMapGenerator: JSON not found: {json_path}")
+            return None
 
-        data, enc = self._load_json_robust(json_path)  # baca JSON secara robust
-        if data is None:  # jika pembacaan gagal
-            logger.error("CNNMapGenerator: Failed to read JSON")  # log error
-            return None  # hentikan fungsi
+        data, enc = self._load_json_robust(json_path)
+        if data is None:
+            logger.error("CNNMapGenerator: Failed to read JSON")
+            return None
 
-        nxt = data.get("next_event")  # ambil entry next_event dari JSON
-        if not nxt:  # jika tidak ada next_event
-            logger.info("CNNMapGenerator: next_event missing")  # log info
-            return None  # hentikan fungsi
+        nxt = data.get("next_event")
+        if not nxt:
+            logger.info("CNNMapGenerator: next_event missing")
+            return None
 
         try:
-            lat = float(nxt["lat"])  # parse latitude sebagai float
-            lon = float(nxt["lon"])  # parse longitude sebagai float
+            lat = float(nxt["lat"])
+            lon = float(nxt["lon"])
         except Exception:
-            logger.error("CNNMapGenerator: invalid lat/lon")  # log error parsing koordinat
-            return None  # hentikan fungsi jika koordinat invalid
+            logger.error("CNNMapGenerator: invalid lat/lon")
+            return None
 
-        bearing = float(nxt.get("direction_deg", 0))  # ambil arah/bearing, default 0
-        distance = float(nxt.get("distance_km", 0))  # ambil jarak (km), default 0
-        confidence = float(nxt.get("confidence", 0))  # ambil confidence, default 0
+        bearing = float(nxt.get("direction_deg", 0.0))
+        distance = float(nxt.get("distance_km", 0.0))
+        confidence = float(nxt.get("confidence", 0.0))
 
-        # === MAP ===  # komentar pembatas bagian peta
+        # =====================
+        # MAP CREATION
+        # =====================
         m = folium.Map(
-            location=[lat, lon],  # pusat peta di lat/lon prediksi
-            zoom_start=8,  # level zoom awal
-            tiles="CartoDB positron"  # style tiles yang dipakai
+            location=[lat, lon],
+            zoom_start=8,
+            tiles="CartoDB positron"
         )
 
-        popup = (  # HTML popup berisi informasi event
-            "<b>CNN Predicted Event</b><br>"  # judul popup
-            f"Lat: {lat}<br>"  # tampilkan latitude
-            f"Lon: {lon}<br>"  # tampilkan longitude
-            f"Bearing: {bearing:.1f} deg<br>"  # tampilkan bearing dengan 1 desimal
-            f"Direction: {nxt.get('movement', '-') }<br>"  # movement string jika ada
-            f"Distance: {distance:.2f} km<br>"  # tampilkan distance dengan 2 desimal
-            f"Confidence: {confidence:.2f}<br>"  # tampilkan confidence 2 desimal
-            f"Map generated at (system time): {data.get('timestamp','')}"# timestamp pembuatan jika ada
+        popup = (
+            "<b>CNN Predicted Event</b><br>"
+            f"Lat: {lat}<br>"
+            f"Lon: {lon}<br>"
+            f"Bearing: {bearing:.1f} deg<br>"
+            f"Direction: {nxt.get('movement', '-') }<br>"
+            f"Distance: {distance:.2f} km<br>"
+            f"Confidence: {confidence:.2f}<br>"
+            f"Timestamp: {data.get('timestamp','')}"
         )
 
         folium.Marker(
-            [lat, lon],  # koordinat marker
-            popup=folium.Popup(popup, max_width=300),  # popup HTML dengan lebar max
-            icon=folium.Icon(color="red", icon="info-sign")  # icon marker berwarna merah
-        ).add_to(m)  # tambahkan marker ke peta
+            [lat, lon],
+            popup=folium.Popup(popup, max_width=300),
+            icon=folium.Icon(color="red", icon="info-sign"),
+        ).add_to(m)
 
-        # Direction arrow  # komentar menjelaskan garis arah
-        end_lat = lat + 0.1 * math.cos(math.radians(bearing))  # hitung lat akhir panah (sederhana)
-        end_lon = lon + 0.1 * math.sin(math.radians(bearing))  # hitung lon akhir panah (sederhana)
+        # Direction arrow
+        end_lat = lat + 0.1 * math.cos(math.radians(bearing))
+        end_lon = lon + 0.1 * math.sin(math.radians(bearing))
 
         folium.PolyLine(
-            locations=[[lat, lon], [end_lat, end_lon]],  # garis dari titik ke arah bearing
-            weight=4,  # ketebalan garis
-            opacity=0.7  # opasitas garis
-        ).add_to(m)  # tambahkan polyline ke peta
+            locations=[[lat, lon], [end_lat, end_lon]],
+            weight=4,
+            opacity=0.7,
+        ).add_to(m)
 
-        m.save(self.map_path)  # simpan peta ke file HTML yang ditentukan
-        logger.info(f"CNNMapGenerator: map saved -> {self.map_path}")  # log sukses simpan peta
-        return str(self.map_path)  # kembalikan path file sebagai string
+        # =====================
+        # SAVE MAP
+        # =====================
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        map_path = self.output_dir / f"cnn_prediction_map_{ts}.html"
+        m.save(map_path)
+
+        logger.info(f"CNNMapGenerator: map saved -> {map_path}")
+
+        # 🔥🔥🔥 INI WAJIB UNTUK DASHBOARD
+        pointer = self.output_dir / "latest_map.txt"
+        pointer.write_text(str(map_path.resolve()), encoding="utf-8")
+
+        logger.info(f"CNNMapGenerator: latest map pointer updated -> {pointer}")
+
+        return str(map_path)

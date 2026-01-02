@@ -288,159 +288,270 @@ class VolcanoAiPipeline: # Kelas utama pengatur seluruh alur kerja AI
     # ----------------------------------------------------------------------
 
     @pipeline_guard # Decorator untuk menangani error otomatis
-    def _run_training_flow(self): # Fungsi untuk menjalankan alur pelatihan model
+    def _run_training_flow(self):
         self.logger.info("\n========== PHASE 3: MODEL TRAINING ==========")
 
-        df_processed = self.df_train.copy() # Salin data latih yang sudah di-FE
+        # =========================
+        # INIT DATA
+        # =========================
+        if self.df_train is None or self.df_train.empty:
+            self.logger.critical("[PIPELINE] df_train kosong / None → training dibatalkan")
+            self.trained_nb_engine = None
+            return
 
-        # 1️⃣ ACO selalu dijalankan ulang — tidak memakai cache
-        df_processed, _ = self.aco_engine.run(df_processed) # Jalankan engine ACO pada data yang sudah di-FE
-        self.trained_aco_engine = self.aco_engine # Simpan instance engine ACO yang sudah dilatih
+        df_processed = self.df_train.copy()
 
-        # 2️⃣ GA selalu run
-        best_path, graphs_result = self.ga_engine.run(df_processed) # Jalankan engine GA pada data yang sudah di-FE
-        self.trained_ga_engine = self.ga_engine # Simpan instance engine GA yang sudah dilatih
+        # =========================
+        # 1️⃣ ACO
+        # =========================
+        try:
+            df_processed, _ = self.aco_engine.run(df_processed)
+            self.trained_aco_engine = self.aco_engine
+        except Exception as e:
+            self.logger.exception(f"[ACO] failed: {e}")
+            return
 
+        # =========================
+        # 2️⃣ GA
+        # =========================
+        try:
+            self.ga_engine.run(df_processed)
+            self.trained_ga_engine = self.ga_engine
+        except Exception as e:
+            self.logger.exception(f"[GA] failed: {e}")
+            return
+
+        # =========================
         # 3️⃣ LSTM
-        self.lstm_engine.train(df_processed) # Latih engine LSTM pada data yang sudah di-FE
-        self.trained_lstm_engine = self.lstm_engine # Simpan instance engine LSTM yang sudah dilatih
+        # =========================
+        try:
+            self.lstm_engine.train(df_processed)
+            self.trained_lstm_engine = self.lstm_engine
 
-        df_processed, _ = self.lstm_engine.predict_on_static(df_processed) # Lakukan prediksi statis menggunakan engine LSTM
+            df_processed, _ = self.lstm_engine.predict_on_static(df_processed)
+            if df_processed is None or df_processed.empty:
+                raise ValueError("LSTM returned None / empty DataFrame")
+        except Exception as e:
+            self.logger.exception(f"[LSTM] failed → pipeline stopped: {e}")
+            return
 
+        # =========================
         # 4️⃣ CNN
-        self.cnn_engine.train(df_processed, self.lstm_engine) # Latih engine CNN pada data yang sudah di-FE
-        self.trained_cnn_engine = self.cnn_engine # Simpan instance engine CNN yang sudah dilatih
+        # =========================
+        try:
+            self.cnn_engine.train(df_processed, self.lstm_engine)
+            self.trained_cnn_engine = self.cnn_engine
 
-        df_processed = self.cnn_engine.predict(df_processed, self.lstm_engine) # Lakukan prediksi menggunakan engine CNN
+            df_cnn = self.cnn_engine.predict(df_processed, self.lstm_engine)
+            if df_cnn is None or not hasattr(df_cnn, "columns") or df_cnn.empty:
+                raise ValueError("CNN returned invalid DataFrame")
+            df_processed = df_cnn
+        except Exception as e:
+            self.logger.warning(
+                f"[CNN] training/predict failed - applying fallback. Error: {e}"
+            )
+            self.trained_cnn_engine = None
+
+            # =========================
+            # SAFE FALLBACK AREA
+            # =========================
+            try:
+                divisor = getattr(self.config.CNN_ENGINE, "luas_unit_divisor", 1.0)
+                divisor = float(divisor) if divisor else 1.0
+            except Exception:
+                divisor = 1.0
+
+            if 'AreaTerdampak_km2' in df_processed.columns:
+                df_processed['luas_cnn'] = (
+                    df_processed['AreaTerdampak_km2']
+                    .fillna(0.0)
+                    .astype(float)
+                    / divisor
+                )
+            else:
+                df_processed['luas_cnn'] = 0.0
+
+            df_processed['cnn_confidence'] = 0.25
+
 
         # =========================
-        # CNN ERROR CHECK (TRAINING)
+        # CNN ERROR CHECK
         # =========================
-        if hasattr(self.cnn_engine, "evaluate_error"): # Cek apakah engine CNN memiliki metode evaluasi error
-            cnn_error = self.cnn_engine.evaluate_error(df_processed) # Evaluasi error CNN pada data yang sudah diproses
-            self.logger.info(f"[CNN] Training error: {cnn_error:.4f}") # Catat error CNN ke log
+        if hasattr(self.cnn_engine, "evaluate_error"):
+            try:
+                cnn_error = self.cnn_engine.evaluate_error(df_processed)
+                self.logger.info(f"[CNN] Training error: {cnn_error:.4f}")
 
-            if cnn_error > self.config.CNN_ENGINE.max_error_threshold: # Jika error melebihi ambang batas yang ditentukan
-                self.logger.warning("[CNN] Error tinggi, retraining CNN...") # Catat peringatan ke log
-                self.cnn_engine.train(df_processed, self.lstm_engine) # Latih ulang engine CNN
+                if cnn_error > self.config.CNN_ENGINE.max_error_threshold:
+                    self.logger.warning("[CNN] Error tinggi → retraining CNN")
+                    self.cnn_engine.train(df_processed, self.lstm_engine)
+            except Exception as e:
+                self.logger.warning(f"[CNN] error evaluation skipped: {e}")
 
+        # =========================
+        # EXPORT RESULTS
+        # =========================
+        from datetime import datetime
+        from pathlib import Path
 
-        from datetime import datetime # manipulasi tanggal dan waktu
-        from pathlib import Path # manipulasi path file dan direktori
-
-        out_dir = Path(self.config.OUTPUT.directory) / "cnn_results" / "results" # Tentukan direktori output untuk hasil CNN
-        out_dir.mkdir(parents=True, exist_ok=True) # Buat direktori output jika belum ada
+        out_dir = Path(self.config.OUTPUT.directory) / "cnn_results" / "results"
+        out_dir.mkdir(parents=True, exist_ok=True)
 
         export_cols = [
-            'cluster_id',
-            'Acquired_Date',
-            'luas_cnn',
-            'cnn_angle_deg',
-            'cnn_distance_km'
-        ] # Daftar kolom yang akan diekspor
-        export_cols = [c for c in export_cols if c in df_processed.columns] # Filter kolom yang benar-benar ada di DataFrame
+            "cluster_id",
+            "Acquired_Date",
+            "luas_cnn",
+            "cnn_angle_deg",
+            "cnn_distance_km",
+        ]
+        export_cols = [c for c in export_cols if c in df_processed.columns]
 
-        # ===============================
-        # 1️⃣ FILE TERKINI (UNTUK TML)
-        # ===============================
-        latest_path = out_dir / "cnn_predictions_latest.csv" # Tentukan path untuk file prediksi CNN terbaru
-        df_processed[export_cols].to_csv(latest_path, index=False) # Simpan DataFrame yang sudah diproses ke file CSV
+        if not export_cols:
+            self.logger.critical("[EXPORT] Tidak ada kolom valid untuk diekspor → STOP")
+            return
 
-        self.logger.info(f"✅ CNN latest overwritten: {latest_path}") # Catat keberhasilan penyimpanan file terbaru ke log
+        latest_path = out_dir / "cnn_predictions_latest.csv"
+        df_processed[export_cols].to_csv(latest_path, index=False)
+        self.logger.info(f"✅ CNN latest overwritten: {latest_path}")
 
-
-        # ===============================
-        # 2️⃣ GENERATE CNN JSON (WAJIB)
-        # ===============================
-        try: # Blok try untuk menangani potensi error saat generate JSON
-            cnn_json_path = Path(self.config.OUTPUT.directory) / "cnn_results" / "cnn_predictions_latest.json" # Tentukan path untuk file JSON hasil prediksi CNN
+        # =========================
+        # JSON EXPORT
+        # =========================
+        try:
+            cnn_json_path = (
+                Path(self.config.OUTPUT.directory)
+                / "cnn_results"
+                / "cnn_predictions_latest.json"
+            )
 
             cnn_csv_to_json(
                 csv_path=str(latest_path),
                 out_json=str(cnn_json_path),
-                force=True
-            ) # Panggil fungsi untuk mengonversi CSV ke JSON
+                force=True,
+            )
+            self.logger.info(f"✅ CNN JSON generated: {cnn_json_path}")
+        except Exception as e:
+            self.logger.exception(f"[CNN JSON] failed: {e}")
 
-            self.logger.info(f"✅ CNN JSON generated: {cnn_json_path}") # Catat keberhasilan pembuatan file JSON ke log
+        # =========================
+        # MAP GENERATION
+        # =========================
+        try:
+            cnn_output_dir = Path(self.config.OUTPUT.directory) / "cnn_results" / "maps"
 
-        except Exception as e: # Tangkap error jika terjadi masalah saat generate JSON
-            self.logger.exception(f"Failed to generate CNN JSON: {e}") # Catat error ke log
-
-
-        # ===============================
-        # 3️⃣ GENERATE CNN MAP (FOLIUM)
-        # ===============================
-        try: # Blok try untuk menangani potensi error saat generate peta
-            cnn_output_dir = Path(self.config.OUTPUT.directory) / "cnn_results" / "maps" # Tentukan direktori output untuk peta CNN
-
-            if cnn_json_path.exists(): # Cek apakah file JSON hasil prediksi CNN ada
-                cnn_map_gen = CNNMapGenerator(output_dir=cnn_output_dir)  # Inisialisasi generator peta CNN
+            if cnn_json_path.exists():
+                cnn_map_gen = CNNMapGenerator(output_dir=cnn_output_dir)
                 map_path = cnn_map_gen.generate(json_path=cnn_json_path)
 
                 if map_path:
                     self.logger.info(f"🗺️ CNN map generated: {map_path}")
+        except Exception as e:
+            self.logger.exception(f"[CNN MAP] failed: {e}")
 
-                    # ==============================
-                    # SIMPAN POINTER MAP TERBARU
-                    # ==============================
-                    pointer_file = cnn_output_dir / "latest_map.txt"
+        # =========================
+        # ARCHIVE
+        # =========================
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        archive_path = out_dir / f"cnn_predictions_{ts}.csv"
+        df_processed[export_cols].to_csv(archive_path, index=False)
+        self.logger.info(f"📦 CNN archive saved: {archive_path}")
 
-                    try:
-                        rel = Path(map_path).resolve().relative_to(Path.cwd().resolve())
-                        pointer_file.write_text(rel.as_posix(), encoding="utf-8")
-                    except Exception:
-                        pointer_file.write_text(str(Path(map_path).resolve()), encoding="utf-8")
+        # =========================
+        # 5️⃣ NAIVE BAYES (FIX UTAMA)
+        # =========================
+        try:
+            nb_ok = self.nb_engine.train(df_processed)
+            if not nb_ok:
+                raise RuntimeError("Naive Bayes training gagal (return False)")
+            self.trained_nb_engine = self.nb_engine
+        except Exception as e:
+            self.trained_nb_engine = None
+            self.logger.exception(f"[NB] failed → engine disabled: {e}")
+            return
 
-                    self.logger.info(f"[CNN MAP] latest pointer saved → {pointer_file}")
-
-                else:  # Jika peta gagal dibuat
-                    self.logger.warning("CNN map not generated (next_event missing)") # Catat peringatan ke log
-            else: # Jika file JSON tidak ditemukan
-                self.logger.warning(f"CNN JSON not found: {cnn_json_path}") # Catat peringatan ke log
-
-        except Exception as e: # Tangkap error jika terjadi masalah saat generate peta
-            self.logger.exception(f"Failed to generate CNN map: {e}") # Catat error ke log
-
-        
-        # ===============================
-        # 2️⃣ FILE ARSIP (HISTORI)
-        # ===============================
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S") # Dapatkan timestamp saat ini untuk penamaan file arsip
-        archive_path = out_dir / f"cnn_predictions_{ts}.csv" # Tentukan path untuk file arsip prediksi CNN dengan timestamp
-        df_processed[export_cols].to_csv(archive_path, index=False) # Simpan DataFrame yang sudah diproses ke file CSV arsip
-        self.logger.info(f" CNN archive saved: {archive_path}") # Catat keberhasilan penyimpanan file arsip ke log
-
-                # 5️⃣ Naive Bayes
-        self.nb_engine.train(df_processed) # Latih engine Naive Bayes pada data yang sudah di-FE
-        self.trained_nb_engine = self.nb_engine # Simpan instance engine Naive Bayes yang sudah dilatih
-
-        self.state_mgr.update_stage("Training", "Success") # Update status tahapan pelatihan menjadi sukses
-
+        # =========================
+        # FINAL STATE
+        # =========================
+        self.state_mgr.update_stage("Training", "Success")
 
     # ----------------------------------------------------------------------
     # PHASE 4 — EVALUATION
     # ----------------------------------------------------------------------
 
-    @pipeline_guard # Decorator untuk menangani error otomatis
-    def _run_evaluation_flow(self): # Fungsi untuk menjalankan alur evaluasi model
+    @pipeline_guard
+    def _run_evaluation_flow(self):
         self.logger.info("\n========== PHASE 4: MODEL EVALUATION ==========")
 
-        df_eval = self.df_test.copy() # Salin data uji yang sudah di-FE
+        # =========================
+        # INIT DATA
+        # =========================
+        if self.df_test is None or self.df_test.empty:
+            self.logger.critical("[EVAL] df_test kosong / None → evaluasi dibatalkan")
+            return None, {}, []
 
-        df_eval, _ = DynamicAcoEngine(self.config.ACO_ENGINE).run(df_eval) # Jalankan engine ACO pada data uji yang sudah di-FE
+        df_eval = self.df_test.copy()
 
-        lstm = self.trained_lstm_engine # Ambil instance engine LSTM yang sudah dilatih
-        cnn = self.trained_cnn_engine # Ambil instance engine CNN yang sudah dilatih
-        nb = self.trained_nb_engine     # Ambil instance engine Naive Bayes yang sudah dilatih
-         
-        df_eval, anomalies = lstm.predict_on_static(df_eval) # Lakukan prediksi statis menggunakan engine LSTM
-        df_eval = cnn.predict(df_eval, lstm) # Lakukan prediksi menggunakan engine CNN
-        df_final, metrics = nb.evaluate(df_eval) # Lakukan evaluasi menggunakan engine Naive Bayes
-        self.state_mgr.update_stage("Evaluation", "Success") # Update status tahapan evaluasi menjadi sukses
-        return df_final, metrics, anomalies # Kembalikan DataFrame hasil akhir, metrik evaluasi, dan anomali yang terdeteksi
-     
-        self.state_mgr.update_stage("Evaluation", "Success") # Update status tahapan evaluasi menjadi sukses
-        return df_final, metrics, anomalies # Kembalikan DataFrame hasil akhir, metrik evaluasi, dan anomali yang terdeteksi
+        # =========================
+        # ACO (DYNAMIC)
+        # =========================
+        try:
+            df_eval, _ = DynamicAcoEngine(self.config.ACO_ENGINE).run(df_eval)
+        except Exception as e:
+            self.logger.exception(f"[EVAL][ACO] failed: {e}")
+            return df_eval, {}, []
+
+        # =========================
+        # LOAD ENGINES
+        # =========================
+        lstm = self.trained_lstm_engine
+        cnn  = self.trained_cnn_engine
+        nb   = self.trained_nb_engine
+
+        # =========================
+        # LSTM SAFETY
+        # =========================
+        if lstm is None or not hasattr(lstm, "predict_on_static"):
+            self.logger.critical("[EVAL] LSTM engine invalid / None → STOP")
+            return df_eval, {}, []
+
+        df_eval, anomalies = lstm.predict_on_static(df_eval)
+
+        # =========================
+        # CNN SAFETY
+        # =========================
+        if cnn is None or not hasattr(cnn, "predict"):
+            self.logger.warning("[EVAL] CNN engine invalid / None → skip CNN")
+        else:
+            df_eval = cnn.predict(df_eval, lstm)
+
+        # =========================
+        # NAIVE BAYES SAFETY (FIX UTAMA)
+        # =========================
+        if nb is None:
+            self.logger.critical("[EVAL] Naive Bayes engine = None → evaluasi dilewati")
+            self.state_mgr.update_stage("Evaluation", "Skipped")
+            return df_eval, {}, anomalies
+
+        if not hasattr(nb, "evaluate"):
+            self.logger.critical("[EVAL] Naive Bayes engine tidak punya evaluate()")
+            self.state_mgr.update_stage("Evaluation", "Failed")
+            return df_eval, {}, anomalies
+
+        # =========================
+        # NAIVE BAYES EVALUATION
+        # =========================
+        try:
+            df_final, metrics = nb.evaluate(df_eval)
+        except Exception as e:
+            self.logger.exception(f"[EVAL][NB] gagal evaluate: {e}")
+            self.state_mgr.update_stage("Evaluation", "Failed")
+            return df_eval, {}, anomalies
+
+        # =========================
+        # SUCCESS
+        # =========================
+        self.state_mgr.update_stage("Evaluation", "Success")
+        return df_final, metrics, anomalies
 
 
     # ----------------------------------------------------------------------

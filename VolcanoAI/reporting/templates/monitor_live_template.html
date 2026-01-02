@@ -139,10 +139,10 @@
 
                     <div class="card">
                         <div class="stat"><strong>GA Prediction</strong></div>
-                       
+
                         <div class="muted">Bearing {{GA_BEARING}} | Dist {{GA_DISTANCE}}</div>
-                 
-                        
+
+
                     </div>
                 </div>
 
@@ -191,13 +191,13 @@
                     {{NB_METRICS_HTML}}
                 </div>
                 <div style="width:360px;">
-
-                    <img class="plot" src="{{NB_CONFUSION_PNG}}">
-
-
+                    <img class="plot"
+                         src="/static/naive_bayes/confusion_matrix_latest.png"
+                         alt="Confusion Matrix Naive Bayes">
                 </div>
             </div>
         </div>
+
 
         <footer>
             VolcanoAI Dashboard • monitor_live_template.html
