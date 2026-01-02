@@ -1,13 +1,13 @@
 {
-  "timestamp": "2026-01-02T11:12:12.894285",
+  "timestamp": "2026-01-02T16:43:19.255738",
   "next_event": {
     "lat": -7.97,
     "lon": 112.38,
     "direction_deg": 116.57,
     "movement": "SE",
     "distance_km": 2.48,
-    "confidence": 1.0,
-    "seismic": 4.88
+    "confidence": 0.4,
+    "seismic": 0.0
   },
   "status": "ok",
   "rows": 535

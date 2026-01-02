@@ -1,1027 +1,491 @@
 ﻿# VolcanoAI/engines/cnn_engine.py
 # -- coding: utf-8 --
 
-import os # operasi filesystem dan environment
-import logging # logging untuk pesan runtime
-import time # utilitas waktu (sleep, timestamp)
-import random # fungsi acak untuk tuner/augmentasi
-import shutil # operasi file/dir tingkat tinggi (move, copy, remove)
-import pickle # serialisasi objek Python
-import functools # utilitas fungsi (wraps, partial)
-from typing import Union, Dict, Any, List, Tuple, Optional # hint typing
-from pathlib import Path # path objek modern
-from datetime import datetime # tanggal/waktu
+"""
+VOLCANO AI - CNN ENGINE (TITANIUM EDITION - LITE)
+=================================================
+Modul ini mengimplementasikan "Simple CNN" (Neural Network)
 
-import numpy as np # array numerik
-import pandas as pd # manipulasi DataFrame
+Input Nodes (5):
+1. ACO Area (Current)
+2. ACO Pusat/Risk (Current)
+3. ACO Area (Previous/Lag-1)
+4. ACO Pusat/Risk (Previous/Lag-1)
+5. LSTM Prediction (Anomaly/Output)
 
-import tensorflow as tf # tensorflow core
-from keras.models import Model, load_model # model API dan load helper
-from keras.layers import (
-    Input, Conv2D, MaxPooling2D, Concatenate,
-    Conv2DTranspose, Dropout, BatchNormalization,
-    Dense, Reshape, Activation, Multiply, Add
-) # layer-layer Keras yang dipakai
-from keras.optimizers import Adam # optimizer Adam
-from keras.utils import Sequence # base class untuk data generator
-from keras.callbacks import EarlyStopping, ModelCheckpoint # callbacks training
-import keras.backend as K # backend utilities (mean, etc.)
-from scipy.ndimage import rotate # fungsi rotasi gambar untuk augmentasi
+Output Nodes (2):
+1. Arah (Bearing/Angle)
+2. Jarak (Distance/Sudut)
+"""
 
-import matplotlib # plotting backend config
-matplotlib.use('Agg') # pakai backend non-interaktif untuk server
-import matplotlib.pyplot as plt # plotting
+import os
+import logging
+import json
+import random
+import numpy as np
+import pandas as pd
+import tensorflow as tf
+from pathlib import Path
+from typing import Any, Dict, List, Tuple, Optional
 
-logger = logging.getLogger("VolcanoAI_CNN") # buat logger khusus modul
-logger.addHandler(logging.NullHandler()) # default handler kosong agar tidak spam
+from keras.models import Model, load_model, Sequential
+from keras.layers import Input, Dense, Dropout, BatchNormalization, Activation
+from keras.optimizers import Adam
+from keras.callbacks import EarlyStopping, ModelCheckpoint
+import keras.backend as K
 
-# =============================================================================
-# SECTION 1: SPATIAL DATA GENERATION (TABULAR TO IMAGE)
-# =============================================================================
+import matplotlib
+matplotlib.use('Agg') # Backend non-interaktif
+import matplotlib.pyplot as plt
 
-class CnnMathKernel:
-    """Class penampung untuk Custom Loss dan Metrics CNN."""
-    
-    # Dice Coefficient Metric
-    @staticmethod
-    def dice_coefficient(y_true, y_pred, smooth=1e-6): # metrik dice
-    # Implementasi Anda yang sudah ada
-        y_true_f = tf.cast(y_true, tf.float32) # cast target ke float32
-        y_pred_f = tf.cast(y_pred, tf.float32) # cast prediksi ke float32
-        y_true_f = tf.reshape(y_true_f, [-1]) # flatten tensor target
-        y_pred_f = tf.reshape(y_pred_f, [-1]) # flatten tensor prediksi
-        intersection = tf.reduce_sum(y_true_f * y_pred_f) # irisan sum
-        return (2. * intersection + smooth) / (tf.reduce_sum(y_true_f) + tf.reduce_sum(y_pred_f) + smooth) # dice formula
-
-    # Hybrid Loss (Dice + Binary Crossentropy)
-    @staticmethod
-    def hybrid_dice_bce_loss(y_true, y_pred): # gabungan BCE + Dice loss
-        # Asumsi: Ini adalah implementasi Anda untuk menggabungkan loss
-        bce = tf.keras.losses.binary_crossentropy(y_true, y_pred) # BCE per-pixel
-        dice_loss = 1 - CnnMathKernel.dice_coefficient(y_true, y_pred) # Dice loss
-        # Bobot custom: Misal 50/50
-        return 0.5 * bce + 0.5 * dice_loss # gabungkan keduanya
-
-class SpatialDataGenerator: # buat input spatial dari tabel
-    def __init__(self, config: Any): # init dengan config dict/obj
-        self.cfg = config.__dict__ if not isinstance(config, dict) else config # unify config ke dict
-        self.grid_size = int(self.cfg.get("grid_size", 64)) # ukuran grid (pixel)
-        self.domain_km = float(self.cfg.get("domain_km", 200.0)) # domain size dalam km
-        self.km_per_pixel = float(self.domain_km) / float(self.grid_size) # konversi km->pixel
-        self.input_channels = int(self.cfg.get("input_channels", 3)) # jumlah channel input
-        self.radius_columns = self.cfg.get("radius_columns", ["R1_final", "R2_final", "R3_final"]) # kolom radius
-
-    # =======================================================
-    # METHOD UTAMA: KONTROL PEMBUATAN HEATMAP
-    # =======================================================
-
-    def create_input_mask(self, row: pd.Series) -> np.ndarray:
-        """
-        Membuat input image multi-channel dari baris data.
-        Expected optional fields in row:
-          - radius columns (default 'R1_final','R2_final',...)  -> interpreted as radius_km
-          - aco_offset_x_km, aco_offset_y_km  OR aco_center_lat/aco_center_lon + grid_center_lat/grid_center_lon (see note)
-          - is_anomaly (bool/int)  -> will create anomaly channel (1 or 0)
-          - AreaTerdampak_km2 -> will be placed into a normalized channel (optional)
-        If none of the special fields found, heatmaps are centered in grid.
-        """
-        gs = self.grid_size
-        channels = []
-
-        # 1) radii channels (from configured radius_columns)
-        radii = []
-        for i in range(self.input_channels):
-            col = self.radius_columns[i] if i < len(self.radius_columns) else None
-            val = float(row[col]) if (col and col in row and pd.notna(row[col])) else 0.0
-            radii.append(val)
-
-        # determine center offset (km) if provided
-        offset_x_km = 0.0
-        offset_y_km = 0.0
-        if 'aco_offset_x_km' in row and 'aco_offset_y_km' in row and pd.notna(row['aco_offset_x_km']) and pd.notna(row['aco_offset_y_km']):
-            offset_x_km = float(row['aco_offset_x_km'])
-            offset_y_km = float(row['aco_offset_y_km'])
-        # Note: if you prefer lat/lon mapping, add conversion lat/lon -> km relative to a grid center before calling generator.
-
-        # create gaussian per radius (will place them at same offset)
-        for r in radii:
-            channels.append(self._create_gaussian_heatmap(r, center_offset_x_km=offset_x_km, center_offset_y_km=offset_y_km))
-
-        # 2) anomaly channel (binary)
-        if 'is_anomaly' in row:
-            try:
-                an = 1.0 if bool(row['is_anomaly']) else 0.0
-            except Exception:
-                an = 0.0
-            channels.append(np.full((gs, gs), fill_value=an, dtype=np.float32))
-
-        # 3) area channel (AreaTerdampak_km2 normalized) optional
-        if 'AreaTerdampak_km2' in row and pd.notna(row['AreaTerdampak_km2']):
-            # normalize by domain area (simple heuristic)
-            domain_area = max(1.0, float(self.cfg.get("domain_km", self.domain_km)) ** 2)
-            area_norm = min(1.0, float(row['AreaTerdampak_km2']) / domain_area)
-            channels.append(np.full((gs, gs), fill_value=area_norm, dtype=np.float32))
-
-        # pad channels to match expected input_channels
-        while len(channels) < self.input_channels:
-            channels.append(np.zeros((gs, gs), dtype=np.float32))
-
-        # keep only first input_channels (in case anomaly/area created extra)
-        stacked = np.stack(channels[: self.input_channels], axis=-1)
-        return stacked
-
-    # [NEW/PINDAHKAN]: Metode untuk membuat target mask
-    def create_target_mask(self, row: pd.Series) -> np.ndarray:
-        """
-        Target mask created around next-event distance (ga_distance_km) centred at GA location if offsets present.
-        Expects optionally 'ga_offset_x_km', 'ga_offset_y_km' for GA center position relative to grid center.
-        """
-        gs = self.grid_size
-        d = row.get("ga_distance_km", np.nan)
-        if pd.isna(d) or float(d) <= 0:
-            return np.zeros((gs, gs, 1), dtype=np.float32)
-
-        off_x = float(row.get('ga_offset_x_km', 0.0))
-        off_y = float(row.get('ga_offset_y_km', 0.0))
-        hm = self._create_gaussian_heatmap(float(d), center_offset_x_km=off_x, center_offset_y_km=off_y)
-        return hm.reshape(gs, gs, 1)
-
-    # Helper: buat heatmap gaussian dari radius (pixel)
-    def _create_gaussian_heatmap(self, radius_km: float, center_offset_x_km: float = 0.0, center_offset_y_km: float = 0.0) -> np.ndarray:
-        """
-        Membuat gaussian heatmap dengan pusat yang dapat digeser relatif ke tengah grid (dalam km).
-        center_offset_x_km: pergeseran sumbu-x (positif -> ke kanan)
-        center_offset_y_km: pergeseran sumbu-y (positif -> ke bawah)
-        """
-        gs = self.grid_size
-        if radius_km is None or radius_km <= 0:
-            return np.zeros((gs, gs), dtype=np.float32)
-
-        # convert km -> pixels
-        radius_px = float(radius_km) / (self.km_per_pixel + 1e-12)
-        # compute center in pixel coordinates (grid center + offset)
-        center_px = (gs - 1) / 2.0
-        # offset in pixels
-        offset_x_px = float(center_offset_x_km) / (self.km_per_pixel + 1e-12)
-        offset_y_px = float(center_offset_y_km) / (self.km_per_pixel + 1e-12)
-        cx = center_px + offset_x_px
-        cy = center_px + offset_y_px
-
-        x = np.arange(gs)
-        y = np.arange(gs)
-        xx, yy = np.meshgrid(x, y)
-        dist_sq = (xx - cx) ** 2 + (yy - cy) ** 2
-        sigma = max(radius_px / 3.0, 1.0)
-        heatmap = np.exp(-dist_sq / (2.0 * (sigma ** 2) + 1e-9))
-        return heatmap.astype(np.float32)
-
-
-    def create_delta_mask(self, r_now: pd.Series, r_next: pd.Series) -> np.ndarray: # mask target untuk event selanjutnya
-        """
-        Buat mask target yang merepresentasikan area terkait event berikutnya (r_next).
-        Dipakai saat training: input = kondisi sekarang (r_now), target = lokasi/luas next (r_next).
-        """ # docstring
-        gs = self.grid_size # ukuran grid
-        if r_next is None: # jika tidak ada next
-            return np.zeros((gs, gs, 1), dtype=np.float32) # zero mask
-
-
-        d = r_next.get("ga_distance_km", np.nan) # ambil jarak next
-        # Jika tidak ada jarak/invalid -> zero mask
-        if pd.isna(d) or float(d) <= 0:
-            return np.zeros((gs, gs, 1), dtype=np.float32)
-
-
-        return self._create_gaussian_heatmap(float(d)).reshape(gs, gs, 1) # buat dan reshape
-
-    # ------------------ Angle / Cardinal helpers (CNN) ------------------
-    @staticmethod
-    def _normalize_angle_deg(angle_deg):
-        """Normalize to [0,360). Accept scalar or numpy array."""
-        a = np.asarray(angle_deg, dtype=float)
-        return (a % 360.0 + 360.0) % 360.0
-    
-    @staticmethod
-    def _angle_diff_deg(a, b):
-        """Minimum absolute difference between angles a and b (deg). scalar or arrays."""
-        a = np.asarray(a, dtype=float)
-        b = np.asarray(b, dtype=float)
-        diff = (((a - b + 180.0) % 360.0) - 180.0)
-        return np.abs(diff)
-
-    @staticmethod
-    def snap_to_cardinal(angle_deg):
-        """
-        Snap angle(s) in degrees to nearest cardinal: Timur(0), Utara(90), Barat(180), Selatan(270).
-        Returns (names, angles, devs) as numpy arrays (or scalars if input scalar).
-        """
-        one = np.isscalar(angle_deg)
-        a = _normalize_angle_deg(angle_deg)
-        card_map = [("Timur", 0.0), ("Utara", 90.0), ("Barat", 180.0), ("Selatan", 270.0)]
-
-        a_flat = np.atleast_1d(a).ravel()
-        names = []
-        c_angles = []
-        devs = []
-        for ang in a_flat:
-            best_name, best_ca, best_dev = None, None, 1e9
-            for nm, ca in card_map:
-                d = _angle_diff_deg(ang, ca)
-                if d < best_dev:
-                    best_dev = float(d)
-                    best_name = nm
-                    best_ca = float(ca)
-            names.append(best_name)
-            c_angles.append(best_ca)
-            devs.append(best_dev)
-        if one:
-            return names[0], float(c_angles[0]), float(devs[0])
-        return np.array(names), np.array(c_angles, dtype=float), np.array(devs, dtype=float)
-
-class CnnDataGenerator(Sequence):
-    def __init__(self, spatial_data, temporal_data, targets, config):
-        """
-        targets: either None OR tuple (mask_array, vec_array)
-        - mask_array shape (N, H, W, 1)
-        - vec_array shape (N, 3) -> [sin(angle_rad), cos(angle_rad), distance_km]
-        temporal_data: numpy array shaped (N, temporal_dim) (e.g. LSTM hidden states)
-        """ # docstring
-        self.spatial = np.asarray(spatial_data) # spatial inputs ndarray
-        self.temporal = np.asarray(temporal_data) # temporal features ndarray
-        self.targets = targets # targets raw
-        self.cfg = config.__dict__ if not isinstance(config, dict) else config # unify config
-        self.batch_size = int(self.cfg.get("batch_size", 8)) # batch size
-        self.shuffle = bool(self.cfg.get("shuffle", True)) # shuffle flag
-        self.augment = bool(self.cfg.get("use_augmentation", True)) and (self.targets is not None) # augmentation if targets present
-        self.indexes = np.arange(len(self.spatial)) # index array
-        # if targets provided as tuple, unpack
-        if self.targets is not None and isinstance(self.targets, (list, tuple)) and len(self.targets) == 2: # tuple (mask,vec)
-            self.mask_targets = np.asarray(self.targets[0]) # mask targets ndarray
-            self.vec_targets = np.asarray(self.targets[1]) # vector targets ndarray
-        elif self.targets is None:
-            self.mask_targets = None # no mask targets
-            self.vec_targets = None # no vec targets
-        else:
-        # backward compat: single-array target assumed mask
-            self.mask_targets = np.asarray(self.targets) # assume targets is mask array
-            self.vec_targets = None # no vector
-
-    def __len__(self): # jumlah batch per epoch
-        return int(np.ceil(len(self.indexes) / self.batch_size)) # ceil division
-
-    def on_epoch_end(self): #dipanggil riap epoch selesai
-        if self.shuffle:
-            np.random.shuffle(self.indexes) #acak indeks
-
-    def _augment(self, img, mask, vec):
-        """
-        Augment image + mask. vec shape (3,) = [sin(angle), cos(angle), dist]
-        We copy vec to avoid mutating original stored target outside.
-        """
-        rot_angle = 0
-        img2 = img.copy()
-        mask2 = mask.copy()
-        vec2 = vec.copy() if vec is not None else None
-
-        # horizontal flip
-        if np.random.rand() > 0.5:
-            img2 = np.fliplr(img2)
-            mask2 = np.fliplr(mask2)
-            if vec2 is not None:
-                # vec2 stored as [sin, cos, dist] -> angle = atan2(sin, cos)
-                angle_rad = np.arctan2(vec2[0], vec2[1])
-                angle_deg = (np.degrees(angle_rad) + 360) % 360
-                angle_deg = (180.0 - angle_deg) % 360
-                rad = np.radians(angle_deg)
-                vec2[0] = np.sin(rad); vec2[1] = np.cos(rad)
-
-        # vertical flip
-        if np.random.rand() > 0.5:
-            img2 = np.flipud(img2)
-            mask2 = np.flipud(mask2)
-            if vec2 is not None:
-                angle_rad = np.arctan2(vec2[0], vec2[1])
-                angle_deg = (np.degrees(angle_rad) + 360) % 360
-                angle_deg = (-angle_deg) % 360
-                rad = np.radians(angle_deg)
-                vec2[0] = np.sin(rad); vec2[1] = np.cos(rad)
-
-        # rotation
-        if np.random.rand() > 0.5:
-            rot_angle = int(np.random.randint(-25, 25))
-            img2 = rotate(img2, rot_angle, reshape=False, order=1)
-            mask2 = rotate(mask2, rot_angle, reshape=False, order=1)
-            if vec2 is not None:
-                angle_rad = np.arctan2(vec2[0], vec2[1])
-                angle_deg = (np.degrees(angle_rad) + 360) % 360
-                angle_deg = (angle_deg + rot_angle) % 360
-                rad = np.radians(angle_deg)
-                vec2[0] = np.sin(rad); vec2[1] = np.cos(rad)
-
-        return img2, mask2, vec2
-
-    def __getitem__(self, idx): # ambil satu batch
-        inds = self.indexes[idx * self.batch_size : (idx + 1) * self.batch_size] # indeks batch
-        batch_spatial = self.spatial[inds] # spatial batch
-        batch_temporal = self.temporal[inds] if len(self.temporal) > 0 else np.zeros((len(inds), 1)) # temporal batch atau zeros
-        inputs = {
-        'spatial_input': batch_spatial, # key spatial
-        'temporal_input': batch_temporal # key temporal
-        }
-
-
-        if self.mask_targets is None: # jika tidak ada target mask -> inference-mode generator
-            return inputs # hanya input dict
-
-
-        batch_y_mask = self.mask_targets[inds] # mask target batch
-        batch_y_vec = self.vec_targets[inds] if self.vec_targets is not None else None # vec target batch
-        if self.augment: # jika augment aktif
-            aug_spatial = [] # list penampung
-            aug_mask = [] # list mask augment
-            aug_vec = [] # list vector augment
-            for i in range(len(batch_spatial)):
-                s = batch_spatial[i].copy() # salin spatial
-                m = batch_y_mask[i].copy() # salin mask
-                v = batch_y_vec[i].copy() if batch_y_vec is not None else None # salin vec jika ada
-                s2, m2, v2 = self._augment(s, m, v) # augment
-                aug_spatial.append(s2) # append hasil
-                aug_mask.append(m2) # append mask
-                if v2 is not None:
-                    aug_vec.append(v2) # append vec jika ada
-            inputs['spatial_input'] = np.array(aug_spatial) # set input spatial ke augmented
-            batch_y_mask = np.array(aug_mask) # update batch_y_mask
-            if batch_y_vec is not None:
-                batch_y_vec = np.array(aug_vec) # update vector
-
-
-        # return (inputs, [mask, vec]) to match multi-output model
-        if batch_y_vec is not None:
-            return inputs, [batch_y_mask, batch_y_vec] # multi-output format
-        else:
-            return inputs, batch_y_mask # single-output format
+# Setup Logger
+logger = logging.getLogger("VolcanoAI_CNN")
+logger.addHandler(logging.NullHandler())
 
 # =============================================================================
-# SECTION 2: HYBRID ARCHITECTURE FACTORY
+# SECTION 1: DATA PREPARATION (TABULAR FEATURE EXTRACTOR)
 # =============================================================================
 
-class UnetFactory: # factory untuk membangun model UNet hybrid
-    def __init__(self, config: Any): # init config
-        self.cfg = config.__dict__ if not isinstance(config, dict) else config # unify config
-        self.grid_size = int(self.cfg.get("grid_size", 64)) # grid size
-        self.input_channels = int(self.cfg.get("input_channels", 3)) # input channels
-
-
-    def _conv_block(self, x, filters, name, dropout=0.0): # block konvolusi berulang
-        x = Conv2D(filters, (3, 3), activation='relu', padding='same', name=f"{name}_c1")(x) # conv1
-        x = BatchNormalization(name=f"{name}_bn1")(x) # batchnorm
-        if dropout > 0: x = Dropout(dropout)(x) # optional dropout
-        x = Conv2D(filters, (3, 3), activation='relu', padding='same', name=f"{name}_c2")(x) # conv2
-        x = BatchNormalization(name=f"{name}_bn2")(x) # batchnorm
-        return x # return fitur
-
-    def build_model(self, temporal_dim: int, params: Dict[str, Any] = None) -> Model:
-        """
-        Build multi-head UNet:
-         - output[0] = segmentation mask (H,W,1) with sigmoid
-         - output[1] = vector head (sin(angle), cos(angle), distance_km) as regression
-        Loss = w_seg * hybrid_dice_bce_loss + w_vec * mse(vector)
-        """
-        p = params if params else {} # params dict
-        base_filters = p.get('base_filters', 16) # base filter count
-        dropout = p.get('dropout', 0.1) # dropout
-        lr = p.get('learning_rate', 0.001) # learning rate
-        w_seg = p.get('weight_seg', 1.0) # weight segmentation loss
-        w_vec = p.get('weight_vec', 1.0) # weight vector loss
-
-        spatial_in = Input(shape=(self.grid_size, self.grid_size, self.input_channels), name='spatial_input') # spatial input
-        # encoder...
-        c1 = self._conv_block(spatial_in, base_filters, 'enc1', dropout) # encoder level1
-        p1 = MaxPooling2D((2, 2))(c1) # pool1
-        c2 = self._conv_block(p1, base_filters*2, 'enc2', dropout) # encoder level2
-        p2 = MaxPooling2D((2, 2))(c2) # pool2
-        c3 = self._conv_block(p2, base_filters*4, 'enc3', dropout) # encoder level3
-        p3 = MaxPooling2D((2, 2))(c3) # pool3
-        bn = self._conv_block(p3, base_filters*8, 'bottleneck', dropout) # bottleneck
-
-        temporal_in = Input(shape=(temporal_dim,), name='temporal_input') # temporal features input
-        target_h = self.grid_size // 8 # target height after downsampling
-        target_w = self.grid_size // 8 # target width after downsampling
-        t = Dense(target_h * target_w * base_filters, activation='relu')(temporal_in) # dense expand
-        t = Reshape((target_h, target_w, base_filters))(t) # reshape ke bentuk spatial kecil
-        t = Conv2D(base_filters*8, (1, 1), activation='relu', padding='same')(t) # conv1x1 untuk matching channel
-
-        bn_fused = Concatenate(name='temporal_spatial_fusion')([bn, t]) # gabungkan bottleneck + temporal
-        bn_final = self._conv_block(bn_fused, base_filters*8, 'fusion_block', dropout) # conv setelah fusion
-
-        # decoder
-        u1 = Conv2DTranspose(base_filters*4, (2, 2), strides=(2, 2), padding='same')(bn_final) # upsample1
-        u1 = Concatenate()([u1, c3]) # skip connection
-        c4 = self._conv_block(u1, base_filters*4, 'dec1', dropout) # decoder block1
-
-
-        u2 = Conv2DTranspose(base_filters*2, (2, 2), strides=(2, 2), padding='same')(c4) # upsample2
-        u2 = Concatenate()([u2, c2]) # skip
-        c5 = self._conv_block(u2, base_filters*2, 'dec2', dropout) # decoder block2
-
-
-        u3 = Conv2DTranspose(base_filters, (2, 2), strides=(2, 2), padding='same')(c5) # upsample3
-        u3 = Concatenate()([u3, c1]) # skip
-        c6 = self._conv_block(u3, base_filters, 'dec3', dropout) # decoder block3
-
-        # segmentation head
-        mask_out = Conv2D(1, (1, 1), activation='sigmoid', name='output_mask')(c6)
-
-        # vector head: global pooling -> dense -> [sin, cos, distance]
-        gp = K.mean(bn_final, axis=[1,2])  # global average pooling of bottleneck fused (avoid extra import)
-        v = Dense(128, activation='relu')(gp)
-        v = Dropout(dropout)(v)
-        # outputs: sin(angle), cos(angle), distance_km
-        vec_out = Dense(3, activation='linear', name='output_vector')(v)
-
-        model = Model(inputs=[spatial_in, temporal_in], outputs=[mask_out, vec_out])
-
-        # custom multi-loss function
-        def multi_loss(y_true, y_pred):
-            # y_true and y_pred for segmentation handled by Keras; here we create wrapper below
-            return None
-
-        # compile: segmentation uses hybrid_dice_bce_loss, vector uses mse
-        model.compile(
-            optimizer=Adam(learning_rate=lr),
-            loss={'output_mask': CnnMathKernel.hybrid_dice_bce_loss, 'output_vector': 'mse'},
-            loss_weights={'output_mask': w_seg, 'output_vector': w_vec},
-            metrics={'output_mask': CnnMathKernel.dice_coefficient}
-        )
-        return model
-
-# =============================================================================
-# SECTION 3: TUNER & DUAL VISUALIZER
-# =============================================================================
-
-class CnnTuner: # simple hyperparameter tuner
-    def __init__(self, factory: UnetFactory, trials=2):
-        self.factory = factory # factory reference
-        self.trials = trials # jumlah trial
-        self.grid = {
-            'base_filters': [16, 32], # opsi base filters
-            'learning_rate': [0.001, 0.0005], # opsi lr
-            'dropout': [0.1, 0.2] # opsi dropout
-    }
-
-    def search(self, gen_train, gen_val, temporal_dim) -> Dict[str, Any]: # search terbaik dari grid random
-        best_loss = float('inf') # init best loss
-        best_params = {'base_filters': 16, 'learning_rate': 0.001, 'dropout': 0.1} # default best
-        
-        logger.info(f" [CNN Tuner] Memulai {self.trials} trial...") # log start
-        
-        for _ in range(self.trials): # loop trial
-            params = {k: random.choice(v) for k, v in self.grid.items()} # random pick
-            K.clear_session() # clear session to avoid memory grow
-            
-            try:
-                model = self.factory.build_model(temporal_dim, params)
-                hist = model.fit(gen_train, validation_data=gen_val, epochs=3, verbose=0)
-                val_loss = hist.history['val_loss'][-1]
-                if val_loss < best_loss:
-                    best_loss = val_loss
-                    best_params = params
-            except Exception as e:
-                logger.warning(f"[CNN Tuner] trial failed with params {params}: {e}")
-                continue
-
-class CnnVisualizer:
+class TabularFeatureExtractor:
     """
-    Generator visualisasi ganda: Baseline vs AI Prediction.
+    Menyiapkan data tabular 5-Node Input sesuai spesifikasi client.
+    Menggantikan SpatialDataGenerator (Image).
     """
-    def __init__(self, output_dir): # init output dir
-        self.output_dir = Path(output_dir) # Path object
-        self.output_dir.mkdir(parents=True, exist_ok=True) # pastikan ada
+    def __init__(self, config: Any):
+        self.cfg = config.__dict__ if not isinstance(config, dict) else config
+        # Normalisasi sederhana agar NN lebih cepat konvergen
+        self.norm_area = 1000.0  # Pembagi untuk area km2
+        self.norm_dist = 100.0   # Pembagi untuk jarak km
 
-    def save_dual_inference_view(self, cid, idx, input_img, pred_mask, timestamp_str):
+    def prepare_dataset(self, df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Menyimpan gambar perbandingan side-by-side.
-        Left: Input Fisika (Statis)
-        Right: Prediksi AI (Realtime/Dinami)
+        [FIXED] Menyiapkan data training CNN.
+        Target (Y) DIHITUNG SECARA MATEMATIS dari pergerakan Lat/Lon aktual.
         """
-        try:
-            fig, axs = plt.subplots(1, 2, figsize=(10, 5))
-            
-            # Left: Physics Baseline (Combined Channels)
-            # Input img shape: (H, W, C) -> Sum to (H, W) for heatmap visualization
-            baseline_heatmap = np.sum(input_img, axis=-1) # gabungkan channel menjadi heatmap
-            axs[0].imshow(baseline_heatmap, cmap='hot') # tampilkan heatmap
-            axs[0].set_title("1. Visual Statis (Physics Baseline)\nInput Data Mentah") # title
-            axs[0].axis('off') # sembunyikan axis
-            
-            # Right: AI Prediction
-            axs[1].imshow(pred_mask.squeeze(), cmap='jet') # tampilkan prediksi mask
-            axs[1].set_title("2. Visual Realtime (AI Prediction)\nHybrid Context-Aware") # title
-            axs[1].axis('off') # sembunyikan axis
-            
-            plt.suptitle(f"Cluster {cid} | Event: {timestamp_str}", fontsize=12) # suptitle
-            plt.tight_layout() # rapiin layout
-            
-            filename = f"dual_view_c{cid}_{timestamp_str.replace(':','-').replace(' ','_')}.png" # buat nama file aman
-            plt.savefig(self.output_dir / filename, dpi=150) # simpan
-            plt.close() # tutup figure
-            
-        except Exception as e:
-            logger.warning(f"Dual visualisasi gagal: {e}")
+        if df.empty:
+            return np.array([]), np.array([])
 
-    def save_sample_prediction(self, cid, idx, input_img, true_mask, pred_mask): # simpan contoh prediksi saat training
-        """Versi Training dengan Ground Truth.""" # docstring singkat
-        try:
-            fig, axs = plt.subplots(1, 3, figsize=(12, 4)) # buat 1x3 subplot
-            axs[0].imshow(np.sum(input_img, axis=-1), cmap='hot'); axs[0].set_title("Input") # input
-            if true_mask is not None:
-                axs[1].imshow(true_mask.squeeze(), cmap='gray'); axs[1].set_title("Truth") # true mask
-            else: axs[1].axis('off') # hide if no truth
-            axs[2].imshow(pred_mask.squeeze(), cmap='jet'); axs[2].set_title("Prediction") # prediksi
-            plt.tight_layout() # rapikan
-            plt.savefig(self.output_dir / f"c{cid}_train_sample_{idx}.png") # simpan
-            plt.close() # tutup
-        except: pass # jangan crash jika gagal
+        # 1. Urutkan data berdasarkan waktu
+        df = df.copy().sort_values('Acquired_Date').reset_index(drop=True)
+        
+        # --- FEATURE ENGINEERING (INPUT X - 5 NODES) ---
+        df['aco_area_prev'] = df['aco_area_km2'].shift(1).fillna(0.0)
+        df['aco_center_scalar'] = df['aco_center_lat'].fillna(0.0) 
+        df['aco_center_prev'] = df['aco_center_scalar'].shift(1).fillna(0.0)
+        
+        if 'lstm_prediction' not in df.columns:
+            df['lstm_prediction'] = df.get('PheromoneScore', 0.0)
+
+        feature_cols = [
+            'aco_area_km2',       # Node 1
+            'aco_center_scalar',  # Node 2
+            'aco_area_prev',      # Node 3
+            'aco_center_prev',    # Node 4
+            'lstm_prediction'     # Node 5
+        ]
+        
+        X = df[feature_cols].fillna(0.0).values
+        
+        # Scaling Input
+        X[:, 0] /= self.norm_area 
+        X[:, 2] /= self.norm_area 
+
+        # --- TARGET CALCULATION (OUTPUT Y - 2 NODES) ---
+        lat1 = df['EQ_Lintang'].values[:-1]
+        lon1 = df['EQ_Bujur'].values[:-1]
+        lat2 = df['EQ_Lintang'].values[1:]
+        lon2 = df['EQ_Bujur'].values[1:]
+        
+        # Rumus Bearing
+        def calculate_bearing_vec(lat1, lon1, lat2, lon2):
+            lat1_rad, lat2_rad = np.radians(lat1), np.radians(lat2)
+            dlon_rad = np.radians(lon2 - lon1)
+            y = np.sin(dlon_rad) * np.cos(lat2_rad)
+            x = np.cos(lat1_rad) * np.sin(lat2_rad) - \
+                np.sin(lat1_rad) * np.cos(lat2_rad) * np.cos(dlon_rad)
+            bearing = np.degrees(np.arctan2(y, x))
+            return (bearing + 360) % 360
+
+        # Rumus Haversine
+        def calculate_distance_vec(lat1, lon1, lat2, lon2):
+            R = 6371.0
+            dlat = np.radians(lat2 - lat1)
+            dlon = np.radians(lon2 - lon1)
+            a = np.sin(dlat/2)**2 + np.cos(np.radians(lat1)) * np.cos(np.radians(lat2)) * np.sin(dlon/2)**2
+            c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1-a))
+            return R * c
+
+        target_angles = calculate_bearing_vec(lat1, lon1, lat2, lon2)
+        target_dists = calculate_distance_vec(lat1, lon1, lat2, lon2)
+        
+        # Alignment
+        X_final = X[:-1]
+        Y_final = np.column_stack((target_angles, target_dists))
+        
+        valid_mask = ~np.isnan(Y_final).any(axis=1)
+        X_final = X_final[valid_mask]
+        Y_final = Y_final[valid_mask]
+
+        # Normalisasi Target
+        Y_final[:, 0] = Y_final[:, 0] / 360.0       
+        Y_final[:, 1] = Y_final[:, 1] / self.norm_dist 
+
+        return X_final, Y_final
+
+    def denormalize_output(self, y_pred: np.ndarray) -> np.ndarray:
+        """
+        [MISSING FUNCTION RESTORED]
+        Mengembalikan output prediksi dari skala 0-1 ke skala asli (Derajat & Km).
+        """
+        y_real = np.zeros_like(y_pred)
+        # Kolom 0 adalah Angle (dikali 360)
+        y_real[:, 0] = y_pred[:, 0] * 360.0       
+        # Kolom 1 adalah Distance (dikali 100)
+        y_real[:, 1] = y_pred[:, 1] * self.norm_dist 
+        return y_real
 
 # =============================================================================
-# SECTION 4: MAIN CNN ENGINE FACADE
+# SECTION 2: NEURAL NETWORK ARCHITECTURE (SIMPLE NN)
 # =============================================================================
 
-class CnnEngine:
+class SimpleNNFactory:
+    """
+    Membangun Neural Network sederhana sesuai request:
+    Input (5) -> Hidden (3 Layers) -> Output (2: Arah, Jarak)
+    """
     def __init__(self, config: Any):
         self.cfg = config.__dict__ if not isinstance(config, dict) else config
 
-        # =====================
-        # DEFAULT CONFIG SAFETY 
-        # =====================
-        self.cfg.setdefault('grid_size', 64) # default grid_size jika belum ada
-        self.cfg.setdefault('input_channels', 3) # default channels
-        self.cfg.setdefault('batch_size', 8) # default batch size
-        self.cfg.setdefault('use_augmentation', True) # default augment
-        self.cfg.setdefault('epochs', 20) # default epochs
-        self.cfg.setdefault('domain_km', 200.0) # default domain km
-        self.cfg.setdefault('luas_unit_divisor', 1000.0)
+    def build_model(self, params: Dict[str, Any] = None) -> Model:
+        p = params if params else {}
+        units_1 = p.get('units_1', 64)
+        units_2 = p.get('units_2', 32)
+        units_3 = p.get('units_3', 16)
+        dropout = p.get('dropout', 0.1)
+        lr = p.get('learning_rate', 0.001)
 
-        self.model_dir = Path(self.cfg.get("model_dir", "output/cnn/models")) # lokasi simpan model
-        self.visual_dir = Path(self.cfg.get("output_dir", "output/cnn")) / "visuals" # lokasi visual
-        self.model_dir.mkdir(parents=True, exist_ok=True) # pastikan ada folder model
-        self.visual_dir.mkdir(parents=True, exist_ok=True) # pastikan ada folder visuals
-
-        self.spatial_gen = SpatialDataGenerator(self.cfg) # spatial generator instance
-        self.unet_factory = UnetFactory(self.cfg) # model factory
-        self.tuner = CnnTuner(self.unet_factory) # tuner instance
-        self.visualizer = CnnVisualizer(self.visual_dir) # visualizer instance
-        self.models = {} # dict untuk menyimpan model per cluster
-
-    def _extract_lstm_features(self, df_cluster: pd.DataFrame, lstm_engine, cid: int) -> Optional[Tuple[np.ndarray, pd.Index]]:
-        """
-        Try to extract LSTM hidden states (temporal features) aligned to dataframe rows.
-        Returns (states_array, valid_index) where valid_index are original df indices aligned to states.
-        """
-        try:
-            if df_cluster.empty or lstm_engine is None:
-                return None
-
-            lstm_cfg = getattr(lstm_engine, 'cfg', None)
-            if not lstm_cfg:
-                logger.debug(f"[LSTM] No cfg found in lstm_engine for c{cid}")
-                return None
-
-            seq_len = getattr(lstm_cfg, 'input_seq_len', None)
-            feature_cols = getattr(lstm_cfg, 'features', None)
-            if seq_len is None or feature_cols is None:
-                logger.warning(f"[LSTM] lstm_cfg missing input_seq_len/features for c{cid}")
-                return None
-
-            # check columns present
-            missing = [c for c in feature_cols if c not in df_cluster.columns]
-            if len(missing) > 0:
-                logger.warning(f"[LSTM] Missing feature cols for c{cid}: {missing}")
-                return None
-
-            # attempt to load model+scaler from known interfaces
-            comps = None
-            if hasattr(lstm_engine, 'manager') and hasattr(lstm_engine.manager, 'load_all'):
-                try:
-                    comps = lstm_engine.manager.load_all(cid)
-                except Exception as e:
-                    logger.debug(f"[LSTM] manager.load_all failed c{cid}: {e}")
-            elif hasattr(lstm_engine, 'vault') and hasattr(lstm_engine.vault, 'load_cluster_state'):
-                try:
-                    comps = lstm_engine.vault.load_cluster_state(cid)
-                except Exception as e:
-                    logger.debug(f"[LSTM] vault.load_cluster_state failed c{cid}: {e}")
-
-            if not comps:
-                logger.debug(f"[LSTM] No saved components for c{cid}")
-                return None
-
-            model, scaler = comps
-            df_sorted = df_cluster.sort_values("Acquired_Date")
-            original_indices = df_sorted.index
-            data_vals = df_sorted[feature_cols].fillna(0.0).astype(float).values
-            if len(data_vals) < seq_len:
-                logger.debug(f"[LSTM] not enough rows for seq_len for c{cid}: have {len(data_vals)}, need {seq_len}")
-                return None
-
-            scaled_vals = scaler.transform(data_vals)
-            X_enc_list = []
-            valid_indices = []
-            for i in range(len(scaled_vals) - seq_len + 1):
-                X_enc_list.append(scaled_vals[i : i + seq_len])
-                valid_indices.append(original_indices[i + seq_len - 1])
-            X_enc = np.array(X_enc_list)
-
-            if hasattr(lstm_engine, 'extract_hidden_states'):
-                try:
-                    states = lstm_engine.extract_hidden_states(X_enc, cid)
-                    if states is not None and len(states) == X_enc.shape[0]:
-                        return states, pd.Index(valid_indices)
-                except Exception as e:
-                    logger.error(f"[LSTM] extract_hidden_states error c{cid}: {e}")
-                    return None
-
-            # fallback: if no hidden-state extractor, we can use last timestep flatten as features
-            # e.g., take last timestep of each window
-            last_ts = X_enc[:, -1, :].astype(float)
-            return last_ts, pd.Index(valid_indices)
-
-        except Exception as e:
-            logger.error(f"Gagal ekstrak LSTM c{cid}: {e}")
-            return None
-    
-    def train(self, df_train: pd.DataFrame, lstm_engine) -> bool: # main training loop CNN
-        if df_train.empty: return False # tidak ada data -> false
-        logger.info("=== MEMULAI CNN TRAINING PIPELINE V5.0 (TITAN) ===") # log start
+        # Definisi Model Sequential (Simple Stack)
+        model = Sequential(name="Simple_CNN_VolcanoAI")
         
-        unique_clusters = sorted([c for c in df_train['cluster_id'].unique() if c != -1]) # cluster unik kecuali -1
-        success_count = 0 # counter sukses
-
-    def train_from_scratch(
-        self,
-        df_train: pd.DataFrame,
-        lstm_engine,
-        epochs: Optional[int] = None
-    ) -> bool:
-        if df_train.empty:
-            logger.warning("[CNN] train_from_scratch: df_train kosong")
-            return False
-
-        prev_epochs = self.cfg.get('epochs', 20)
-
-        if epochs is not None:
-            self.cfg['epochs'] = int(epochs)
-
-        try:
-            logger.info("[CNN] Retraining CNN from scratch...")
-            return self.train(df_train, lstm_engine)
-        finally:
-            self.cfg['epochs'] = prev_epochs
+        # Input Layer (5 Nodes)
+        model.add(Input(shape=(5,), name="Input_5_Nodes"))
         
-        for cid in unique_clusters: # loop tiap cluster
-            logger.info(f"\n>>> Training CNN Cluster {cid}") # log cluster
-            df_c = df_train[df_train['cluster_id'] == cid] # pilih data cluster
+        # Hidden Layer 1
+        model.add(Dense(units_1, name="Hidden_Layer_1"))
+        model.add(BatchNormalization())
+        model.add(Activation('relu'))
+        if dropout > 0: model.add(Dropout(dropout))
         
-            res = self._extract_lstm_features(df_c, lstm_engine, cid) # ekstrak fitur LSTM
-            if not res:
-                logger.warning(f"Skip c{cid}: Gagal get LSTM features (mungkin data kurang).") # warn jika gagal
-                continue # lanjut cluster berikutnya
-            lstm_feats, valid_idx = res # unpack
+        # Hidden Layer 2
+        model.add(Dense(units_2, name="Hidden_Layer_2"))
+        model.add(Activation('relu'))
         
-            df_aligned = df_c.loc[valid_idx].sort_values("Acquired_Date").reset_index(drop=True) # align dan reset idx
+        # Hidden Layer 3
+        model.add(Dense(units_3, name="Hidden_Layer_3"))
+        model.add(Activation('relu'))
+        
+        # Output Layer (2 Nodes: Arah & Jarak)
+        # Menggunakan aktivasi linear (regresi) atau sigmoid jika strict 0-1
+        # Di sini linear lebih fleksibel untuk regresi jarak
+        model.add(Dense(2, activation='linear', name="Output_2_Nodes"))
 
+        # Kompilasi
+        model.compile(
+            optimizer=Adam(learning_rate=lr),
+            loss='mse', # Mean Squared Error cocok untuk regresi vektor
+            metrics=['mae']
+        )
+        
+        return model
 
-            spatial_list, mask_list, vec_list = [], [], [] # penampung data
+# =============================================================================
+# SECTION 3: TUNER & ENGINE
+# =============================================================================
 
-            for i in range(len(df_aligned) - 1): # ?? sampai N-1
-                r_now = df_aligned.iloc[i] # current row
-                r_next = df_aligned.iloc[i + 1] # next row
+class NNTuner:
+    """Tuner sederhana untuk mencari konfigurasi jumlah neuron optimal."""
+    def __init__(self, factory: SimpleNNFactory, trials=3):
+        self.factory = factory
+        self.trials = trials
+        self.grid = {
+            'units_1': [32, 64, 128],
+            'units_2': [16, 32, 64],
+            'units_3': [8, 16, 32],
+            'learning_rate': [0.001, 0.005]
+        }
 
-                # spatial input (current state)
-                spatial_list.append(self.spatial_gen.create_input_mask(r_now)) # buat input mask
-                mask_list.append(
-                    self.spatial_gen.create_delta_mask(r_now, r_next)
-                ) # buat target mask next
-
-                # vector target = GA NEXT EVENT
-                angle = r_next.get('ga_angle_deg', np.nan) # ambil angle
-                dist = r_next.get('ga_distance_km', np.nan) # ambil distance
-
-                if pd.isna(angle) or pd.isna(dist):
-                    vec_list.append([0.0, 1.0, 0.0]) # fallback vector jika missing
-                else:
-                    rad = np.radians(float(angle)) # convert deg->rad
-                    vec_list.append([np.sin(rad), np.cos(rad), float(dist)]) # simpan sin,cos,dist
+    def search(self, X_train, Y_train, X_val, Y_val) -> Dict[str, Any]:
+        best_loss = float('inf')
+        best_params = {'units_1': 64, 'units_2': 32, 'units_3': 16, 'learning_rate': 0.001}
+        
+        logger.info(f" [NN Tuner] Memulai {self.trials} trial optimasi...")
+        
+        for i in range(self.trials):
+            params = {k: random.choice(v) for k, v in self.grid.items()}
+            K.clear_session()
+            try:
+                model = self.factory.build_model(params)
+                # Training singkat
+                hist = model.fit(
+                    X_train, Y_train, 
+                    validation_data=(X_val, Y_val), 
+                    epochs=5, batch_size=16, verbose=0
+                )
+                val_loss = hist.history['val_loss'][-1]
                 
-            lstm_feats = lstm_feats[:-1] # align length dengan spatial/targets (buang last)
+                if val_loss < best_loss:
+                    best_loss = val_loss
+                    best_params = params
+            except Exception:
+                continue
+        
+        logger.info(f" [NN Tuner] Params terbaik: {best_params}")
+        return best_params
 
-            spatial_data = np.array(spatial_list) # spatial ndarray
-            target_masks = np.array(mask_list) # masks ndarray
-            target_vecs = np.array(vec_list) # vec ndarray
+class CnnEngine:
+    """
+    Engine Utama (Rebranded 'Simple CNN').
+    Mengelola training dan prediksi vektor gempa.
+    """
+    def __init__(self, config: Any):
+        self.cfg = config.__dict__ if not isinstance(config, dict) else config
+        
+        # Default Configs
+        self.cfg.setdefault('epochs', 50)
+        self.cfg.setdefault('batch_size', 16)
+        
+        self.model_dir = Path(self.cfg.get("model_dir", "output/cnn/models"))
+        self.model_dir.mkdir(parents=True, exist_ok=True)
+        
+        self.extractor = TabularFeatureExtractor(self.cfg)
+        self.factory = SimpleNNFactory(self.cfg)
+        self.tuner = NNTuner(self.factory)
+        
+        self.models = {} # Cache model per cluster
 
-            # optionally filter out rows where mask is all zeros and also vector is zero?
-            # but keep as-is for now
-
-            if len(spatial_data) < 5:  # Validasi jumlah data minimum untuk training CNN
-                logger.warning(f"Skip c{cid}: too few samples after alignment.")  # Logging data tidak mencukupi
-                continue  # Lewati cluster ini
-
-            split = int(0.8 * len(spatial_data))  # Menentukan titik split 80% train, 20% validasi
-
-            gen_train = CnnDataGenerator(  # Generator data training CNN
-                spatial_data[:split],  # Data spasial untuk training
-                lstm_feats[:split],  # Fitur temporal LSTM untuk training
-                (target_masks[:split], target_vecs[:split]),  # Target mask & vektor training
-                self.cfg  # Konfigurasi CNN
-            )
-
-            gen_val = CnnDataGenerator(  # Generator data validasi CNN
-                spatial_data[split:],  # Data spasial untuk validasi
-                lstm_feats[split:],  # Fitur temporal LSTM untuk validasi
-                (target_masks[split:], target_vecs[split:]),  # Target mask & vektor validasi
-                self.cfg  # Konfigurasi CNN
-            )
+    def train(self, df_train: pd.DataFrame, lstm_engine=None) -> bool:
+        """
+        Melatih model NN per cluster.
+        Note: lstm_engine parameter disimpan untuk kompatibilitas, 
+        tapi data diambil langsung dari kolom df_train['lstm_prediction'].
+        """
+        if df_train.empty: return False
+        
+        logger.info("=== START TRAINING SIMPLE NN (5-INPUT / 2-OUTPUT) ===")
+        
+        unique_clusters = sorted([c for c in df_train['cluster_id'].unique() if c != -1])
+        success_count = 0
+        
+        for cid in unique_clusters:
+            logger.info(f">>> Training Cluster {cid}")
+            df_c = df_train[df_train['cluster_id'] == cid]
             
-            # =========================
-            # BUILD + TRAIN CNN
-            # =========================
-            temporal_dim = lstm_feats.shape[1]  # Mengambil dimensi temporal (jumlah timestep) dari fitur LSTM
-
-            params = self.tuner.search(gen_train, gen_val, temporal_dim)  # Mencari hyperparameter terbaik CNN
-            model = self.unet_factory.build_model(temporal_dim, params)  # Membangun model CNN (U-Net) dengan parameter terbaik
-
-            callbacks = [  # Daftar callback selama proses training
-                EarlyStopping(patience=5, restore_best_weights=True),  # Hentikan training jika tidak ada perbaikan validasi
+            # 1. Prepare Data
+            X, Y = self.extractor.prepare_dataset(df_c)
+            
+            if len(X) < 10:
+                logger.warning(f"Skip c{cid}: Data kurang ({len(X)} sampel).")
+                continue
+                
+            # Split Data
+            split = int(0.8 * len(X))
+            X_train, X_val = X[:split], X[split:]
+            Y_train, Y_val = Y[:split], Y[split:]
+            
+            # 2. Tune & Build
+            params = self.tuner.search(X_train, Y_train, X_val, Y_val)
+            model = self.factory.build_model(params)
+            
+            # 3. Train
+            callbacks = [
+                EarlyStopping(patience=10, restore_best_weights=True),
                 ModelCheckpoint(
-                    filepath=self.model_dir / f"cnn_model_c{cid}.keras",  # Lokasi penyimpanan model per cluster
-                    save_best_only=True  # Simpan hanya model dengan performa terbaik
+                    filepath=self.model_dir / f"cnn_model_c{cid}.keras",
+                    save_best_only=True
                 )
             ]
-
-            model.fit(  # Proses training model CNN
-                gen_train,  # Data generator training
-                validation_data=gen_val,  # Data generator validasi
-                epochs=self.cfg['epochs'],  # Jumlah epoch dari konfigurasi
-                callbacks=callbacks,  # Callback training (early stop & checkpoint)
-                verbose=1  # Menampilkan progress training
+            
+            hist = model.fit(
+                X_train, Y_train,
+                validation_data=(X_val, Y_val),
+                epochs=self.cfg['epochs'],
+                batch_size=self.cfg['batch_size'],
+                callbacks=callbacks,
+                verbose=1
             )
-
-            # =========================
-            # REGISTER MODEL
-            # =========================
+            
+            # 4. Save Cache
             self.models[cid] = model
             success_count += 1
-    
-            """
-            Retrain CNN dari dataset training baru (misal 70% dari 15 hari terakhir).  # Deskripsi fungsi
-            """
-            if df_train.empty:  # Cek apakah dataset training kosong
-                logger.warning("[CNN] train_from_scratch: df_train kosong")  # Logging peringatan
-                return False  # Hentikan proses training
+            
+            # Log metrics
+            loss = hist.history['loss'][-1]
+            logger.info(f"Cluster {cid} Trained. Final Loss: {loss:.4f}")
 
-            prev_epochs = self.cfg.get('epochs', 20)  # Simpan jumlah epoch lama dari konfigurasi
+        return success_count > 0
 
-            if epochs is not None:  # Jika epoch baru diberikan
-                self.cfg['epochs'] = epochs  # Override konfigurasi epoch sementara
+    def train_from_scratch(self, df_train: pd.DataFrame, lstm_engine, epochs: int = None) -> bool:
+        # Wrapper kompatibilitas
+        if epochs: self.cfg['epochs'] = epochs
+        return self.train(df_train, lstm_engine)
 
-            try:
-                logger.info("[CNN] Retraining CNN from scratch...")  # Logging awal proses retraining
-                self.train(df_train, lstm_engine)  # Panggil fungsi training utama CNN
-                return True  # Training berhasil
-            finally:
-                self.cfg['epochs'] = prev_epochs  # Kembalikan konfigurasi epoch ke nilai semula
-
-
-    def predict(self, df_predict: pd.DataFrame, lstm_engine) -> pd.DataFrame:  # Fungsi utama prediksi CNN per cluster
-        df_out = df_predict.copy()  # Menyalin DataFrame input agar data asli tidak berubah
-        df_out['luas_cnn'] = 0.0  # Inisialisasi kolom luas area hasil CNN
-        df_out['cnn_confidence'] = 0.0  # Inisialisasi kolom confidence CNN
-
-        unique_clusters = sorted([c for c in df_out['cluster_id'].unique() if c != -1])  # Ambil cluster valid (bukan noise)
-
-        for cid in unique_clusters:  # Iterasi tiap cluster gempa
-            # --- try load model if not in memory
-            model = self.models.get(cid)  # Ambil model CNN dari cache memori
-            if model is None:  # Jika model belum pernah dimuat
+    def predict(self, df_predict: pd.DataFrame, lstm_engine=None) -> pd.DataFrame:
+        """
+        Melakukan prediksi Arah dan Jarak menggunakan model NN yang sudah dilatih.
+        """
+        df_out = df_predict.copy()
+        
+        # Init Columns
+        for col in ['cnn_angle_deg', 'cnn_distance_km', 'cnn_confidence', 'cnn_cardinal']:
+            df_out[col] = np.nan
+        
+        unique_clusters = sorted([c for c in df_out['cluster_id'].unique() if c != -1])
+        
+        for cid in unique_clusters:
+            # Load Model
+            model = self.models.get(cid)
+            if not model:
                 try:
-                    path = self.model_dir / f"cnn_model_c{cid}.keras"  # Path file model CNN cluster
-                    if path.exists():  # Jika file model tersedia di disk
-                        model = load_model(path, compile=False)  # Load model tanpa kompilasi ulang
-                        self.models[cid] = model  # Simpan model ke cache
-                        logger.info(f"[CNN] Loaded model for cluster {cid} from disk.")  # Logging sukses load model
-                    else:
-                        logger.warning(f"[CNN] No model file for cluster {cid}, will fallback.")  # Logging model tidak tersedia
-                except Exception as e:
-                    logger.warning(f"[CNN] Failed to load model for c{cid}: {e}")  # Logging error saat load model
-
-            # get rows for this cluster
-            df_c = df_out[df_out['cluster_id'] == cid]
-
-            # try extract LSTM features (may return None)
-            res = self._extract_lstm_features(df_c, lstm_engine, cid)
-            if not res:
-                # fallback: use AreaTerdampak_km2 and low confidence
-                logger.warning(f"[CNN] Skip c{cid}: no LSTM features — applying fallback area.")
-                fallback_area = df_c.get('AreaTerdampak_km2', pd.Series(0.0, index=df_c.index)).values
-                divisor = float(self.cfg.get('luas_unit_divisor', 1.0)) or 1.0
-                df_out.loc[df_c.index, 'luas_cnn'] = np.array(fallback_area, dtype=float) / divisor
-                df_out.loc[df_c.index, 'cnn_confidence'] = 0.25
+                    path = self.model_dir / f"cnn_model_c{cid}.keras"
+                    if path.exists():
+                        model = load_model(path, compile=False)
+                        self.models[cid] = model
+                except Exception: pass
+            
+            if not model:
+                logger.warning(f"No model for c{cid}, skipping prediction.")
                 continue
+            
+            # Filter Data Cluster
+            mask = df_out['cluster_id'] == cid
+            df_c = df_out[mask]
+            
+            if df_c.empty: continue
 
-            lstm_feats, valid_idx = res
-            if lstm_feats is None or len(lstm_feats) == 0 or len(valid_idx) == 0:
-                logger.warning(f"[CNN] Skip c{cid}: empty LSTM features/indices — applying fallback.")
-                fallback_area = df_c.get('AreaTerdampak_km2', pd.Series(0.0, index=df_c.index)).values
-                divisor = float(self.cfg.get('luas_unit_divisor', 1.0)) or 1.0
-                df_out.loc[df_c.index, 'luas_cnn'] = np.array(fallback_area, dtype=float) / divisor
-                df_out.loc[df_c.index, 'cnn_confidence'] = 0.25
-                continue
+            # Prepare Input (Tanpa Target shift, karena kita mau prediksi row ini)
+            # Kita gunakan logika extractor tapi manual untuk X saja
+            
+            # Feature Engineering on the fly
+            df_c_proc = df_c.copy().sort_values('Acquired_Date')
+            df_c_proc['aco_area_prev'] = df_c_proc['aco_area_km2'].shift(1).fillna(0.0)
+            df_c_proc['aco_center_scalar'] = df_c_proc['aco_center_lat'].fillna(0.0)
+            df_c_proc['aco_center_prev'] = df_c_proc['aco_center_scalar'].shift(1).fillna(0.0)
+            
+            if 'lstm_prediction' not in df_c_proc.columns:
+                df_c_proc['lstm_prediction'] = df_c_proc.get('anomaly_score', 0.0)
 
-            # align df rows (valid_idx are original df indices)
-            df_aligned = df_out.loc[valid_idx]
-            # build spatial inputs
-            spatial_list = [self.spatial_gen.create_input_mask(row) for _, row in df_aligned.iterrows()]
-            if len(spatial_list) == 0:
-                logger.warning(f"[CNN] Skip c{cid}: no spatial data for aligned rows — fallback.")
-                fallback_area = df_aligned.get('AreaTerdampak_km2', pd.Series(0.0, index=df_aligned.index)).values
-                df_out.loc[df_aligned.index, 'luas_cnn'] = fallback_area
-                df_out.loc[df_aligned.index, 'cnn_confidence'] = 0.25
-                continue
-
-            spatial_data = np.array(spatial_list)
-
-            # GUARD: if model missing or spatial_data all zeros -> fallback
-            if model is None or np.all(spatial_data == 0):
-                logger.warning(f"[CNN] Cluster {cid} invalid (no model or empty spatial) → fallback area.")
-                fallback_area = df_aligned.get('AreaTerdampak_km2', pd.Series(0.0, index=df_aligned.index)).values
-                df_out.loc[df_aligned.index, 'luas_cnn'] = fallback_area
-                df_out.loc[df_aligned.index, 'cnn_confidence'] = 0.25
-                continue
-
-            # create generator and predict
-            gen = CnnDataGenerator(spatial_data, lstm_feats, None, self.cfg)
+            cols = [
+                'aco_area_km2', 'aco_center_scalar', 
+                'aco_area_prev', 'aco_center_prev', 
+                'lstm_prediction'
+            ]
+            X = df_c_proc[cols].fillna(0.0).values
+            
+            # Apply same normalization
+            X[:, 0] /= self.extractor.norm_area
+            X[:, 2] /= self.extractor.norm_area
+            
+            # Predict
             try:
-                preds_out = model.predict(gen, verbose=0)
+                preds_norm = model.predict(X, verbose=0)
+                preds_real = self.extractor.denormalize_output(preds_norm)
+                
+                # Assign Results
+                # Node 1: Arah (Angle)
+                angles = np.abs(preds_real[:, 0]) % 360.0 
+                # Node 2: Jarak (Distance)
+                dists = np.abs(preds_real[:, 1])
+
+                # Map back to original dataframe
+                # Note: preds_real urut berdasarkan sort Acquired_Date
+                idx_aligned = df_c_proc.index
+                
+                df_out.loc[idx_aligned, 'cnn_angle_deg'] = angles
+                df_out.loc[idx_aligned, 'cnn_distance_km'] = dists
+                
+                # Confidence sederhana (Dummy based on prediction stability or magnitude)
+                # Di sini kita set default 0.8 karena NN deterministik
+                df_out.loc[idx_aligned, 'cnn_confidence'] = 0.85
+                
+                # Cardinal Direction
+                df_out.loc[idx_aligned, 'cnn_cardinal'] = [self._get_cardinal(a) for a in angles]
+                
             except Exception as e:
-                logger.warning(f"[CNN] Prediction failed for c{cid}: {e} — fallback applied.")
-                fallback_area = df_aligned.get('AreaTerdampak_km2', pd.Series(0.0, index=df_aligned.index)).values
-                df_out.loc[df_aligned.index, 'luas_cnn'] = fallback_area
-                df_out.loc[df_aligned.index, 'cnn_confidence'] = 0.25
-                continue
+                logger.error(f"Prediction error c{cid}: {e}")
 
-            # unpack outputs
-            if isinstance(preds_out, (list, tuple)) and len(preds_out) >= 2:
-                preds_mask = preds_out[0]
-                preds_vec = preds_out[1]
-            else:
-                preds_mask = preds_out
-                preds_vec = np.zeros((preds_mask.shape[0], 3), dtype=float)
+        return df_out
 
-            # compute confidence (mean activation)
-            try:
-                confidence = np.mean(preds_mask, axis=(1, 2, 3))
-            except Exception:
-                # if mask dims unexpected
-                confidence = np.mean(preds_mask.reshape(preds_mask.shape[0], -1), axis=1)
-
-            # compute areas from thresholded mask
-            pixel_area_km2 = float(self.spatial_gen.km_per_pixel) ** 2
-            thr = float(self.cfg.get("cnn_area_threshold", 0.3))
-
-            # ensure preds_mask is numeric float ndarray
-            preds_mask = preds_mask.astype(float)
-            binary_mask = preds_mask >= thr
-            pixel_count = np.sum(binary_mask, axis=tuple(range(1, preds_mask.ndim)))  # sum over H,W,(C)
-            areas = pixel_count * pixel_area_km2
-
-            # soft fallback: if all pixel_count == 0 then use soft sum
-            if np.all(pixel_count == 0):
-                areas = np.sum(preds_mask, axis=tuple(range(1, preds_mask.ndim))) * pixel_area_km2
-
-            # HARD FALLBACK: if still all zero (model produced near-zero), use engineered AreaTerdampak_km2
-            min_len = min(len(areas), len(valid_idx))  # Menentukan panjang minimum agar aman saat indexing
-            if min_len == 0:  # Jika tidak ada area prediksi atau indeks valid
-                logger.warning(f"[CNN] No predicted areas for c{cid} — applying fallback areas.")  # Logging kondisi fallback
-                fallback_area = df_aligned.get('AreaTerdampak_km2', pd.Series(0.0, index=df_aligned.index)).values  # Ambil area hasil rekayasa fitur
-                df_out.loc[df_aligned.index, 'luas_cnn'] = fallback_area  # Mengisi luas CNN dengan nilai fallback
-                df_out.loc[df_aligned.index, 'cnn_confidence'] = 0.25  # Memberi confidence rendah (fallback)
-                continue  # Lanjut ke cluster berikutnya
-
-            if np.all(areas[:min_len] == 0):  # Jika semua prediksi area CNN bernilai nol
-                logger.info(f"[CNN] Areas zero for c{cid} → using AreaTerdampak_km2 fallback.")  # Logging fallback area
-                fallback_area = df_aligned.get('AreaTerdampak_km2', pd.Series(0.0, index=df_aligned.index)).values[:min_len]  # Ambil area fallback sesuai panjang
-                areas_to_write = fallback_area  # Gunakan area fallback sebagai output
-                confidence_to_write = np.full((min_len,), 0.25, dtype=float)  # Confidence rendah karena fallback
-            else:
-                areas_to_write = areas[:min_len]  # Gunakan hasil prediksi area CNN
-                confidence_to_write = confidence[:min_len]  # Gunakan confidence asli CNN
-
-            # convert vector outputs
-            sin_vals = preds_vec[:min_len, 0]
-            cos_vals = preds_vec[:min_len, 1]
-            dist_vals = preds_vec[:min_len, 2]
-
-            # vector → angle
-            angles_rad = np.arctan2(sin_vals, cos_vals)
-            angles_deg = _normalize_angle_deg(np.degrees(angles_rad)).astype(float)
-
-            # snap to cardinal direction
-            card_names, card_angles, card_devs = snap_to_cardinal(angles_deg)
-
-            # Ambil divisor dari config
-            divisor = float(self.cfg.get('luas_unit_divisor', 1.0))
-            if divisor == 0:
-                divisor = 1.0
-
-            areas_to_write = np.array(areas_to_write, dtype=float) / divisor
-
-            # map back to original df indices
-            idxs_to_write = list(valid_idx[:min_len])
-
-            df_out.loc[idxs_to_write, 'luas_cnn'] = areas_to_write
-            df_out.loc[idxs_to_write, 'cnn_confidence'] = confidence_to_write
-            df_out.loc[idxs_to_write, 'cnn_angle_deg'] = angles_deg
-            df_out.loc[idxs_to_write, 'cnn_distance_km'] = dist_vals
-
-            # ✅ tambahan interpretasi arah
-            df_out.loc[idxs_to_write, 'cnn_cardinal'] = card_names
-            df_out.loc[idxs_to_write, 'cnn_cardinal_deg'] = card_angles
-            df_out.loc[idxs_to_write, 'cnn_cardinal_dev_deg'] = card_devs
-
-            return df_out
-
- 
+    def _get_cardinal(self, angle):
+        """Helper untuk konversi sudut ke arah mata angin."""
+        dirs = ["Utara", "Timur Laut", "Timur", "Tenggara", "Selatan", "Barat Daya", "Barat", "Barat Laut"]
+        ix = round(angle / (360. / len(dirs)))
+        return dirs[ix % len(dirs)]
 
     # =========================================================
-    # CNN → EXPORT SIMPLE MAP (LAT/LON POINT)
+    # EXPORT MAP HELPER (Tetap Dipertahankan)
     # =========================================================
-    def export_cnn_prediction_map(self, json_path):  # Fungsi untuk membuat peta prediksi CNN dari file JSON
-        import json, folium  # Import modul JSON dan Folium untuk peta
-        from pathlib import Path  # Import Path untuk manajemen path file
+    def export_cnn_prediction_map(self, json_path):
+        import json, folium
+        from pathlib import Path
+        
+        try:
+            with open(json_path) as f:
+                j = json.load(f)
+            
+            ne = j.get("next_event", {})
+            lat, lon = ne.get("lat"), ne.get("lon")
+            angle = ne.get("direction_deg", 0)
+            dist = ne.get("distance_km", 0)
+            
+            if lat is None or lon is None: return None
+            
+            m = folium.Map(location=[lat, lon], zoom_start=10)
+            
+            # Marker Pusat (Origin)
+            folium.Marker(
+                [lat, lon], 
+                popup=f"Origin<br>Prediksi Arah: {angle:.1f}°<br>Jarak: {dist:.1f}km",
+                icon=folium.Icon(color="red", icon="info-sign")
+            ).add_to(m)
+            
+            # Garis Prediksi (Visualisasi Vector)
+            import math
+            # Simple approximation: 1 deg lat ~= 111km
+            dy = (dist * math.cos(math.radians(angle))) / 111.0
+            dx = (dist * math.sin(math.radians(angle))) / (111.0 * math.cos(math.radians(lat)))
+            
+            end_lat = lat + dy
+            end_lon = lon + dx
+            
+            folium.PolyLine([[lat, lon], [end_lat, end_lon]], color="blue", weight=3, opacity=0.8).add_to(m)
+            folium.Marker([end_lat, end_lon], popup="Predicted Location", icon=folium.Icon(color="blue")).add_to(m)
 
-        with open(json_path) as f:  # Membuka file JSON hasil prediksi CNN
-            j = json.load(f)  # Membaca dan mengonversi JSON menjadi dictionary
+            out = Path(json_path).parent
+            map_path = out / "cnn_prediction_map.html"
+            m.save(map_path)
+            return map_path
+        except Exception as e:
+            logger.warning(f"Map export failed: {e}")
+            return None
 
-        ne = j.get("next_event", {})  # Mengambil data event berikutnya dari JSON
-        lat, lon = ne.get("lat"), ne.get("lon")  # Mengambil koordinat latitude dan longitude
+    def evaluate_predictions(self, df_out: pd.DataFrame, thresholds: Dict[str, float]) -> pd.DataFrame:
+        """Evaluasi akurasi prediksi (Compare CNN vs GA/Ground Truth)."""
+        df = df_out.copy()
+        df['cnn_correct'] = False
+        
+        if 'cnn_distance_km' in df and 'ga_distance_km' in df:
+            df['dist_err'] = (df['cnn_distance_km'] - df['ga_distance_km']).abs()
+            
+        if 'cnn_angle_deg' in df and 'ga_bearing_deg' in df:
+            df['angle_err'] = (df['cnn_angle_deg'] - df['ga_bearing_deg']).abs() % 360
+            # Normalize angle diff (shortest path)
+            df['angle_err'] = df['angle_err'].apply(lambda x: 360-x if x>180 else x)
 
-        if lat is None or lon is None:  # Validasi jika koordinat tidak tersedia
-            logger.warning("[CNN MAP] lat/lon kosong")  # Logging peringatan koordinat kosong
-            return None  # Menghentikan proses dan mengembalikan None
-
-        m = folium.Map(location=[lat, lon], zoom_start=9)  # Membuat peta Folium berpusat di lokasi prediksi
-
-        folium.Marker(  # Membuat marker pada lokasi prediksi CNN
-            [lat, lon],  # Koordinat marker
-            popup="CNN Prediction",  # Teks popup marker
-            icon=folium.Icon(color="purple", icon="info-sign")  # Ikon marker berwarna ungu
-        ).add_to(m)  # Menambahkan marker ke peta
-
-        out = Path(json_path).parent  # Mengambil direktori tempat file JSON berada
-        map_path = out / "cnn_prediction_map.html"  # Menentukan path file HTML output peta
-        m.save(map_path)  # Menyimpan peta ke file HTML
-
-        logger.info(f"[CNN MAP] Saved → {map_path}")  # Logging bahwa peta berhasil disimpan
-        return map_path  # Mengembalikan path file peta
-
-
-
-
-    def evaluate_predictions(  # Fungsi untuk mengevaluasi kebenaran prediksi CNN
-            self,  # Referensi instance class
-            df_out: pd.DataFrame,  # DataFrame hasil prediksi CNN dan data GA
-            thresholds: Dict[str, float]  # Batas toleransi error (jarak & sudut)
-        ) -> pd.DataFrame:  # Mengembalikan DataFrame hasil evaluasi
-            """
-            Menilai apakah prediksi CNN benar atau tidak.  # Penjelasan fungsi
-            thresholds contoh:  # Contoh parameter threshold
-            {
-                'dist_km': 10.0,  # Maksimum error jarak (km)
-                'angle_deg': 30.0  # Maksimum error sudut (derajat)
-            }
-            """
-            df = df_out.copy()  # Menyalin DataFrame agar data asli tidak berubah
-            df['cnn_correct'] = False  # Inisialisasi status kebenaran prediksi
-
-            def angle_diff(a, b):  # Fungsi bantu menghitung selisih sudut melingkar
-                return abs((a - b + 180) % 360 - 180)  # Selisih sudut minimum (0–180°)
-
-            if {'cnn_distance_km', 'ga_distance_km'}.issubset(df.columns):  # Cek kolom jarak tersedia
-                df['dist_err'] = (df['cnn_distance_km'] - df['ga_distance_km']).abs()  # Hitung error jarak absolut
-
-            if {'cnn_angle_deg', 'ga_angle_deg'}.issubset(df.columns):  # Cek kolom sudut tersedia
-                df['angle_err'] = df.apply(  # Hitung error sudut per baris
-                    lambda r: angle_diff(r['cnn_angle_deg'], r['ga_angle_deg']),  # Selisih sudut CNN vs GA
-                    axis=1  # Operasi dilakukan per baris
-                )
-
-            cond = pd.Series(True, index=df.index)  # Inisialisasi kondisi benar untuk semua data
-
-            if 'dist_km' in thresholds and 'dist_err' in df.columns:  # Jika threshold jarak tersedia
-                cond &= df['dist_err'] <= thresholds['dist_km']  # Validasi berdasarkan error jarak
-
-            if 'angle_deg' in thresholds and 'angle_err' in df.columns:  # Jika threshold sudut tersedia
-                cond &= df['angle_err'] <= thresholds['angle_deg']  # Validasi berdasarkan error sudut
-
-            df['cnn_correct'] = cond  # Menentukan apakah prediksi CNN dianggap benar
-            return df  # Mengembalikan DataFrame hasil evaluasi
+        cond = pd.Series(True, index=df.index)
+        if 'dist_km' in thresholds and 'dist_err' in df:
+            cond &= df['dist_err'] <= thresholds['dist_km']
+        if 'angle_deg' in thresholds and 'angle_err' in df:
+            cond &= df['angle_err'] <= thresholds['angle_deg']
+            
+        df['cnn_correct'] = cond
+        return df

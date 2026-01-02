@@ -3214,5 +3214,9 @@
       "distance_km": 9.223552424994118
     }
   ],
-  "_ga_generated_at": "2026-01-02T18:10:42.930655"
+  "_ga_generated_at": "2026-01-02T23:41:13.694138",
+  "next_event": {
+    "angle_deg": 139.24359175926952,
+    "direction": "Barat"
+  }
 }

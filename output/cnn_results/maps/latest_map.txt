@@ -1,1 +1,1 @@
-C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\output\cnn_results\maps\cnn_prediction_map_20260102_181212.html
+C:\Users\laygenda surya putra\Documents\JOKI\gempavulkanik\output\cnn_results\maps\cnn_prediction_map_20260102_234319.html

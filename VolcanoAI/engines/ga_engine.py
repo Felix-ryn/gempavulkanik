@@ -1079,6 +1079,28 @@ class GaEngine: # GA Engine utama
 
         self.map_path = os.path.join(self.output_dir, "ga_path_map.html")
         self.log_path = os.path.join(self.output_dir, "ga_log.csv")
+
+    def _attach_ga_targets(
+        self,
+        df: pd.DataFrame,
+        pred: Dict[str, Any]
+    ) -> pd.DataFrame:
+
+        if df is None or df.empty:
+            raise ValueError("df_train kosong saat attach GA targets")
+
+        required = ["bearing_degree", "distance_km"]
+        for k in required:
+            if k not in pred or pred[k] is None:
+                raise RuntimeError(f"GA output missing required key: {k}")
+
+        df = df.copy()
+        df["ga_bearing_deg"] = float(pred["bearing_degree"])
+        df["ga_distance_km"] = float(pred["distance_km"])
+        df["ga_confidence"] = float(pred.get("confidence", 0.0))
+
+        return df
+
     # Tulis hasil prediksi ke aco_to_ga.json
     def _write_back_to_aco_json(self, pred: Dict[str, Any]):
         """
@@ -1273,6 +1295,12 @@ class GaEngine: # GA Engine utama
                 )
 
                 logger.info("=== GA ENGINE COMPLETE (ACO Mode) ===".center(80))
+                pred_info = {
+                    "bearing_degree": pred["bearing_degree"],
+                    "distance_km": pred["distance_km"]
+                }
+
+                df_train = self._attach_ga_targets(df_train, pred_info)
 
                 return [], {
                     "map": out_map_path,
@@ -1319,6 +1347,8 @@ class GaEngine: # GA Engine utama
         # 5. Prediction
         pred = fit_engine.predict_next_event(df_opt, n_seg=getattr(self.cfg, "ga_segment_window", 5))
         
+        df_train = self._attach_ga_targets(df_train, pred)
+
         if isinstance(pred, dict) and pred:
             self._write_back_to_aco_json(pred)
 
