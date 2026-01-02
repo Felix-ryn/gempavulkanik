@@ -838,8 +838,12 @@ class MultiLayerVisualizer:
 
             for r in df.itertuples():
                 folium.CircleMarker(
-                    [getattr(r, 'EQ_Lintang'), getattr(r, 'EQ_Bujur')],
-                    radius=2, color="#ffffff", fill=True, fill_opacity=0.4
+                     [getattr(r, 'EQ_Lintang'), getattr(r, 'EQ_Bujur')],
+                        radius=3,
+                        color="yellow",
+                        fill=True,
+                        fill_color="yellow",
+                        fill_opacity=0.6
                 ).add_to(chaos)
 
         chaos.add_to(m)
@@ -937,9 +941,9 @@ class MultiLayerVisualizer:
                 sp_lat, sp_lon = GeoMathCore.destination_point(start_lat, start_lon, b_spoke, distance_km)
                 folium.PolyLine(
                     [[start_lat, start_lon], [sp_lat, sp_lon]],
-                    color="orange",
+                    color="green",
                     weight=1,
-                    opacity=0.35
+                    opacity=0.4
                 ).add_to(m)
 
 
@@ -966,16 +970,16 @@ class MultiLayerVisualizer:
                 # 1) Draw the main vector ray (kept as-is)
                 folium.PolyLine(
                     [[start_lat, start_lon], [end_lat, end_lon]],
-                    color="orange",
-                    weight=3,
-                    opacity=0.9
+                    color="red",
+                    weight=4,
+                    opacity=0.95
                 ).add_to(ga_layer)
 
                 # 2) Draw arrow marker at end (kept as-is)
                 folium.Marker(
                     [end_lat, end_lon],
                     icon=folium.DivIcon(
-                        html="<div style='font-size:18px;color:orange'>➤</div>"
+                        html="<div style='font-size:20px;color:red'>➤</div>"
                     ),
                     popup=f"""
                     <b>GA Vector</b><br>
@@ -993,26 +997,28 @@ class MultiLayerVisualizer:
 
                     folium.Circle(
                         location=[start_lat, start_lon],
-                        radius=max(100.0, dist * 1000.0),  # ensure minimal visible radius 100 m
-                        color="orange",
+                        radius=max(100.0, dist * 1000.0),
+                        color="green",
                         weight=2,
-                        opacity=0.7,
+                        opacity=0.8,
                         fill=True,
-                        fill_opacity=0.06,
+                        fill_color="green",
+                        fill_opacity=0.12,
                         popup=folium.Popup(f"Radius {dist:.2f} km from ACO idx {v['from_aco_index']}", max_width=240)
                     ).add_to(ga_layer)
 
                     # 4) Optional: Draw radial spokes (jari-jari)
                     #    - number of spokes bisa disesuaikan (default 8)
+                    # 4) Radial spokes (jari-jari area GA)
                     n_spokes = 8
                     for s in range(n_spokes):
                         b_spoke = s * (360.0 / n_spokes)
                         sp_lat, sp_lon = GeoMathCore.destination_point(start_lat, start_lon, b_spoke, dist)
                         folium.PolyLine(
                             [[start_lat, start_lon], [sp_lat, sp_lon]],
-                            color="orange",
+                            color="green",
                             weight=1,
-                            opacity=0.5
+                            opacity=0.4
                         ).add_to(ga_layer)
 
             ga_layer.add_to(m)
