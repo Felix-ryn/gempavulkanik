@@ -1046,21 +1046,56 @@ class MultiLayerVisualizer:
 
 # Excel Data Exporter
 class DataExporter:
-    def __init__(self, output_dir: str): # inisialisasi exporter
-        self.output_dir = output_dir # direktori output
-        self.excel_path = os.path.join(output_dir, "ga_report.xlsx") # path file excel output
-    # metode utama untuk mengekspor data ke file excel
-    def export(self, df_original: pd.DataFrame, df_optimal: pd.DataFrame, meta: Dict[str, Any]):
+    def __init__(self, output_dir: str):
+        self.output_dir = output_dir
+        self.excel_path = os.path.join(output_dir, "ga_report.xlsx")
+
+    def export(self,
+               df_original: pd.DataFrame,
+               df_optimal: pd.DataFrame,
+               meta: Dict[str, Any],
+               ga_input: Optional[Dict[str, Any]] = None,
+               ga_output: Optional[Union[List[Dict[str, Any]], Dict[str, Any]]] = None):
+        """
+        Export sheets:
+          - RawData
+          - BestPath
+          - Meta
+          - GA_Input (center + impact area)
+          - GA_Output (angle + direction)
+        """
         try:
+            os.makedirs(os.path.dirname(self.excel_path), exist_ok=True)
             with pd.ExcelWriter(self.excel_path, engine="openpyxl") as writer:
-                df_original.to_excel(writer, sheet_name="RawData", index=False)
-                df_optimal.to_excel(writer, sheet_name="BestPath", index=False)
+                # Raw / cleaned data
+                try:
+                    df_original.to_excel(writer, sheet_name="RawData", index=False)
+                except Exception:
+                    pd.DataFrame(df_original).to_excel(writer, sheet_name="RawData", index=False)
+
+                # Best path / selection
+                try:
+                    df_optimal.to_excel(writer, sheet_name="BestPath", index=False)
+                except Exception:
+                    pd.DataFrame(df_optimal).to_excel(writer, sheet_name="BestPath", index=False)
+
+                # Meta
                 pd.DataFrame([meta]).to_excel(writer, sheet_name="Meta", index=False)
+
+                # GA input: center & area
+                if ga_input:
+                    pd.DataFrame([ga_input]).to_excel(writer, sheet_name="GA_Input", index=False)
+
+                # GA output: list of dicts or single dict
+                if ga_output:
+                    if isinstance(ga_output, dict):
+                        pd.DataFrame([ga_output]).to_excel(writer, sheet_name="GA_Output", index=False)
+                    else:
+                        pd.DataFrame(ga_output).to_excel(writer, sheet_name="GA_Output", index=False)
 
             logger.info(f"Excel exported → {self.excel_path}")
         except Exception as e:
-            logger.error(f"Excel export failed: {e}")
-
+            logger.error(f"Excel export failed: {e}", exc_info=True)
 
 # ==================================================
 # GA ENGINE WRAPPER (Dipanggil Pipeline)
@@ -1264,6 +1299,35 @@ class GaEngine: # GA Engine utama
                 except Exception as e:
                     logger.warning(f"[GA] Failed to save ga_vector.json: {e}")
 
+                # ---------------------------
+                # Export GA Excel (ACO mode)
+                # ---------------------------
+                try:
+                    # GA input (center + impact area) from aco_payload
+                    ga_input = {
+                        "center_lat": float(aco_payload.get("center_lat", aco_payload.get("center_lat", None) or 0.0)),
+                        "center_lon": float(aco_payload.get("center_lon", aco_payload.get("center_lon", None) or 0.0)),
+                        "impact_area_km2": float(impact_area)
+                    }
+
+                    # GA output (list of per-ACO-node directions)
+                    ga_output = ga_path  # ga_path dibuat sebelumnya: list of dicts with angle_deg & direction
+
+                    # Export: use df_aco as RawData; BestPath left empty for pure ACO->GA mode
+                    self.exporter.export(
+                        df_original = df_aco.reset_index(drop=True),
+                        df_optimal = pd.DataFrame(),  # no GA permutation in this mode
+                        meta = {
+                            "mode": "ACO->GA",
+                            "timestamp": datetime.now().isoformat(),
+                            "note": "GA vectors per ACO epicenter"
+                        },
+                        ga_input = ga_input,
+                        ga_output = ga_output
+                    )
+                except Exception as e:
+                    logger.warning(f"[GA] Excel export (ACO mode) failed: {e}", exc_info=True)
+
                 # --- FIX 1: Generate Map dengan Handling Nama Kolom ---
                 try:
                     if os.path.exists(aco_epicenters_csv):
@@ -1367,7 +1431,31 @@ class GaEngine: # GA Engine utama
             "PredictedBearing": pred.get("bearing_degree", None),
             "PredictedDistanceKM": pred.get("distance_km", None),
         }
-        self.exporter.export(clean_df, df_opt, meta)
+                # Prepare GA input (if any) from existing aco_to_ga.json
+        ga_input = None
+        try:
+            if os.path.exists(aco_json_path):
+                with open(aco_json_path, "r", encoding="utf-8") as f:
+                    _p = json.load(f)
+                ga_input = {
+                    "center_lat": _p.get("center_lat"),
+                    "center_lon": _p.get("center_lon"),
+                    "impact_area_km2": _p.get("impact_area_km2", _p.get("impact_area"))
+                }
+        except Exception:
+            ga_input = None
+
+        # GA output (representative vector)
+        ga_output = [{
+            "angle_deg": pred.get("bearing_degree"),
+            "direction": GeoMathCore.bearing_to_compass_static(pred.get("bearing_degree", 0.0))
+        }]
+
+        # Export with GA sheets
+        try:
+            self.exporter.export(clean_df, df_opt, meta, ga_input=ga_input, ga_output=ga_output)
+        except Exception as e:
+            logger.warning(f"[GA] Excel export (Fallback Mode) failed: {e}", exc_info=True)
 
         try:
             log_df.to_csv(self.log_path, index=False)

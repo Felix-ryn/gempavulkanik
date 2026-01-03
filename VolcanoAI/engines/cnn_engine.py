@@ -25,6 +25,7 @@ import random
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Optional
 
@@ -257,6 +258,10 @@ class CnnEngine:
         self.model_dir = Path(self.cfg.get("model_dir", "output/cnn/models"))
         self.model_dir.mkdir(parents=True, exist_ok=True)
         
+        # Results / export directory (presentation files)
+        self.results_dir = Path(self.cfg.get("output_dir", "output/cnn_results"))
+        self.results_dir.mkdir(parents=True, exist_ok=True)
+
         self.extractor = TabularFeatureExtractor(self.cfg)
         self.factory = SimpleNNFactory(self.cfg)
         self.tuner = NNTuner(self.factory)
@@ -413,6 +418,24 @@ class CnnEngine:
             except Exception as e:
                 logger.error(f"Prediction error c{cid}: {e}")
 
+            # =========================
+            # EXPORT PRESENTATION EXCEL (FINAL, SEKALI SAJA)
+            # =========================
+            try:
+                meta = {
+                    "engine": "CNN",
+                    "model_type": "Simple NN (5 Input / 2 Output)",
+                    "rows_input": int(len(df_predict)),
+                    "rows_output": int(len(df_out)),
+                    "generated_at": datetime.now().isoformat()
+                }
+                self.export_results(
+                    df_input=df_predict,
+                    df_output=df_out,
+                    meta=meta
+                )
+            except Exception as e:
+                logger.warning(f"[CNN] Export presentation failed: {e}")
         return df_out
 
     def _get_cardinal(self, angle):
@@ -466,6 +489,89 @@ class CnnEngine:
             return map_path
         except Exception as e:
             logger.warning(f"Map export failed: {e}")
+            return None
+
+    def export_results(self,
+                       df_input: pd.DataFrame,
+                       df_output: pd.DataFrame,
+                       meta: Optional[Dict[str, Any]] = None,
+                       filename: Optional[str] = None) -> Optional[Path]:
+        """
+        Export presentation-ready Excel for CNN results.
+
+        Sheets:
+         - CNN_Input_ACO : ringkasan kejadian ACO (center & area, per event)
+         - CNN_Output_Pred: hasil prediksi CNN (angle, distance, confidence, cardinal)
+         - Meta : metadata singkat
+         - Raw_Input / Raw_Output : full dumps
+
+        Returns path to excel file or None on failure.
+        """
+        try:
+            out_dir = Path(self.results_dir)
+            out_dir.mkdir(parents=True, exist_ok=True)
+
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            fname = filename if filename else f"cnn_presentation_{ts}.xlsx"
+            out_path = out_dir / fname
+
+            # --- Prepare CNN input summary (ACO events) ---
+            # choose columns commonly present (fallbacks allowed)
+            in_cols = []
+            for c in ('Acquired_Date', 'aco_center_lat', 'aco_center_lon', 'aco_area_km2'):
+                if c in df_input.columns:
+                    in_cols.append(c)
+
+            if in_cols:
+                input_summary = df_input[in_cols].copy()
+                # keep unique ACO events in temporal order
+                input_summary = input_summary.dropna(how='all').drop_duplicates().reset_index(drop=True)
+                # format date as string for Excel readability
+                if 'Acquired_Date' in input_summary.columns:
+                    input_summary['Acquired_Date'] = input_summary['Acquired_Date'].astype(str)
+            else:
+                input_summary = pd.DataFrame(columns=['Acquired_Date','aco_center_lat','aco_center_lon','aco_area_km2'])
+
+            # --- Prepare CNN output summary ---
+            out_cols = []
+            for c in ('Acquired_Date','cluster_id','cnn_angle_deg','cnn_distance_km','cnn_confidence','cnn_cardinal'):
+                if c in df_output.columns:
+                    out_cols.append(c)
+
+            if out_cols:
+                output_summary = df_output[out_cols].copy()
+                if 'Acquired_Date' in output_summary.columns:
+                    output_summary['Acquired_Date'] = output_summary['Acquired_Date'].astype(str)
+            else:
+                output_summary = pd.DataFrame(columns=out_cols)
+
+            # --- Meta sheet ---
+            meta = meta or {}
+            meta.setdefault('generated_at', datetime.now().isoformat())
+            meta.setdefault('notes', 'CNN presentation export')
+
+            # --- Write Excel ---
+            with pd.ExcelWriter(out_path, engine='openpyxl') as writer:
+                # Input summary
+                input_summary.to_excel(writer, sheet_name='CNN_Input_ACO', index=False)
+                # Output summary
+                output_summary.to_excel(writer, sheet_name='CNN_Output_Pred', index=False)
+                # Meta
+                pd.DataFrame([meta]).to_excel(writer, sheet_name='Meta', index=False)
+                # Raw dumps (useful for presentation/inspection)
+                try:
+                    df_input.to_excel(writer, sheet_name='Raw_Input', index=False)
+                except Exception:
+                    pd.DataFrame(df_input).to_excel(writer, sheet_name='Raw_Input', index=False)
+                try:
+                    df_output.to_excel(writer, sheet_name='Raw_Output', index=False)
+                except Exception:
+                    pd.DataFrame(df_output).to_excel(writer, sheet_name='Raw_Output', index=False)
+
+            logger.info(f"[CNN] Presentation Excel saved → {out_path}")
+            return out_path
+        except Exception as e:
+            logger.error(f"[CNN] export_results failed: {e}", exc_info=True)
             return None
 
     def evaluate_predictions(self, df_out: pd.DataFrame, thresholds: Dict[str, float]) -> pd.DataFrame:

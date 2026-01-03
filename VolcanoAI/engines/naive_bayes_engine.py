@@ -23,6 +23,7 @@ import numpy as np
 import pandas as pd
 import json
 from datetime import datetime
+from pathlib import Path
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -517,6 +518,101 @@ class NaiveBayesEngine:
 
         with open(os.path.join(self.output_dir, "latest_metrics.json"), "w", encoding="utf-8") as f:
             f.write(os.path.basename(metrics_path))
+
+        # --- NEW: export presentation Excel ---
+        try:
+            self._export_presentation_excel(df_out, metrics)
+        except Exception as e:
+            logger.warning(f"[NB] Export presentation Excel failed: {e}", exc_info=True)
+
+
+    def _export_presentation_excel(self, df_out: pd.DataFrame, metrics: Dict[str, Any], filename: Optional[str] = None) -> Optional[str]:
+        """
+        Export presentation-ready Excel for Naive Bayes results.
+
+        Sheets created:
+         - NB_Summary        : ringkasan utama tiap baris (date, coords, magnitude, distance, status, pred, confidence, anomaly)
+         - NB_Normal         : subset hasil yang 'Normal' (untuk presentasi cepat)
+         - NB_TidakNormal    : subset hasil yang 'Tidak Normal'
+         - Meta              : metadata singkat (params, thresholds, generated_at)
+         - Raw_Predictions   : dump lengkap df_out (raw)
+        """
+        try:
+            out_dir = Path(self.output_dir)
+            out_dir.mkdir(parents=True, exist_ok=True)
+
+            ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+            fname = filename if filename else f"naive_bayes_presentation_{ts}.xlsx"
+            out_path = out_dir / fname
+
+            # --- Prepare summary sheet ---
+            # pick helpful columns if exist, otherwise create fallbacks
+            keep_cols = []
+            # prefer these columns if available
+            pref = [
+                "Acquired_Date", "Nama", "Lokasi",
+                "EQ_Lintang", "EQ_Bujur",
+                "distance_km", "Magnitudo",
+                self.target_col, "kelas_prediksi", "nb_confidence", "anomaly_score", "is_anomaly"
+            ]
+            for c in pref:
+                if c in df_out.columns:
+                    keep_cols.append(c)
+
+            if not keep_cols:
+                # fallback: include all columns (but keep readable)
+                summary_df = df_out.copy()
+            else:
+                summary_df = df_out[keep_cols].copy()
+
+            # Ensure readable date string
+            if 'Acquired_Date' in summary_df.columns:
+                summary_df['Acquired_Date'] = pd.to_datetime(summary_df['Acquired_Date'], errors='coerce').astype(str)
+
+            # create sub-tables
+            normal_df = summary_df[summary_df[self.target_col] == "Normal"] if self.target_col in summary_df.columns else pd.DataFrame()
+            tidaknormal_df = summary_df[summary_df[self.target_col] == "Tidak Normal"] if self.target_col in summary_df.columns else pd.DataFrame()
+
+            # --- Meta sheet ---
+            meta = {
+                "generated_at": datetime.utcnow().isoformat(),
+                "engine": "NaiveBayesEngine",
+                "model_path": self.model_path,
+                "preprocessor_path": self.preproc_path,
+                "label_encoder_path": self.le_path,
+                "dist_threshold_km": self.DIST_THRESHOLD_KM,
+                "mag_threshold": self.MAG_THRESHOLD,
+                "rows_input": int(len(df_out)),
+                "notes": "Naive Bayes binary export (Normal / Tidak Normal)"
+            }
+            # Merge metrics minimal ke meta
+            try:
+                meta["accuracy"] = metrics.get("accuracy", None)
+            except Exception:
+                pass
+
+            # --- Write Excel ---
+            with pd.ExcelWriter(out_path, engine="openpyxl") as writer:
+                # Summary
+                summary_df.to_excel(writer, sheet_name="NB_Summary", index=False)
+                # Normal / Tidak Normal sheets (if non-empty)
+                if not normal_df.empty:
+                    normal_df.to_excel(writer, sheet_name="NB_Normal", index=False)
+                if not tidaknormal_df.empty:
+                    tidaknormal_df.to_excel(writer, sheet_name="NB_TidakNormal", index=False)
+                # Meta
+                pd.DataFrame([meta]).to_excel(writer, sheet_name="Meta", index=False)
+                # Raw
+                try:
+                    df_out.to_excel(writer, sheet_name="Raw_Predictions", index=False)
+                except Exception:
+                    pd.DataFrame(df_out).to_excel(writer, sheet_name="Raw_Predictions", index=False)
+
+            logger.info(f"[NB] Presentation Excel saved → {out_path}")
+            return str(out_path)
+        except Exception as e:
+            logger.error(f"[NB] _export_presentation_excel failed: {e}", exc_info=True)
+            return None
 
     def _save_artifacts(self):
         try:

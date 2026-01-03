@@ -229,7 +229,8 @@ class DynamicAcoEngine: # mesin utama ACO dengan konfigurasi dinamis
             'aco_zoning_excel': os.path.join(base_path, 'aco_results/aco_zoning_data_for_lstm.xlsx'),
             'aco_epicenters_csv': os.path.join(base_path, 'aco_results/aco_epicenters.csv'),
             'aco_state_file': os.path.join(base_path, 'aco_results/aco_brain_state.pkl'),
-            'aco_impact_html': os.path.join(base_path, 'aco_results/aco_impact_zones.html')
+            'aco_impact_html': os.path.join(base_path, 'aco_results/aco_impact_zones.html'),
+            'aco_presentation_excel': os.path.join(base_path, 'aco_results/aco_presentation.xlsx')
         } # pastikan direktori output ada
         os.makedirs(os.path.dirname(self.output_paths['aco_zoning_excel']), exist_ok=True) # buat direktori jika belum ada
 
@@ -600,6 +601,13 @@ class DynamicAcoEngine: # mesin utama ACO dengan konfigurasi dinamis
         # finalisasi hasil
         df_out, meta = self._finalize_results(df)
         center_info = self._compute_impact_center(df_out)
+        # Export presentation Excel (untuk klien/presentasi)
+        try:
+            self._export_presentation_excel(df_out, center_info, meta)
+        except Exception:
+            # jangan gagalkan pipeline jika export gagal
+            self.logger.warning("[ACO] _export_presentation_excel gagal, melanjutkan pipeline.")
+
         # Validasi center
         c_lat = center_info.get('center_lat', None)
         c_lon = center_info.get('center_lon', None)
@@ -707,6 +715,101 @@ class DynamicAcoEngine: # mesin utama ACO dengan konfigurasi dinamis
             final_df.to_csv(self.output_paths['aco_epicenters_csv'], index=False)
         except Exception as e:
             self.logger.error(f"Gagal menyimpan output ACO: {e}")
+
+
+    def _export_presentation_excel(self, df_out: pd.DataFrame, center_info: dict, meta: dict):
+        """
+        Export presentation-ready Excel with multiple sheets:
+        - Parameters
+        - Node_Summary
+        - Pheromone_Stats
+        - Center_and_Area
+        - Detailed_Epicenters
+        """
+        path = self.output_paths.get('aco_presentation_excel')
+        if not path:
+            self.logger.warning("[ACO] Path presentation excel tidak diset.")
+            return
+
+        try:
+            # =========================
+            # Parameters sheet
+            # =========================
+            params_df = pd.DataFrame(
+                list(self.aco_cfg.items()),
+                columns=['Parameter', 'Value']
+            )
+
+            # =========================
+            # Node summary sheet
+            # =========================
+            summary_cols = [
+                c for c in [
+                    'Tanggal', 'Lintang', 'Bujur', 'Magnitudo', 'Kedalaman', 'Lokasi',
+                    'PheromoneScore', 'Risk_Index', 'Status_Zona', 'Radius_Visual_KM'
+                ] if c in df_out.columns
+            ]
+            node_summary = df_out[summary_cols].copy() if summary_cols else pd.DataFrame()
+
+            # =========================
+            # Pheromone statistics
+            # =========================
+            pher_stats = {'info': 'pheromone matrix not available'}
+            if self.env_manager is not None and hasattr(self.env_manager, 'pheromone_matrix'):
+                pher_mat = self.env_manager.pheromone_matrix
+                if pher_mat is not None:
+                    pher_stats = {
+                        'min': float(np.min(pher_mat)),
+                        'max': float(np.max(pher_mat)),
+                        'mean': float(np.mean(pher_mat)),
+                        'median': float(np.median(pher_mat)),
+                        'std': float(np.std(pher_mat)),
+                        'shape': str(pher_mat.shape)
+                    }
+
+            pher_stats_df = pd.DataFrame(
+                list(pher_stats.items()),
+                columns=['Metric', 'Value']
+            )
+
+            # =========================
+            # Center & impact area
+            # =========================
+            area_info = self._compute_impact_area(df_out)
+            center_and_area = {
+                'center_lat': center_info.get('center_lat'),
+                'center_lon': center_info.get('center_lon'),
+                'impact_area_km2': area_info.get('impact_area_km2')
+            }
+            center_df = pd.DataFrame(
+                list(center_and_area.items()),
+                columns=['Metric', 'Value']
+            )
+
+            # =========================
+            # WRITE EXCEL (FIXED)
+            # =========================
+            from pathlib import Path
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+
+            with pd.ExcelWriter(path, engine='openpyxl') as writer:
+                params_df.to_excel(writer, sheet_name='Parameters', index=False)
+                pher_stats_df.to_excel(writer, sheet_name='Pheromone_Stats', index=False)
+                center_df.to_excel(writer, sheet_name='Center_and_Area', index=False)
+
+                if not node_summary.empty:
+                    node_summary.to_excel(writer, sheet_name='Node_Summary', index=False)
+
+                df_out.to_excel(writer, sheet_name='Detailed_Epicenters', index=False)
+
+            self.logger.info(f"[ACO] Presentation Excel tersimpan → {path}")
+
+        except Exception as e:
+            self.logger.error(
+                f"[ACO] Gagal membuat presentation excel: {e}",
+                exc_info=True
+            )
+            raise
 
     # ==========================================
     # VISUAL: CIRCLE KUNING + POPUP LENGKAP
