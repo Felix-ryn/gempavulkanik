@@ -165,8 +165,32 @@ class GeoMathCore: # Kelas utilitas untuk perhitungan geodesik
                 best_score = score
                 best_angle = float(ang)
 
-        # project predicted point a fraction of radius_km along best_angle
-        pred_distance = radius_km * 0.6
+        # --- Compute pred_distance adaptively based on points inside best sector ---
+        # mask for best angle sector (repeat the mask calc for best_angle)
+        dif = np.abs(bearings - best_angle)
+        dif = np.minimum(dif, 360.0 - dif)
+        within_sector = dif <= sector_half_width_deg
+        within_dist = distances <= radius_km
+        mask = within_sector & within_dist
+
+        if np.any(mask):
+            # Weighted average distance of points inside sector (weight = pheromone)
+            masked_dists = distances[mask]
+            masked_phers = phers[mask]
+            # avoid divide-by-zero
+            wsum = float(np.nansum(masked_phers)) + 1e-12
+            weighted_mean_dist = float(np.nansum(masked_dists * masked_phers) / wsum)
+            # also consider the farthest point to allow larger reach if pheromone strong
+            far_dist = float(np.nanmax(masked_dists))
+            # combine mean and far with more weight to mean (tunable)
+            pred_distance = float(0.75 * weighted_mean_dist + 0.25 * far_dist)
+            # ensure not smaller than a minimum fraction of radius
+            pred_distance = max(pred_distance, radius_km * 0.2)
+        else:
+            # fallback: no points inside sector → use fraction of radius (original behavior)
+            pred_distance = radius_km * 0.6
+
+        # compute predicted lat/lon using the adaptive distance
         pred_lat, pred_lon = GeoMathCore.destination_point(center_lat, center_lon, best_angle, pred_distance)
 
         # confidence: normalized best_score vs total pheromone mass
