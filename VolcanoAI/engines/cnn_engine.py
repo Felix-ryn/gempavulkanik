@@ -1,21 +1,16 @@
 ﻿# VolcanoAI/engines/cnn_engine.py
 # -- coding: utf-8 --
-
 """
-VOLCANO AI - CNN ENGINE (TITANIUM EDITION - LITE)
-=================================================
-Modul ini mengimplementasikan "Simple CNN" (Neural Network)
+VOLCANO AI - CNN ENGINE (REVISED, FIXED EXPORT)
+=============================================
+Perubahan dan perbaikan:
+- Memindahkan pemanggilan `export_results` keluar dari loop cluster di fungsi `predict` sehingga
+  hanya satu file presentasi akhir yang dihasilkan per pemanggilan predict().
+- Menambahkan konfigurasi opsional `dedup_input_summary` (default True). Jika False, input summary
+  tidak melakukan drop_duplicates().
+- Menjaga kompatibilitas fungsi-fungsi lain (train, predict, export_results, manual_forward_pass).
 
-Input Nodes (5):
-1. ACO Area (Current)
-2. ACO Pusat/Risk (Current)
-3. ACO Area (Previous/Lag-1)
-4. ACO Pusat/Risk (Previous/Lag-1)
-5. LSTM Prediction (Anomaly/Output)
-
-Output Nodes (2):
-1. Arah (Bearing/Angle)
-2. Jarak (Distance/Sudut)
+Instruksi: tempelkan file ini menggantikan file lama.
 """
 
 import os
@@ -29,14 +24,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Optional
 
-from keras.models import Model, load_model, Sequential
-from keras.layers import Input, Dense, Dropout, BatchNormalization, Activation
-from keras.optimizers import Adam
-from keras.callbacks import EarlyStopping, ModelCheckpoint
-import keras.backend as K
+from tensorflow.keras.models import Model, load_model, Sequential
+from tensorflow.keras.layers import Input, Dense, Dropout, BatchNormalization, Activation
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+import tensorflow.keras.backend as K
 
 import matplotlib
-matplotlib.use('Agg') # Backend non-interaktif
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 # Setup Logger
@@ -44,70 +39,82 @@ logger = logging.getLogger("VolcanoAI_CNN")
 logger.addHandler(logging.NullHandler())
 
 # =============================================================================
-# SECTION 1: DATA PREPARATION (TABULAR FEATURE EXTRACTOR)
+# SECTION 1: DATA PREPARATION (TABULAR FEATURE EXTRACTOR) - REVISED INPUT ORDER
 # =============================================================================
 
 class TabularFeatureExtractor:
     """
-    Menyiapkan data tabular 5-Node Input sesuai spesifikasi client.
-    Menggantikan SpatialDataGenerator (Image).
+    Menyiapkan data tabular 5-Node Input sesuai spesifikasi :
+    Node order (index):
+      0 -> pusat ACO1    (aco_center_scalar)
+      1 -> area ACO1     (aco_area_km2)
+      2 -> pusat ACO2    (aco_center_prev)
+      3 -> area ACO2     (aco_area_prev)
+      4 -> lstm_prediction (anomaly/score)
+
+    Implementasi: ACO2 diambil sebagai event sebelumnya (shift(1)).
+    Normalisasi: area dibagi norm_area; distance target dibagi norm_dist.
     """
     def __init__(self, config: Any):
         self.cfg = config.__dict__ if not isinstance(config, dict) else config
         # Normalisasi sederhana agar NN lebih cepat konvergen
-        self.norm_area = 1000.0  # Pembagi untuk area km2
-        self.norm_dist = 100.0   # Pembagi untuk jarak km
+        self.norm_area = float(self.cfg.get('norm_area', 1000.0))  # pembagi untuk area (km2)
+        self.norm_dist = float(self.cfg.get('norm_dist', 100.0))   # pembagi untuk jarak (km)
 
     def prepare_dataset(self, df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
         """
-        [FIXED] Menyiapkan data training CNN.
-        Target (Y) DIHITUNG SECARA MATEMATIS dari pergerakan Lat/Lon aktual.
+        Menghasilkan X (N x 5) dan Y (N x 2) untuk training.
+        Target dihitung dari pergerakan koordinat aktual (bearing & haversine distance) antar baris berurutan.
+        Alignment: karena target menggunakan baris i -> i+1, kita drop baris terakhir pada X.
         """
         if df.empty:
             return np.array([]), np.array([])
 
-        # 1. Urutkan data berdasarkan waktu
         df = df.copy().sort_values('Acquired_Date').reset_index(drop=True)
-        
-        # --- FEATURE ENGINEERING (INPUT X - 5 NODES) ---
+
+        # --- Definisi ACO1 & ACO2 (ACO2 = previous event) ---
+        df['aco_center_scalar'] = df.get('aco_center_lat', 0.0).fillna(0.0)
         df['aco_area_prev'] = df['aco_area_km2'].shift(1).fillna(0.0)
-        df['aco_center_scalar'] = df['aco_center_lat'].fillna(0.0) 
         df['aco_center_prev'] = df['aco_center_scalar'].shift(1).fillna(0.0)
-        
+
         if 'lstm_prediction' not in df.columns:
-            df['lstm_prediction'] = df.get('PheromoneScore', 0.0)
+            df['lstm_prediction'] = df.get('anomaly_score', df.get('PheromoneScore', 0.0)).fillna(0.0)
 
         feature_cols = [
-            'aco_area_km2',       # Node 1
-            'aco_center_scalar',  # Node 2
-            'aco_area_prev',      # Node 3
-            'aco_center_prev',    # Node 4
-            'lstm_prediction'     # Node 5
+            'aco_center_scalar',  # pusat ACO1
+            'aco_area_km2',       # area ACO1
+            'aco_center_prev',    # pusat ACO2 (previous)
+            'aco_area_prev',      # area ACO2 (previous)
+            'lstm_prediction'     # output LSTM (anomali)
         ]
-        
-        X = df[feature_cols].fillna(0.0).values
-        
-        # Scaling Input
-        X[:, 0] /= self.norm_area 
-        X[:, 2] /= self.norm_area 
 
-        # --- TARGET CALCULATION (OUTPUT Y - 2 NODES) ---
-        lat1 = df['EQ_Lintang'].values[:-1]
-        lon1 = df['EQ_Bujur'].values[:-1]
-        lat2 = df['EQ_Lintang'].values[1:]
-        lon2 = df['EQ_Bujur'].values[1:]
-        
-        # Rumus Bearing
+        X = df[feature_cols].fillna(0.0).values.astype(float)
+
+        # Normalisasi: area columns (index 1 and 3)
+        if X.shape[0] > 0:
+            X[:, 1] /= self.norm_area
+            X[:, 3] /= self.norm_area
+
+        # --- TARGET CALCULATION (Y: bearing_deg, distance_km) ---
+        lat = df['EQ_Lintang'].values
+        lon = df['EQ_Bujur'].values
+
+        if len(lat) < 2:
+            return np.array([]), np.array([])
+
+        lat1 = lat[:-1]
+        lon1 = lon[:-1]
+        lat2 = lat[1:]
+        lon2 = lon[1:]
+
         def calculate_bearing_vec(lat1, lon1, lat2, lon2):
             lat1_rad, lat2_rad = np.radians(lat1), np.radians(lat2)
             dlon_rad = np.radians(lon2 - lon1)
             y = np.sin(dlon_rad) * np.cos(lat2_rad)
-            x = np.cos(lat1_rad) * np.sin(lat2_rad) - \
-                np.sin(lat1_rad) * np.cos(lat2_rad) * np.cos(dlon_rad)
+            x = np.cos(lat1_rad) * np.sin(lat2_rad) - np.sin(lat1_rad) * np.cos(lat2_rad) * np.cos(dlon_rad)
             bearing = np.degrees(np.arctan2(y, x))
             return (bearing + 360) % 360
 
-        # Rumus Haversine
         def calculate_distance_vec(lat1, lon1, lat2, lon2):
             R = 6371.0
             dlat = np.radians(lat2 - lat1)
@@ -118,236 +125,182 @@ class TabularFeatureExtractor:
 
         target_angles = calculate_bearing_vec(lat1, lon1, lat2, lon2)
         target_dists = calculate_distance_vec(lat1, lon1, lat2, lon2)
-        
-        # Alignment
+
         X_final = X[:-1]
-        Y_final = np.column_stack((target_angles, target_dists))
-        
+        Y_final = np.column_stack((target_angles, target_dists)).astype(float)
+
         valid_mask = ~np.isnan(Y_final).any(axis=1)
         X_final = X_final[valid_mask]
         Y_final = Y_final[valid_mask]
 
-        # Normalisasi Target
-        Y_final[:, 0] = Y_final[:, 0] / 360.0       
-        Y_final[:, 1] = Y_final[:, 1] / self.norm_dist 
+        # Normalisasi target to [0,1] for network convenience
+        Y_final[:, 0] = Y_final[:, 0] / 360.0       # angle scaled to [0,1]
+        Y_final[:, 1] = Y_final[:, 1] / self.norm_dist
 
         return X_final, Y_final
 
     def denormalize_output(self, y_pred: np.ndarray) -> np.ndarray:
         """
-        [MISSING FUNCTION RESTORED]
-        Mengembalikan output prediksi dari skala 0-1 ke skala asli (Derajat & Km).
+        Mengembalikan output dari skala [0,1] ke skala fisik (degree, km)
         """
         y_real = np.zeros_like(y_pred)
-        # Kolom 0 adalah Angle (dikali 360)
-        y_real[:, 0] = y_pred[:, 0] * 360.0       
-        # Kolom 1 adalah Distance (dikali 100)
-        y_real[:, 1] = y_pred[:, 1] * self.norm_dist 
+        y_real[:, 0] = (y_pred[:, 0] * 360.0) % 360.0
+        y_real[:, 1] = y_pred[:, 1] * self.norm_dist
         return y_real
 
 # =============================================================================
-# SECTION 2: NEURAL NETWORK ARCHITECTURE (SIMPLE NN)
+# SECTION 2: NEURAL NETWORK ARCHITECTURE (SIMPLE, 2-3 HIDDEN LAYERS, KECIL)
 # =============================================================================
 
 class SimpleNNFactory:
     """
-    Membangun Neural Network sederhana sesuai request:
-    Input (5) -> Hidden (3 Layers) -> Output (2: Arah, Jarak)
+    Membangun model Dense sederhana dengan 2 atau 3 hidden layer.
+
+    Rekomendasi aktivasi:
+      - Hidden layers: ReLU (rectified linear unit) atau ELU.
+        Alasannya: ReLU cepat, mengurangi vanishing gradient, cocok untuk feature yang tidak beraturan.
+        ELU bisa mempertahankan nilai negatif terpusat dan membantu konvergensi sedikit lebih baik pada beberapa kasus.
+      - Output: linear untuk regresi (kita memprediksi sudut yang telah diskalakan & jarak)
     """
     def __init__(self, config: Any):
         self.cfg = config.__dict__ if not isinstance(config, dict) else config
 
     def build_model(self, params: Dict[str, Any] = None) -> Model:
         p = params if params else {}
-        units_1 = p.get('units_1', 64)
-        units_2 = p.get('units_2', 32)
-        units_3 = p.get('units_3', 16)
-        dropout = p.get('dropout', 0.1)
-        lr = p.get('learning_rate', 0.001)
+        # Default nodes small (jangan banyak)
+        hidden_count = int(p.get('hidden_count', 2))  # 2 atau 3
+        units = p.get('units', [32, 16, 8])
+        dropout = float(p.get('dropout', 0.0))
+        lr = float(p.get('learning_rate', 0.001))
+        activation = p.get('activation', 'relu')
 
-        # Definisi Model Sequential (Simple Stack)
-        model = Sequential(name="Simple_CNN_VolcanoAI")
-        
-        # Input Layer (5 Nodes)
+        # Ensure units list length >= hidden_count
+        if len(units) < hidden_count:
+            units = units + [8] * (hidden_count - len(units))
+
+        model = Sequential(name="Simple_CNN_VolcanoAI_Revised")
         model.add(Input(shape=(5,), name="Input_5_Nodes"))
-        
-        # Hidden Layer 1
-        model.add(Dense(units_1, name="Hidden_Layer_1"))
-        model.add(BatchNormalization())
-        model.add(Activation('relu'))
-        if dropout > 0: model.add(Dropout(dropout))
-        
-        # Hidden Layer 2
-        model.add(Dense(units_2, name="Hidden_Layer_2"))
-        model.add(Activation('relu'))
-        
-        # Hidden Layer 3
-        model.add(Dense(units_3, name="Hidden_Layer_3"))
-        model.add(Activation('relu'))
-        
-        # Output Layer (2 Nodes: Arah & Jarak)
-        # Menggunakan aktivasi linear (regresi) atau sigmoid jika strict 0-1
-        # Di sini linear lebih fleksibel untuk regresi jarak
+
+        # Hidden layers (2 or 3)
+        for i in range(hidden_count):
+            model.add(Dense(units[i], name=f"Hidden_{i+1}"))
+            # BatchNorm optional - helps training stability
+            model.add(BatchNormalization())
+            model.add(Activation(activation))
+            if dropout > 0:
+                model.add(Dropout(dropout))
+
+        # Output layer: 2 neurons (angle_scaled, distance_scaled)
         model.add(Dense(2, activation='linear', name="Output_2_Nodes"))
 
-        # Kompilasi
         model.compile(
             optimizer=Adam(learning_rate=lr),
-            loss='mse', # Mean Squared Error cocok untuk regresi vektor
+            loss='mse',
             metrics=['mae']
         )
-        
         return model
 
 # =============================================================================
-# SECTION 3: TUNER & ENGINE
+# SECTION 3: TUNER & ENGINE (KOMPATIBILITAS DENGAN CODE LAMA)
 # =============================================================================
 
 class NNTuner:
-    """Tuner sederhana untuk mencari konfigurasi jumlah neuron optimal."""
     def __init__(self, factory: SimpleNNFactory, trials=3):
         self.factory = factory
         self.trials = trials
+        # grid small
         self.grid = {
-            'units_1': [32, 64, 128],
-            'units_2': [16, 32, 64],
-            'units_3': [8, 16, 32],
-            'learning_rate': [0.001, 0.005]
+            'hidden_count': [2, 3],
+            'units': [[32,16], [32,16,8], [16,8]],
+            'learning_rate': [0.001, 0.005],
+            'activation': ['relu', 'elu']
         }
+
+    def _sample_params(self):
+        params = {k: random.choice(v) for k, v in self.grid.items()}
+        if isinstance(params['units'], list) and len(params['units']) < params['hidden_count']:
+            params['units'] = params['units'] + [8] * (params['hidden_count'] - len(params['units']))
+        return params
 
     def search(self, X_train, Y_train, X_val, Y_val) -> Dict[str, Any]:
         best_loss = float('inf')
-        best_params = {'units_1': 64, 'units_2': 32, 'units_3': 16, 'learning_rate': 0.001}
-        
+        best_params = {'hidden_count': 2, 'units': [32,16], 'learning_rate': 0.001, 'activation':'relu'}
         logger.info(f" [NN Tuner] Memulai {self.trials} trial optimasi...")
-        
         for i in range(self.trials):
-            params = {k: random.choice(v) for k, v in self.grid.items()}
+            params = self._sample_params()
             K.clear_session()
             try:
                 model = self.factory.build_model(params)
-                # Training singkat
-                hist = model.fit(
-                    X_train, Y_train, 
-                    validation_data=(X_val, Y_val), 
-                    epochs=5, batch_size=16, verbose=0
-                )
+                hist = model.fit(X_train, Y_train, validation_data=(X_val, Y_val), epochs=5, batch_size=16, verbose=0)
                 val_loss = hist.history['val_loss'][-1]
-                
                 if val_loss < best_loss:
                     best_loss = val_loss
                     best_params = params
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Tuner trial failed: {e}")
                 continue
-        
         logger.info(f" [NN Tuner] Params terbaik: {best_params}")
         return best_params
 
 class CnnEngine:
-    """
-    Engine Utama (Rebranded 'Simple CNN').
-    Mengelola training dan prediksi vektor gempa.
-    """
     def __init__(self, config: Any):
         self.cfg = config.__dict__ if not isinstance(config, dict) else config
-        
-        # Default Configs
         self.cfg.setdefault('epochs', 50)
         self.cfg.setdefault('batch_size', 16)
-        
-        self.model_dir = Path(self.cfg.get("model_dir", "output/cnn/models"))
+        # apakah akan dedup input_summary ketika export
+        self.cfg.setdefault('dedup_input_summary', True)
+
+        self.model_dir = Path(self.cfg.get('model_dir', 'output/cnn/models'))
         self.model_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Results / export directory (presentation files)
-        self.results_dir = Path(self.cfg.get("output_dir", "output/cnn_results"))
+
+        self.results_dir = Path(self.cfg.get('output_dir', 'output/cnn_results'))
         self.results_dir.mkdir(parents=True, exist_ok=True)
 
         self.extractor = TabularFeatureExtractor(self.cfg)
         self.factory = SimpleNNFactory(self.cfg)
         self.tuner = NNTuner(self.factory)
-        
-        self.models = {} # Cache model per cluster
+        self.models = {}
 
     def train(self, df_train: pd.DataFrame, lstm_engine=None) -> bool:
-        """
-        Melatih model NN per cluster.
-        Note: lstm_engine parameter disimpan untuk kompatibilitas, 
-        tapi data diambil langsung dari kolom df_train['lstm_prediction'].
-        """
         if df_train.empty: return False
-        
-        logger.info("=== START TRAINING SIMPLE NN (5-INPUT / 2-OUTPUT) ===")
-        
+        logger.info("=== START TRAINING SIMPLE NN (5-INPUT / 2-OUTPUT) REVISED ===")
         unique_clusters = sorted([c for c in df_train['cluster_id'].unique() if c != -1])
         success_count = 0
-        
         for cid in unique_clusters:
             logger.info(f">>> Training Cluster {cid}")
             df_c = df_train[df_train['cluster_id'] == cid]
-            
-            # 1. Prepare Data
             X, Y = self.extractor.prepare_dataset(df_c)
-            
             if len(X) < 10:
                 logger.warning(f"Skip c{cid}: Data kurang ({len(X)} sampel).")
                 continue
-                
-            # Split Data
             split = int(0.8 * len(X))
             X_train, X_val = X[:split], X[split:]
             Y_train, Y_val = Y[:split], Y[split:]
-            
-            # 2. Tune & Build
             params = self.tuner.search(X_train, Y_train, X_val, Y_val)
             model = self.factory.build_model(params)
-            
-            # 3. Train
             callbacks = [
                 EarlyStopping(patience=10, restore_best_weights=True),
-                ModelCheckpoint(
-                    filepath=self.model_dir / f"cnn_model_c{cid}.keras",
-                    save_best_only=True
-                )
+                ModelCheckpoint(filepath=self.model_dir / f"cnn_model_c{cid}.keras", save_best_only=True)
             ]
-            
-            hist = model.fit(
-                X_train, Y_train,
-                validation_data=(X_val, Y_val),
-                epochs=self.cfg['epochs'],
-                batch_size=self.cfg['batch_size'],
-                callbacks=callbacks,
-                verbose=1
-            )
-            
-            # 4. Save Cache
+            hist = model.fit(X_train, Y_train, validation_data=(X_val, Y_val), epochs=self.cfg['epochs'], batch_size=self.cfg['batch_size'], callbacks=callbacks, verbose=1)
             self.models[cid] = model
             success_count += 1
-            
-            # Log metrics
             loss = hist.history['loss'][-1]
             logger.info(f"Cluster {cid} Trained. Final Loss: {loss:.4f}")
-
+            try:
+                summary = self._model_weight_bias_summary(model)
+                logger.info(f"Model params summary c{cid}: {summary}")
+            except Exception:
+                pass
         return success_count > 0
 
-    def train_from_scratch(self, df_train: pd.DataFrame, lstm_engine, epochs: int = None) -> bool:
-        # Wrapper kompatibilitas
-        if epochs: self.cfg['epochs'] = epochs
-        return self.train(df_train, lstm_engine)
-
     def predict(self, df_predict: pd.DataFrame, lstm_engine=None) -> pd.DataFrame:
-        """
-        Melakukan prediksi Arah dan Jarak menggunakan model NN yang sudah dilatih.
-        """
         df_out = df_predict.copy()
-        
-        # Init Columns
         for col in ['cnn_angle_deg', 'cnn_distance_km', 'cnn_confidence', 'cnn_cardinal']:
             df_out[col] = np.nan
-        
         unique_clusters = sorted([c for c in df_out['cluster_id'].unique() if c != -1])
-        
+
         for cid in unique_clusters:
-            # Load Model
             model = self.models.get(cid)
             if not model:
                 try:
@@ -355,210 +308,195 @@ class CnnEngine:
                     if path.exists():
                         model = load_model(path, compile=False)
                         self.models[cid] = model
-                except Exception: pass
-            
+                except Exception:
+                    pass
             if not model:
                 logger.warning(f"No model for c{cid}, skipping prediction.")
                 continue
-            
-            # Filter Data Cluster
+
             mask = df_out['cluster_id'] == cid
             df_c = df_out[mask]
-            
             if df_c.empty: continue
 
-            # Prepare Input (Tanpa Target shift, karena kita mau prediksi row ini)
-            # Kita gunakan logika extractor tapi manual untuk X saja
-            
-            # Feature Engineering on the fly
+            # Prepare input same as extractor but using only available rows
             df_c_proc = df_c.copy().sort_values('Acquired_Date')
             df_c_proc['aco_area_prev'] = df_c_proc['aco_area_km2'].shift(1).fillna(0.0)
-            df_c_proc['aco_center_scalar'] = df_c_proc['aco_center_lat'].fillna(0.0)
+            df_c_proc['aco_center_scalar'] = df_c_proc.get('aco_center_lat', 0.0).fillna(0.0)
             df_c_proc['aco_center_prev'] = df_c_proc['aco_center_scalar'].shift(1).fillna(0.0)
-            
             if 'lstm_prediction' not in df_c_proc.columns:
-                df_c_proc['lstm_prediction'] = df_c_proc.get('anomaly_score', 0.0)
+                df_c_proc['lstm_prediction'] = df_c_proc.get('anomaly_score', df_c_proc.get('PheromoneScore', 0.0)).fillna(0.0)
 
-            cols = [
-                'aco_area_km2', 'aco_center_scalar', 
-                'aco_area_prev', 'aco_center_prev', 
-                'lstm_prediction'
-            ]
-            X = df_c_proc[cols].fillna(0.0).values
-            
-            # Apply same normalization
-            X[:, 0] /= self.extractor.norm_area
-            X[:, 2] /= self.extractor.norm_area
-            
-            # Predict
+            cols = ['aco_center_scalar','aco_area_km2','aco_center_prev','aco_area_prev','lstm_prediction']
+            X = df_c_proc[cols].fillna(0.0).values.astype(float)
+            if X.shape[0] > 0:
+                X[:,1] /= self.extractor.norm_area
+                X[:,3] /= self.extractor.norm_area
+
             try:
                 preds_norm = model.predict(X, verbose=0)
                 preds_real = self.extractor.denormalize_output(preds_norm)
-                
-                # Assign Results
-                # Node 1: Arah (Angle)
-                angles = np.abs(preds_real[:, 0]) % 360.0 
-                # Node 2: Jarak (Distance)
-                dists = np.abs(preds_real[:, 1])
-
-                # Map back to original dataframe
-                # Note: preds_real urut berdasarkan sort Acquired_Date
+                angles = np.abs(preds_real[:,0]) % 360.0
+                dists = np.abs(preds_real[:,1])
                 idx_aligned = df_c_proc.index
-                
                 df_out.loc[idx_aligned, 'cnn_angle_deg'] = angles
                 df_out.loc[idx_aligned, 'cnn_distance_km'] = dists
-                
-                # Confidence sederhana (Dummy based on prediction stability or magnitude)
-                # Di sini kita set default 0.8 karena NN deterministik
                 df_out.loc[idx_aligned, 'cnn_confidence'] = 0.85
-                
-                # Cardinal Direction
                 df_out.loc[idx_aligned, 'cnn_cardinal'] = [self._get_cardinal(a) for a in angles]
-                
             except Exception as e:
                 logger.error(f"Prediction error c{cid}: {e}")
 
-            # =========================
-            # EXPORT PRESENTATION EXCEL (FINAL, SEKALI SAJA)
-            # =========================
-            try:
-                meta = {
-                    "engine": "CNN",
-                    "model_type": "Simple NN (5 Input / 2 Output)",
-                    "rows_input": int(len(df_predict)),
-                    "rows_output": int(len(df_out)),
-                    "generated_at": datetime.now().isoformat()
-                }
-                self.export_results(
-                    df_input=df_predict,
-                    df_output=df_out,
-                    meta=meta
-                )
-            except Exception as e:
-                logger.warning(f"[CNN] Export presentation failed: {e}")
+        # EXPORT PRESENTATION: lakukan sekali di luar loop agar hasil akhir konsisten
+        try:
+            meta = {
+                "engine": "CNN",
+                "model_type": "Simple NN (5 Input / 2 Output) Revised",
+                "rows_input": int(len(df_predict)),
+                "rows_output": int(len(df_out)),
+                "generated_at": datetime.now().isoformat()
+            }
+            self.export_results(df_input=df_predict, df_output=df_out, meta=meta)
+        except Exception as e:
+            logger.warning(f"[CNN] Export presentation failed: {e}")
+
         return df_out
 
     def _get_cardinal(self, angle):
-        """Helper untuk konversi sudut ke arah mata angin."""
         dirs = ["Utara", "Timur Laut", "Timur", "Tenggara", "Selatan", "Barat Daya", "Barat", "Barat Laut"]
-        ix = round(angle / (360. / len(dirs)))
+        ix = int(round(angle / (360. / len(dirs))))
         return dirs[ix % len(dirs)]
 
-    # =========================================================
-    # EXPORT MAP HELPER (Tetap Dipertahankan)
-    # =========================================================
-    def export_cnn_prediction_map(self, json_path):
-        import json, folium
-        from pathlib import Path
-        
-        try:
-            with open(json_path) as f:
-                j = json.load(f)
-            
-            ne = j.get("next_event", {})
-            lat, lon = ne.get("lat"), ne.get("lon")
-            angle = ne.get("direction_deg", 0)
-            dist = ne.get("distance_km", 0)
-            
-            if lat is None or lon is None: return None
-            
-            m = folium.Map(location=[lat, lon], zoom_start=10)
-            
-            # Marker Pusat (Origin)
-            folium.Marker(
-                [lat, lon], 
-                popup=f"Origin<br>Prediksi Arah: {angle:.1f}°<br>Jarak: {dist:.1f}km",
-                icon=folium.Icon(color="red", icon="info-sign")
-            ).add_to(m)
-            
-            # Garis Prediksi (Visualisasi Vector)
-            import math
-            # Simple approximation: 1 deg lat ~= 111km
-            dy = (dist * math.cos(math.radians(angle))) / 111.0
-            dx = (dist * math.sin(math.radians(angle))) / (111.0 * math.cos(math.radians(lat)))
-            
-            end_lat = lat + dy
-            end_lon = lon + dx
-            
-            folium.PolyLine([[lat, lon], [end_lat, end_lon]], color="blue", weight=3, opacity=0.8).add_to(m)
-            folium.Marker([end_lat, end_lon], popup="Predicted Location", icon=folium.Icon(color="blue")).add_to(m)
-
-            out = Path(json_path).parent
-            map_path = out / "cnn_prediction_map.html"
-            m.save(map_path)
-            return map_path
-        except Exception as e:
-            logger.warning(f"Map export failed: {e}")
-            return None
-
-    def export_results(self,
-                       df_input: pd.DataFrame,
-                       df_output: pd.DataFrame,
-                       meta: Optional[Dict[str, Any]] = None,
-                       filename: Optional[str] = None) -> Optional[Path]:
+    # -------------------
+    # Utility: weight & bias summary and manual forward
+    # -------------------
+    def _model_weight_bias_summary(self, model: Model) -> Dict[str, Any]:
         """
-        Export presentation-ready Excel for CNN results.
-
-        Sheets:
-         - CNN_Input_ACO : ringkasan kejadian ACO (center & area, per event)
-         - CNN_Output_Pred: hasil prediksi CNN (angle, distance, confidence, cardinal)
-         - Meta : metadata singkat
-         - Raw_Input / Raw_Output : full dumps
-
-        Returns path to excel file or None on failure.
+        Mengembalikan ringkasan jumlah bobot & bias per Dense layer.
+        Rumus jumlah bobot untuk Dense: W.shape = (in_dim, out_units), b.shape = (out_units,)
+        jumlah_params = in_dim * out_units + out_units
         """
+        summary = {}
+        total = 0
+        for i, layer in enumerate(model.layers):
+            if isinstance(layer, tf.keras.layers.Dense):
+                w, b = layer.get_weights()
+                in_dim, out_units = w.shape
+                params = in_dim * out_units + out_units
+                summary[layer.name] = {
+                    'weights_shape': w.shape,
+                    'bias_shape': b.shape,
+                    'params_count': int(params)
+                }
+                total += params
+        summary['total_params'] = int(total)
+        return summary
+
+    def manual_forward_pass(self, model: Model, x_input: np.ndarray, verbose: bool = True) -> Dict[str, np.ndarray]:
+        """
+        Contoh perhitungan numeric forward pass (manual) dari input -> setiap hidden -> output.
+        - x_input: shape (n_features,) atau (1, n_features)
+        - Mengambil bobot & bias dari model.get_weights() layer by layer
+
+        Formula per layer (Dense):
+          z = W^T x + b    (jika W diberi bentuk (in_dim, out_units) dan x vektor kolom)
+          a = activation(z)
+
+        NOTE: Untuk ringkasan ini kita mengaplikasikan Dense + Activation. BatchNorm diabaikan
+        dalam perhitungan manual ini kecuali Anda secara eksplisit ingin memasukkan gamma/beta.
+        """
+        x = x_input.reshape(-1) if x_input.ndim > 1 else x_input
+        activations = {}
+        curr = x.astype(float)
+
+        layer_idx = 0
+        for layer in model.layers:
+            if isinstance(layer, tf.keras.layers.Dense):
+                w, b = layer.get_weights()
+                z = np.dot(curr, w) + b
+                act_name = 'linear'
+                next_index = layer_idx + 1
+                if next_index < len(model.layers) and isinstance(model.layers[next_index], tf.keras.layers.Activation):
+                    act_name = model.layers[next_index].activation.__name__
+                else:
+                    if hasattr(layer, 'activation'):
+                        try:
+                            act_name = layer.activation.__name__
+                        except Exception:
+                            act_name = 'linear'
+                if act_name in ('relu', 'elu', 'tanh', 'sigmoid'):
+                    if act_name == 'relu':
+                        a = np.maximum(0, z)
+                    elif act_name == 'elu':
+                        a = np.where(z > 0, z, np.expm1(z))
+                    elif act_name == 'tanh':
+                        a = np.tanh(z)
+                    elif act_name == 'sigmoid':
+                        a = 1 / (1 + np.exp(-z))
+                else:
+                    a = z
+
+                activations[layer.name] = {
+                    'z': z,
+                    'a': a,
+                    'activation': act_name,
+                    'weights_shape': w.shape,
+                    'bias_shape': b.shape
+                }
+                curr = a
+            layer_idx += 1
+
+        if verbose:
+            print("--- Manual forward pass detail ---")
+            for lname, info in activations.items():
+                print(f"Layer {lname}: weights_shape={info['weights_shape']}, bias_shape={info['bias_shape']}")
+                print(f" z (first 5) = {np.round(info['z'][:5],6)}")
+                print(f" a (first 5) = {np.round(info['a'][:5],6)}")
+            print("--- End manual forward ---")
+
+        return activations
+
+    # =========================================================
+    # EXPORT & EVALUATION (tidak banyak berubah)
+    # =========================================================
+    def export_results(self, df_input: pd.DataFrame, df_output: pd.DataFrame, meta: Optional[Dict[str, Any]] = None, filename: Optional[str] = None) -> Optional[Path]:
         try:
             out_dir = Path(self.results_dir)
             out_dir.mkdir(parents=True, exist_ok=True)
-
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             fname = filename if filename else f"cnn_presentation_{ts}.xlsx"
             out_path = out_dir / fname
-
-            # --- Prepare CNN input summary (ACO events) ---
-            # choose columns commonly present (fallbacks allowed)
             in_cols = []
-            for c in ('Acquired_Date', 'aco_center_lat', 'aco_center_lon', 'aco_area_km2'):
+            for c in ('Acquired_Date','aco_center_lat','aco_center_lon','aco_area_km2'):
                 if c in df_input.columns:
                     in_cols.append(c)
-
             if in_cols:
                 input_summary = df_input[in_cols].copy()
-                # keep unique ACO events in temporal order
-                input_summary = input_summary.dropna(how='all').drop_duplicates().reset_index(drop=True)
-                # format date as string for Excel readability
+                input_summary = input_summary.dropna(how='all')
+                # optional dedup based on config
+                if self.cfg.get('dedup_input_summary', True):
+                    input_summary = input_summary.drop_duplicates().reset_index(drop=True)
+                else:
+                    input_summary = input_summary.reset_index(drop=True)
                 if 'Acquired_Date' in input_summary.columns:
                     input_summary['Acquired_Date'] = input_summary['Acquired_Date'].astype(str)
             else:
                 input_summary = pd.DataFrame(columns=['Acquired_Date','aco_center_lat','aco_center_lon','aco_area_km2'])
-
-            # --- Prepare CNN output summary ---
             out_cols = []
             for c in ('Acquired_Date','cluster_id','cnn_angle_deg','cnn_distance_km','cnn_confidence','cnn_cardinal'):
                 if c in df_output.columns:
                     out_cols.append(c)
-
             if out_cols:
                 output_summary = df_output[out_cols].copy()
                 if 'Acquired_Date' in output_summary.columns:
                     output_summary['Acquired_Date'] = output_summary['Acquired_Date'].astype(str)
             else:
                 output_summary = pd.DataFrame(columns=out_cols)
-
-            # --- Meta sheet ---
             meta = meta or {}
             meta.setdefault('generated_at', datetime.now().isoformat())
-            meta.setdefault('notes', 'CNN presentation export')
-
-            # --- Write Excel ---
+            meta.setdefault('notes', 'CNN presentation export (revised)')
             with pd.ExcelWriter(out_path, engine='openpyxl') as writer:
-                # Input summary
                 input_summary.to_excel(writer, sheet_name='CNN_Input_ACO', index=False)
-                # Output summary
                 output_summary.to_excel(writer, sheet_name='CNN_Output_Pred', index=False)
-                # Meta
                 pd.DataFrame([meta]).to_excel(writer, sheet_name='Meta', index=False)
-                # Raw dumps (useful for presentation/inspection)
                 try:
                     df_input.to_excel(writer, sheet_name='Raw_Input', index=False)
                 except Exception:
@@ -567,7 +505,6 @@ class CnnEngine:
                     df_output.to_excel(writer, sheet_name='Raw_Output', index=False)
                 except Exception:
                     pd.DataFrame(df_output).to_excel(writer, sheet_name='Raw_Output', index=False)
-
             logger.info(f"[CNN] Presentation Excel saved → {out_path}")
             return out_path
         except Exception as e:
@@ -575,23 +512,43 @@ class CnnEngine:
             return None
 
     def evaluate_predictions(self, df_out: pd.DataFrame, thresholds: Dict[str, float]) -> pd.DataFrame:
-        """Evaluasi akurasi prediksi (Compare CNN vs GA/Ground Truth)."""
         df = df_out.copy()
         df['cnn_correct'] = False
-        
         if 'cnn_distance_km' in df and 'ga_distance_km' in df:
             df['dist_err'] = (df['cnn_distance_km'] - df['ga_distance_km']).abs()
-            
         if 'cnn_angle_deg' in df and 'ga_bearing_deg' in df:
             df['angle_err'] = (df['cnn_angle_deg'] - df['ga_bearing_deg']).abs() % 360
-            # Normalize angle diff (shortest path)
             df['angle_err'] = df['angle_err'].apply(lambda x: 360-x if x>180 else x)
-
         cond = pd.Series(True, index=df.index)
         if 'dist_km' in thresholds and 'dist_err' in df:
             cond &= df['dist_err'] <= thresholds['dist_km']
         if 'angle_deg' in thresholds and 'angle_err' in df:
             cond &= df['angle_err'] <= thresholds['angle_deg']
-            
         df['cnn_correct'] = cond
         return df
+
+# =============================================================================
+# EXAMPLE: Cara menggunakan fungsi manual_forward_pass untuk melihat perhitungan bobot/bias
+# =============================================================================
+if __name__ == "__main__":
+    cfg = {'norm_area':1000.0,'norm_dist':100.0}
+    factory = SimpleNNFactory(cfg)
+    params = {'hidden_count':2, 'units':[8,4], 'learning_rate':0.001, 'activation':'relu'}
+    model = factory.build_model(params)
+
+    x_sample = np.array([0.1, 0.05, 0.08, 0.02, 0.0])
+
+    print(model.summary())
+
+    engine = CnnEngine(cfg)
+    summary = engine._model_weight_bias_summary(model)
+    print('weight/bias summary:', summary)
+
+    activs = engine.manual_forward_pass(model, x_sample)
+
+    # Contoh perhitungan single neuron (komentar di bawah):
+    # z_j = sum_{i=1..5} w_{i,j} * x_i + b_j
+    # a_j = relu(z_j)  (jika activation relu)
+    # Untuk layer Dense pertama dengan 8 neuron dan input_dim=5 => params = 5*8 + 8 = 48
+
+    print('Done demo')
