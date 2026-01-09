@@ -602,6 +602,7 @@ if __name__ == "__main__":
 
     print(model.summary())
         
+
     engine = CnnEngine(cfg)
     summary = engine._model_weight_bias_summary(model)
     print('weight/bias summary:', summary)
