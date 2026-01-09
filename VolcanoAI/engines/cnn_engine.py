@@ -560,7 +560,7 @@ if __name__ == "__main__":
     x_sample = np.array([0.1, 0.05, 0.08, 0.02, 0.0])
 
     print(model.summary())
-
+        
     engine = CnnEngine(cfg)
     summary = engine._model_weight_bias_summary(model)
     print('weight/bias summary:', summary)
