@@ -173,42 +173,83 @@ class SimpleNNFactory:
 
     def build_model(self, params: Dict[str, Any] = None) -> Model:
         p = params if params else {}
-        # Default nodes kecil (jangan banyak)
-        hidden_count = int(p.get('hidden_count', 2))  # 2 atau 3
+        # Default nodes kecil
+        hidden_count = int(p.get('hidden_count', 2))  # 2
         units = p.get('units', [32, 16, 8])
         dropout = float(p.get('dropout', 0.0))
         lr = float(p.get('learning_rate', 0.001))
 
         # PAKAI HANYA RELU (override jika ada p['activation'])
-        activation = 'relu'  # <<--- RE-LU ONLY 
-
+        activation = 'relu' 
 
         # Pastikan units list cukup panjang untuk hidden_count
         if len(units) < hidden_count:
             units = units + [8] * (hidden_count - len(units))
 
         model = Sequential(name="Simple_CNN_VolcanoAI_Revised_RELU_ONLY")
-        model.add(Input(shape=(5,), name="Input_5_Nodes"))
 
-        # Hidden layers: setiap dense diikuti BatchNorm lalu ReLU
+        # Layer 1 — INPUT LAYER
+        model.add(Input(shape=(5,), name="Input_5_Nodes")) 
+
+        # Hidden Layers (loop)
         for i in range(hidden_count):
             model.add(Dense(units[i], name=f"Hidden_{i+1}"))
             # BatchNormalization membantu stabilitas dan mengurangi masalah aktivasi
             model.add(BatchNormalization())
-            model.add(Activation(activation))  # selalu 'relu' di sini
+            model.add(Activation(activation))  
             if dropout > 0:
                 model.add(Dropout(dropout))
+        """
+        *Layer 2 — Dense Hidden Layer 1*
 
-        # Output: 2 neuron (angle_scaled, distance_scaled), aktivasi linear untuk regresi
-        model.add(Dense(2, activation='linear', name="Output_2_Nodes"))
+        Bobot = 5 × 8 = 40
+        Bias  = 8
+        Total parameter = 48
 
+        *Layer 3 — BatchNormalization (Hidden 1)*
+        -Menstabilkan distribusi output dari Dense
+        -tidak ada neuron, bobot, dan bias.
+
+        *Layer 4 — Activation ReLU (Hidden 1)*
+        -tidak ada neuron, bobot, dan bias.
+
+        *Layer 5 — Dense Hidden Layer 2*
+
+        Bobot = 8 × 4 = 32
+        Bias  = 4
+        Total = 36
+
+        (untuk BatchNormalization dan Activation ReLU sama (tidak ada neuron, bobot, dan bias.))
+
+        """
+
+        # Output Layer
+        # Memiliki bobot & bias 
+        # Aktivasi: linear
+        model.add(Dense(2, activation='linear', name="Output_2_Nodes")) # Jumlah node: 2
+
+        """
+        Bobot = 4 × 2 = 8
+        Bias  = 2
+        Total = 10
+        """
+
+        
         model.compile(
             optimizer=Adam(learning_rate=lr),
             loss='mse',   # regression MSE
             metrics=['mae']
         )
-        return model
 
+        return model
+        
+        """
+        Jadi:
+        - total layer 8                     - Input     : 5
+        - Dense layer (belajar) 3           - Hidden 1  : 8
+        - Hidden layer (Dense) 2            - Hidden 2  : 4
+        - Output layer 1                    - Output    : 2
+        """
 # =============================================================================
 # SECTION 3: TUNER & ENGINE (KOMPATIBILITAS DENGAN CODE LAMA)
 # =============================================================================
@@ -554,7 +595,7 @@ class CnnEngine:
 if __name__ == "__main__":
     cfg = {'norm_area':1000.0,'norm_dist':100.0}
     factory = SimpleNNFactory(cfg)
-    params = {'hidden_count':2, 'units':[8,4], 'learning_rate':0.001}  # activation tidak diperlukan (relu-only)
+    params = {'hidden_count':2, 'units':[8,4], 'learning_rate':0.001}  # hidden berjumlah 2 dengan node/unit 8,4 = total 2 layer
     model = factory.build_model(params)
 
     x_sample = np.array([0.1, 0.05, 0.08, 0.02, 0.0])
@@ -566,10 +607,5 @@ if __name__ == "__main__":
     print('weight/bias summary:', summary)
 
     activs = engine.manual_forward_pass(model, x_sample)
-
-    # Contoh perhitungan single neuron (komentar di bawah):
-    # z_j = sum_{i=1..5} w_{i,j} * x_i + b_j
-    # a_j = relu(z_j)  (karena aktivasi ReLU)
-    # Untuk layer Dense pertama dengan 8 neuron dan input_dim=5 => params = 5*8 + 8 = 48
 
     print('Done demo')
