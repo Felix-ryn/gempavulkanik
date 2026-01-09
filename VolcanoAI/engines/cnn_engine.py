@@ -1,16 +1,22 @@
 ﻿# VolcanoAI/engines/cnn_engine.py
 # -- coding: utf-8 --
 """
-VOLCANO AI - CNN ENGINE (REVISED, FIXED EXPORT)
-=============================================
-Perubahan dan perbaikan:
-- Memindahkan pemanggilan `export_results` keluar dari loop cluster di fungsi `predict` sehingga
-  hanya satu file presentasi akhir yang dihasilkan per pemanggilan predict().
-- Menambahkan konfigurasi opsional `dedup_input_summary` (default True). Jika False, input summary
-  tidak melakukan drop_duplicates().
-- Menjaga kompatibilitas fungsi-fungsi lain (train, predict, export_results, manual_forward_pass).
+VOLCANO AI - CNN ENGINE (REVISED, RELU-ONLY)
+===========================================
+Versi ini mengunci fungsi aktivasi hidden layer menjadi ReLU saja
+(permintaan client: "jangan pakai ELU, pakai ReLU saja").
 
-Instruksi: tempelkan file ini menggantikan file lama.
+Perubahan utama:
+- Hanya 'relu' sebagai activation untuk semua hidden layers.
+- Tuner (NNTuner) hanya mencoba 'relu' 
+- Komentar / penjelasan tambahan mengenai alasan ReLU.
+- Struktur fungsi (train, predict, export_results, manual_forward_pass) tetap dipertahankan.
+
+Catatan teknis singkat tentang keputusan:
+- ReLU (Rectified Linear Unit) adalah pilihan standar untuk hidden dense layer.
+  Keunggulan: sederhana, efisien, mengurangi vanishing gradient, dan cepat konvergen.
+- Karena model menggunakan BatchNormalization sebelum aktivasi, risiko "dying ReLU"
+  berkurang (BN menstabilkan distribusi aktivasi).
 """
 
 import os
@@ -24,6 +30,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Optional
 
+# Gunakan tensorflow.keras untuk kompatibilitas
 from tensorflow.keras.models import Model, load_model, Sequential
 from tensorflow.keras.layers import Input, Dense, Dropout, BatchNormalization, Activation
 from tensorflow.keras.optimizers import Adam
@@ -44,15 +51,14 @@ logger.addHandler(logging.NullHandler())
 
 class TabularFeatureExtractor:
     """
-    Menyiapkan data tabular 5-Node Input sesuai spesifikasi :
+    Menyiapkan data tabular 5-Node Input sesuai spesifikasi:
     Node order (index):
       0 -> pusat ACO1    (aco_center_scalar)
       1 -> area ACO1     (aco_area_km2)
-      2 -> pusat ACO2    (aco_center_prev)
+      2 -> pusat ACO2    (aco_center_prev)  # event previous (shift)
       3 -> area ACO2     (aco_area_prev)
       4 -> lstm_prediction (anomaly/score)
 
-    Implementasi: ACO2 diambil sebagai event sebelumnya (shift(1)).
     Normalisasi: area dibagi norm_area; distance target dibagi norm_dist.
     """
     def __init__(self, config: Any):
@@ -64,7 +70,7 @@ class TabularFeatureExtractor:
     def prepare_dataset(self, df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
         """
         Menghasilkan X (N x 5) dan Y (N x 2) untuk training.
-        Target dihitung dari pergerakan koordinat aktual (bearing & haversine distance) antar baris berurutan.
+        Target dihitung dari pergerakan koordinat aktual (bearing & haversine distance).
         Alignment: karena target menggunakan baris i -> i+1, kita drop baris terakhir pada X.
         """
         if df.empty:
@@ -149,53 +155,56 @@ class TabularFeatureExtractor:
         return y_real
 
 # =============================================================================
-# SECTION 2: NEURAL NETWORK ARCHITECTURE (SIMPLE, 2-3 HIDDEN LAYERS, KECIL)
+# SECTION 2: NEURAL NETWORK ARCHITECTURE (SIMPLE, 2-3 HIDDEN LAYERS, RELU-ONLY)
 # =============================================================================
 
 class SimpleNNFactory:
     """
-    Membangun model Dense sederhana dengan 2 atau 3 hidden layer.
-
-    Rekomendasi aktivasi:
-      - Hidden layers: ReLU (rectified linear unit) atau ELU.
-        Alasannya: ReLU cepat, mengurangi vanishing gradient, cocok untuk feature yang tidak beraturan.
-        ELU bisa mempertahankan nilai negatif terpusat dan membantu konvergensi sedikit lebih baik pada beberapa kasus.
-      - Output: linear untuk regresi (kita memprediksi sudut yang telah diskalakan & jarak)
+    Bangun model Dense sederhana dengan 2 atau 3 hidden layer.
+    **Catatan penting**: Aktivasi hidden layer dikunci menjadi 'relu' (ReLU-only).
+    Keterangan mengapa ReLU:
+      - ReLU sederhana dan efisien.
+      - Mengurangi risiko vanishing gradient.
+      - Kompatibel dengan BatchNormalization (yang kita pakai).
+      - Sesuai untuk regresi dengan input yang telah dinormalisasi.
     """
     def __init__(self, config: Any):
         self.cfg = config.__dict__ if not isinstance(config, dict) else config
 
     def build_model(self, params: Dict[str, Any] = None) -> Model:
         p = params if params else {}
-        # Default nodes small (jangan banyak)
+        # Default nodes kecil (jangan banyak)
         hidden_count = int(p.get('hidden_count', 2))  # 2 atau 3
         units = p.get('units', [32, 16, 8])
         dropout = float(p.get('dropout', 0.0))
         lr = float(p.get('learning_rate', 0.001))
-        activation = p.get('activation', 'relu')
 
-        # Ensure units list length >= hidden_count
+        # PAKAI HANYA RELU (override jika ada p['activation'])
+        activation = 'relu'  # <<--- RE-LU ONLY 
+
+
+        # Pastikan units list cukup panjang untuk hidden_count
         if len(units) < hidden_count:
             units = units + [8] * (hidden_count - len(units))
 
-        model = Sequential(name="Simple_CNN_VolcanoAI_Revised")
+        model = Sequential(name="Simple_CNN_VolcanoAI_Revised_RELU_ONLY")
         model.add(Input(shape=(5,), name="Input_5_Nodes"))
 
-        # Hidden layers (2 or 3)
+        # Hidden layers: setiap dense diikuti BatchNorm lalu ReLU
         for i in range(hidden_count):
             model.add(Dense(units[i], name=f"Hidden_{i+1}"))
-            # BatchNorm optional - helps training stability
+            # BatchNormalization membantu stabilitas dan mengurangi masalah aktivasi
             model.add(BatchNormalization())
-            model.add(Activation(activation))
+            model.add(Activation(activation))  # selalu 'relu' di sini
             if dropout > 0:
                 model.add(Dropout(dropout))
 
-        # Output layer: 2 neurons (angle_scaled, distance_scaled)
+        # Output: 2 neuron (angle_scaled, distance_scaled), aktivasi linear untuk regresi
         model.add(Dense(2, activation='linear', name="Output_2_Nodes"))
 
         model.compile(
             optimizer=Adam(learning_rate=lr),
-            loss='mse',
+            loss='mse',   # regression MSE
             metrics=['mae']
         )
         return model
@@ -205,15 +214,18 @@ class SimpleNNFactory:
 # =============================================================================
 
 class NNTuner:
+    """
+    Tuner sederhana. Opsi activation hanya 'relu'
+    """
     def __init__(self, factory: SimpleNNFactory, trials=3):
         self.factory = factory
         self.trials = trials
-        # grid small
+        # Grid kecil; activation hanya 'relu' 
         self.grid = {
             'hidden_count': [2, 3],
             'units': [[32,16], [32,16,8], [16,8]],
             'learning_rate': [0.001, 0.005],
-            'activation': ['relu', 'elu']
+            'activation': ['relu']  
         }
 
     def _sample_params(self):
@@ -225,11 +237,12 @@ class NNTuner:
     def search(self, X_train, Y_train, X_val, Y_val) -> Dict[str, Any]:
         best_loss = float('inf')
         best_params = {'hidden_count': 2, 'units': [32,16], 'learning_rate': 0.001, 'activation':'relu'}
-        logger.info(f" [NN Tuner] Memulai {self.trials} trial optimasi...")
+        logger.info(f" [NN Tuner] Memulai {self.trials} trial optimasi (ReLU-only)...")
         for i in range(self.trials):
             params = self._sample_params()
             K.clear_session()
             try:
+                # Note: SimpleNNFactory akan mengabaikan params['activation'] dan memakai 'relu'
                 model = self.factory.build_model(params)
                 hist = model.fit(X_train, Y_train, validation_data=(X_val, Y_val), epochs=5, batch_size=16, verbose=0)
                 val_loss = hist.history['val_loss'][-1]
@@ -239,10 +252,14 @@ class NNTuner:
             except Exception as e:
                 logger.warning(f"Tuner trial failed: {e}")
                 continue
-        logger.info(f" [NN Tuner] Params terbaik: {best_params}")
+        logger.info(f" [NN Tuner] Params terbaik (ReLU-only): {best_params}")
         return best_params
 
 class CnnEngine:
+    """
+    Engine utama: training, predict, export_results, evaluate, dsb.
+    Struktur API sama seperti versi sebelumnya.
+    """
     def __init__(self, config: Any):
         self.cfg = config.__dict__ if not isinstance(config, dict) else config
         self.cfg.setdefault('epochs', 50)
@@ -263,7 +280,7 @@ class CnnEngine:
 
     def train(self, df_train: pd.DataFrame, lstm_engine=None) -> bool:
         if df_train.empty: return False
-        logger.info("=== START TRAINING SIMPLE NN (5-INPUT / 2-OUTPUT) REVISED ===")
+        logger.info("=== START TRAINING SIMPLE NN (5-INPUT / 2-OUTPUT) REVISED (RELU-ONLY) ===")
         unique_clusters = sorted([c for c in df_train['cluster_id'].unique() if c != -1])
         success_count = 0
         for cid in unique_clusters:
@@ -282,7 +299,9 @@ class CnnEngine:
                 EarlyStopping(patience=10, restore_best_weights=True),
                 ModelCheckpoint(filepath=self.model_dir / f"cnn_model_c{cid}.keras", save_best_only=True)
             ]
-            hist = model.fit(X_train, Y_train, validation_data=(X_val, Y_val), epochs=self.cfg['epochs'], batch_size=self.cfg['batch_size'], callbacks=callbacks, verbose=1)
+            hist = model.fit(X_train, Y_train, validation_data=(X_val, Y_val),
+                             epochs=self.cfg['epochs'], batch_size=self.cfg['batch_size'],
+                             callbacks=callbacks, verbose=1)
             self.models[cid] = model
             success_count += 1
             loss = hist.history['loss'][-1]
@@ -349,7 +368,7 @@ class CnnEngine:
         try:
             meta = {
                 "engine": "CNN",
-                "model_type": "Simple NN (5 Input / 2 Output) Revised",
+                "model_type": "Simple NN (5 Input / 2 Output) Revised (ReLU-only)",
                 "rows_input": int(len(df_predict)),
                 "rows_output": int(len(df_out)),
                 "generated_at": datetime.now().isoformat()
@@ -400,8 +419,8 @@ class CnnEngine:
           z = W^T x + b    (jika W diberi bentuk (in_dim, out_units) dan x vektor kolom)
           a = activation(z)
 
-        NOTE: Untuk ringkasan ini kita mengaplikasikan Dense + Activation. BatchNorm diabaikan
-        dalam perhitungan manual ini kecuali Anda secara eksplisit ingin memasukkan gamma/beta.
+        NOTE: BatchNorm diabaikan dalam perhitungan manual ini (untuk ringkasan).
+        Activation yang di-support: relu, tanh, sigmoid (relu adalah yang dipakai di model ini).
         """
         x = x_input.reshape(-1) if x_input.ndim > 1 else x_input
         activations = {}
@@ -422,10 +441,12 @@ class CnnEngine:
                             act_name = layer.activation.__name__
                         except Exception:
                             act_name = 'linear'
+                # apply activation (support common ones)
                 if act_name in ('relu', 'elu', 'tanh', 'sigmoid'):
                     if act_name == 'relu':
                         a = np.maximum(0, z)
                     elif act_name == 'elu':
+                        # Note: ELU won't be used in this RE+LU-only build, but support kept for completeness
                         a = np.where(z > 0, z, np.expm1(z))
                     elif act_name == 'tanh':
                         a = np.tanh(z)
@@ -492,7 +513,7 @@ class CnnEngine:
                 output_summary = pd.DataFrame(columns=out_cols)
             meta = meta or {}
             meta.setdefault('generated_at', datetime.now().isoformat())
-            meta.setdefault('notes', 'CNN presentation export (revised)')
+            meta.setdefault('notes', 'CNN presentation export (revised, relu-only)')
             with pd.ExcelWriter(out_path, engine='openpyxl') as writer:
                 input_summary.to_excel(writer, sheet_name='CNN_Input_ACO', index=False)
                 output_summary.to_excel(writer, sheet_name='CNN_Output_Pred', index=False)
@@ -533,7 +554,7 @@ class CnnEngine:
 if __name__ == "__main__":
     cfg = {'norm_area':1000.0,'norm_dist':100.0}
     factory = SimpleNNFactory(cfg)
-    params = {'hidden_count':2, 'units':[8,4], 'learning_rate':0.001, 'activation':'relu'}
+    params = {'hidden_count':2, 'units':[8,4], 'learning_rate':0.001}  # activation tidak diperlukan (relu-only)
     model = factory.build_model(params)
 
     x_sample = np.array([0.1, 0.05, 0.08, 0.02, 0.0])
@@ -548,7 +569,7 @@ if __name__ == "__main__":
 
     # Contoh perhitungan single neuron (komentar di bawah):
     # z_j = sum_{i=1..5} w_{i,j} * x_i + b_j
-    # a_j = relu(z_j)  (jika activation relu)
+    # a_j = relu(z_j)  (karena aktivasi ReLU)
     # Untuk layer Dense pertama dengan 8 neuron dan input_dim=5 => params = 5*8 + 8 = 48
 
     print('Done demo')
