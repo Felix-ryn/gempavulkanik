@@ -326,41 +326,58 @@ class GeoMathCore: # Kelas utilitas untuk perhitungan geodesik
 
 
 
-# ==============
-# DATA SANITIZER
-# ==============
+# ======================
+# DATA SANITIZER (REVISI)
+# ======================
 class DataSanitizer: # Kelas untuk membersihkan dan memvalidasi data input
     def __init__(self):
-        self.required_columns = [
-            'EQ_Lintang', 'EQ_Bujur', 'Acquired_Date',
-            'PheromoneScore', 'Magnitudo', 'Kedalaman (km)'
-        ] # kolom yang diperlukan dalam DataFrame
-        self.min_rows = 5
+        # hanya kolom esensial yg wajib ada untuk GA: koordinat + pheromone (opsional)
+        self.required_columns = ['EQ_Lintang', 'EQ_Bujur'] 
+        self.min_rows = 2  # GA spasial minimal 2 titik untuk komputasi arah
 
-    @execution_monitor # dekorator untuk memonitor eksekusi
-    def execute(self, df: pd.DataFrame) -> pd.DataFrame: # metode utama untuk membersihkan data
+    @execution_monitor
+    def execute(self, df: pd.DataFrame) -> pd.DataFrame:
         if df is None:
             raise ValueError("Input DataFrame cannot be None")
         if df.empty:
             raise ValueError("Input DataFrame is empty")
 
         df = df.copy()
-        df['Acquired_Date'] = pd.to_datetime(df['Acquired_Date'], errors='coerce')
+
+        # hanya konversi Acquired_Date jika kolom ada (tidak wajib)
+        if 'Acquired_Date' in df.columns:
+            try:
+                df['Acquired_Date'] = pd.to_datetime(df['Acquired_Date'], errors='coerce')
+            except Exception:
+                df['Acquired_Date'] = pd.NaT
+
+        # Pastikan koordinat ada dan numeric
+        for c in ['EQ_Lintang', 'EQ_Bujur']:
+            if c not in df.columns:
+                raise ValueError(f"Required column missing: {c}")
+            df[c] = pd.to_numeric(df[c], errors='coerce')
+
+        # Optional numeric columns: hanya ubah jika ada
+        optional_numeric = ['PheromoneScore', 'Magnitudo', 'Kedalaman (km)']
+        for c in optional_numeric:
+            if c in df.columns:
+                df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0.0)
+
+        # Filter lat/lon valid
         df = df.dropna(subset=['EQ_Lintang', 'EQ_Bujur']).reset_index(drop=True)
-
-
-        for c in ['EQ_Lintang', 'EQ_Bujur', 'Magnitudo', 'Kedalaman (km)', 'PheromoneScore']:
-            df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
-
         df = df[(df['EQ_Lintang'] >= -90) & (df['EQ_Lintang'] <= 90)]
         df = df[(df['EQ_Bujur'] >= -180) & (df['EQ_Bujur'] <= 180)]
-
         df = df.reset_index(drop=True)
 
         if len(df) < self.min_rows:
-            raise ValueError(f"Min rows not met: {len(df)}")
+            raise ValueError(f"Min rows not met: {len(df)} (need >= {self.min_rows})")
+
+        # Jika PheromoneScore tidak ada, set default kecil supaya risk-based logic aman
+        if 'PheromoneScore' not in df.columns:
+            df['PheromoneScore'] = 0.1
 
         return df
+
 
 
 # ======================
@@ -435,6 +452,7 @@ class PhysicsFitnessEngine:
             return (self.penalty, )
 
         return (total_cost, )
+
 
     # -------------------------------------------------------------
     # PREDIKSI NEXT EVENT (Vektor Arah)
@@ -1258,6 +1276,22 @@ class GaEngine: # GA Engine utama
                         "bearing_degree": float(pred.get("bearing_degree", 0.0)),
                         "distance_km": float(pred.get("distance_km", 0.0))
                     })
+                # =========================================================
+                # GUARD PENTING: pastikan pred selalu terdefinisi
+                # =========================================================
+                if not ga_vectors:
+                    logger.warning("[GA] No ACO epicenters found; using default GA prediction.")
+                    pred = {
+                        "bearing_degree": 0.0,
+                        "distance_km": 0.0
+                    }
+                else:
+                    # Ambil vektor representatif (misalnya dari ACO pertama)
+                    pred = {
+                        "bearing_degree": ga_vectors[0]["bearing_degree"],
+                        "distance_km": ga_vectors[0]["distance_km"]
+                    }
+
 
                # =====================================================
                 # WRITE BACK GA PATH (PER TITIK ACO)
