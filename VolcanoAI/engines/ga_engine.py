@@ -344,6 +344,7 @@ class DataSanitizer: # Kelas untuk membersihkan dan memvalidasi data input
 
         df = df.copy()
 
+
         # hanya konversi Acquired_Date jika kolom ada (tidak wajib)
         if 'Acquired_Date' in df.columns:
             try:
