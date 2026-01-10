@@ -364,33 +364,38 @@ class DataSanitizer: # Kelas untuk membersihkan dan memvalidasi data input
 
 
 # ======================
-# PHYSICS FITNESS ENGINE
+# PHYSICS FITNESS ENGINE (REVISI: SPATIAL ONLY)
 # ======================
 class PhysicsFitnessEngine: 
     def __init__(self, df: pd.DataFrame, weight_config: Dict[str, float]):
         self.df = df
         self.weights = weight_config
 
+        # --- REVISI FATAL: Hapus Load Data Waktu & Magnitudo ---
+        # Sesuai Diagram Blok: Input hanya Koordinat & Pheromone (Risk)
         self.vec_lat = df['EQ_Lintang'].values
         self.vec_lon = df['EQ_Bujur'].values
-        self.vec_time = df['Acquired_Date'].values.astype(np.int64)
-        # REVISI: Hapus load vector Magnitudo dan Depth karena tidak dipakai di fitness
+        
+        # Pheromone/Risk dari ACO dipakai sebagai bobot utama
         self.vec_risk = df['PheromoneScore'].values
 
         self.num_nodes = len(df)
-        self.eps = 1e-6
         self.penalty = 1e15
 
-        # REVISI: Hapus w_mag dan w_depth dari config
-        self.w_time = weight_config.get("time", 10000)
-        self.w_space = weight_config.get("space", 1)
-        self.w_risk = weight_config.get("risk", 500)
+        # --- REVISI: Hapus Bobot Waktu (w_time) ---
+        # Kita hanya fokus pada Spasial (Jarak) dan Risiko (Pheromone)
+        self.w_space = weight_config.get("space", 1.0)
+        self.w_risk = weight_config.get("risk", 500.0)
 
     def evaluate(self, individual: List[int]) -> Tuple[float]:
         """
-        Fungsi Evaluasi Revisi:
-        Hanya memperhitungkan Waktu, Jarak Spasial, dan Risiko (Pheromone).
-        Tidak menggunakan Magnitudo atau Kedalaman.
+        Fungsi Evaluasi (Fitness Function) - MURNI SPASIAL
+        
+        KOREKSI PENGUJI:
+        Tidak ada variabel 'c_time' atau 'Acquired_Date'.
+        Hanya menghitung Jarak (Space) dan Risiko (Risk).
+        
+        Rumus: F = (w_space * Total_Jarak) + (w_risk * Total_Inverse_Risk)
         """
         idx = np.array(individual, dtype=int)
 
@@ -398,18 +403,12 @@ class PhysicsFitnessEngine:
             return (self.penalty, )
 
         # Ambil data lookup
-        curr_times = self.vec_time[idx]
         curr_risks = self.vec_risk[idx]
-
-        # 1. TEMPORAL COST (Tetap)
-        time_violations_count = np.sum(curr_times[1:] < curr_times[:-1])
-        temporal_cost = self.w_time * float(time_violations_count)
-
-        # 2. SPATIAL DISTANCE COST (Tetap)
         lat_seq = self.vec_lat[idx]
         lon_seq = self.vec_lon[idx]
-        
-        # Hitung total jarak path
+
+        # 1. SPATIAL COST (Jarak Fisik)
+        # Menghitung total jarak haversine antar titik dalam kromosom
         total_dist = 0.0
         for i in range(len(idx) - 1):
             total_dist += GeoMathCore.haversine(
@@ -418,18 +417,19 @@ class PhysicsFitnessEngine:
             )
         spatial_cost = self.w_space * total_dist
 
-        # 3. RISK SCORE COST (Pheromone Only)
-        # REVISI: Input GA hanya dari output ACO (Pheromone/Area).
-        # Cost mengecil jika Risiko TINGGI (Prioritas area terdampak).
-        clipped_risk = np.clip(curr_risks, 1e-6, None)
+        # 2. RISK SCORE COST (Pheromone Optimization)
+        # GA mencari jalur yang melewati titik dengan Pheromone TINGGI.
+        # Karena Fitness = Minimasi Cost, maka Risk harus di-invers (1/Risk).
+        # Semakin tinggi Risk, semakin kecil Cost (Bagus).
+        clipped_risk = np.clip(curr_risks, 1e-6, None) # Hindari pembagian nol
         risk_cost = self.w_risk * np.sum(1.0 / clipped_risk)
 
-        # 4. TOTAL COST (Tanpa Mag & Depth)
-        total_cost = (
-            temporal_cost +
-            spatial_cost +
-            risk_cost
-        )
+        # --- REVISI: Temporal Cost DIHAPUS ---
+        # Code lama menghitung pelanggaran urutan waktu.
+        # Bagian itu SUDAH DIHAPUS sesuai request penguji.
+        
+        # 3. TOTAL COST
+        total_cost = spatial_cost + risk_cost
         
         if np.isnan(total_cost) or np.isinf(total_cost):
             return (self.penalty, )
@@ -437,11 +437,10 @@ class PhysicsFitnessEngine:
         return (total_cost, )
 
     # -------------------------------------------------------------
-    # PREDIKSI NEXT EVENT (berdasarkan 3 titik terakhir)
+    # PREDIKSI NEXT EVENT (Vektor Arah)
     # -------------------------------------------------------------
     def predict_next_event(self, df_path: pd.DataFrame, n_seg: Optional[int] = 5) -> Dict[str, float]:
             if df_path is None or len(df_path) < 2:
-                # Return default zero prediction
                 return {
                     "pred_lat": 0.0, "pred_lon": 0.0,
                     "bearing_degree": 0.0, "distance_km": 0.0, "confidence": 0.0
@@ -453,28 +452,15 @@ class PhysicsFitnessEngine:
                 n_seg = min(max(2, int(n_seg)), len(df_path))
 
             df_seg = df_path.iloc[-n_seg:].reset_index(drop=True)
-            return self.compute_vector_from_segment(df_seg)    # komputasi vektor dari segmen data
+            return self.compute_vector_from_segment(df_seg)
 
     def compute_vector_from_segment(self, df_seg: pd.DataFrame) -> Dict[str, float]:
         """
-        REVISI: Perhitungan vektor arah HANYA berbasis Spasial dan Pheromone (Output ACO).
-        Magnitudo dihapus dari pembobotan (weights) dan scaling.
-
-        Mengembalikan dict yang memuat:
-          - pred_lat, pred_lon (internal plotting)
-          - base_lat, base_lon
-          - movement_scale
-          - bearing_degree (0..360)
-          - distance_km
-          - movement_direction (kardinal: 'Timur','Utara','Barat','Selatan')
-          - cardinal_deg (derajat kardinal yang dipakai, 0/90/180/270)
-          - cardinal_dev_deg (deviasi sudut dari kardinal dalam derajat)
-          - confidence
+        Menghitung vektor rata-rata dari jalur terbaik (Best Individual)
         """
         if df_seg is None or len(df_seg) < 2:
             return {}
 
-        # Ambil arrays
         lats = df_seg['EQ_Lintang'].astype(float).values
         lons = df_seg['EQ_Bujur'].astype(float).values
         risks = df_seg['PheromoneScore'].astype(float).values if 'PheromoneScore' in df_seg.columns else np.ones(len(df_seg)) * 0.1
@@ -486,11 +472,11 @@ class PhysicsFitnessEngine:
         for i in range(len(lats) - 1):
             lat_a, lon_a = lats[i], lons[i]
             lat_b, lon_b = lats[i + 1], lons[i + 1]
-            # haversine distance and bearing (GeoMathCore methods)
+            
             dkm = GeoMathCore.haversine(lat_a, lon_a, lat_b, lon_b)
             bdeg = GeoMathCore.calculate_bearing(lat_a, lon_a, lat_b, lon_b)
 
-            # weight based only on pheromone (average of two adjacent points)
+            # Weight vector berdasarkan Pheromone rata-rata antar dua titik
             w = ((risks[i] + risks[i + 1]) / 2.0) + 1e-9
 
             distances.append(float(dkm))
@@ -499,38 +485,30 @@ class PhysicsFitnessEngine:
 
         distances = np.array(distances, dtype=float)
         weights = np.array(weights, dtype=float)
-        # Normalize weights safely
         weights = weights / (np.sum(weights) + 1e-12)
 
-        # --- Circular mean for bearing ---
+        # Circular mean for bearing
         thetas = np.radians(np.array(bearings))
         x = float(np.sum(weights * np.cos(thetas)))
         y = float(np.sum(weights * np.sin(thetas)))
         mean_theta = math.atan2(y, x) if not (x == 0 and y == 0) else 0.0
         mean_bearing_deg = (math.degrees(mean_theta) + 360.0) % 360.0
 
-        # Angular concentration R (0..1 approx)
-        R = math.sqrt(x * x + y * y)
-
-        # --- Weighted average distance ---
+        # Mean Distance
         mean_distance_km = float(np.sum(distances * weights)) if distances.size > 0 else 0.0
-
-        # Scaling factor based on last risk (0.5 base + risk)
+        
+        # Scale (Revisi: hanya gunakan risk, tanpa magnitudo/waktu)
         last_risk = float(risks[-1]) if len(risks) > 0 else 0.1
         scale = 0.5 + float(last_risk)
         pred_distance_km = float(mean_distance_km * scale)
 
-        # Predicted lat/lon for plotting internal use
         pred_lat, pred_lon = GeoMathCore.destination_point(float(lats[-1]), float(lons[-1]), mean_bearing_deg, pred_distance_km)
 
-        # Confidence: combine pheromone-based confidence + angular concentration
+        # Confidence calculation
         conf_risk = self.compute_confidence(df_seg)
-        combined_conf = conf_risk * (0.5 + 0.5 * R)
-        combined_conf = min(max(0.0, combined_conf), 0.85)
-
-        # -------------------------
-        # SNAP bearing to 4 cardinal directions
-        # -------------------------
+        
+        # --- KONVERSI KE ARAH MATA ANGIN (CARDINAL) ---
+        # Ini menjawab poin client: Sudut -> Arah Mata Angin
         def _angle_diff_deg(a, b):
             return abs(((a - b + 180.0) % 360.0) - 180.0)
 
@@ -543,29 +521,20 @@ class PhysicsFitnessEngine:
                 best_name = nm
                 best_card_deg = float(ca)
 
-        # Fallbacks safety
         if best_name is None:
-            best_name = self.bearing_to_compass(mean_bearing_deg) if hasattr(self, "bearing_to_compass") else "N/A"
-            best_card_deg = 0.0
-            best_dev = _angle_diff_deg(mean_bearing_deg, 0.0)
+            best_name = "N/A"
 
-        # Build result payload
         return {
             "pred_lat": float(pred_lat),
             "pred_lon": float(pred_lon),
             "base_lat": float(lats[-1]),
             "base_lon": float(lons[-1]),
             "movement_scale": float(scale),
-            "bearing_degree": float(mean_bearing_deg),
+            "bearing_degree": float(mean_bearing_deg), # Solusi Terbaik Sudut
             "distance_km": float(pred_distance_km),
-            # movement_direction replaced with CARDINAL NAME (Indonesian)
-            "movement_direction": best_name,
-            # include cardinal metadata for downstream use
-            "cardinal_deg": float(best_card_deg),
-            "cardinal_dev_deg": float(best_dev),
-            "confidence": float(combined_conf)
+            "movement_direction": best_name, # Konversi Arah Mata Angin
+            "confidence": float(conf_risk)
         }
-
 
     @staticmethod
     def bearing_to_compass(bearing: float) -> str:
