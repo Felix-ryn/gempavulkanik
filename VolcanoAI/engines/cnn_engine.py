@@ -405,20 +405,40 @@ class CnnEngine:
             except Exception as e:
                 logger.error(f"Prediction error c{cid}: {e}")
 
-        # EXPORT PRESENTATION: lakukan sekali di luar loop agar hasil akhir konsisten
-        try:
-            meta = {
-                "engine": "CNN",
-                "model_type": "Simple NN (5 Input / 2 Output) Revised (ReLU-only)",
-                "rows_input": int(len(df_predict)),
-                "rows_output": int(len(df_out)),
-                "generated_at": datetime.now().isoformat()
-            }
-            self.export_results(df_input=df_predict, df_output=df_out, meta=meta)
-        except Exception as e:
-            logger.warning(f"[CNN] Export presentation failed: {e}")
+        return df_out
+
+    def predict_and_export(
+        self,
+        df_predict: pd.DataFrame,
+        lstm_engine=None,
+        filename: str | None = None
+    ) -> pd.DataFrame:
+        """
+        Melakukan inferensi CNN dan export hasil ke Excel (1 kali saja).
+        """
+
+        # 1️⃣ Inferensi
+        df_out = self.predict(df_predict, lstm_engine=lstm_engine)
+
+        # 2️⃣ Meta info
+        meta = {
+            "engine": "CNN",
+            "model_type": "Simple NN (5 Input / 2 Output) Revised (ReLU-only)",
+            "rows_input": int(len(df_predict)),
+            "rows_output": int(len(df_out)),
+            "generated_at": datetime.now().isoformat()
+        }
+
+        # 3️⃣ Export
+        self.export_results(
+            df_input=df_predict,
+            df_output=df_out,
+            meta=meta,
+            filename=filename
+        )
 
         return df_out
+
 
     def _get_cardinal(self, angle):
         dirs = ["Utara", "Timur Laut", "Timur", "Tenggara", "Selatan", "Barat Daya", "Barat", "Barat Laut"]

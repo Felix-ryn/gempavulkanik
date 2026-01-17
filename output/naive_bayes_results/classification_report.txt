@@ -1,8 +1,8 @@
               precision    recall  f1-score   support
 
-      Normal       0.99      0.93      0.96       185
-Tidak Normal       0.77      0.98      0.86        45
+      Normal       0.99      0.92      0.96       185
+Tidak Normal       0.75      0.96      0.84        45
 
-    accuracy                           0.94       230
-   macro avg       0.88      0.95      0.91       230
-weighted avg       0.95      0.94      0.94       230
+    accuracy                           0.93       230
+   macro avg       0.87      0.94      0.90       230
+weighted avg       0.94      0.93      0.93       230

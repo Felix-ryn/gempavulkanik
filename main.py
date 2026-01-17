@@ -28,6 +28,7 @@ import numpy as np # untuk operasi matematika vektor, perhitungan jarak Haversin
 from sklearn.model_selection import train_test_split # Membagi dataset
 from VolcanoAI.postprocess.cnn_csv_to_json import run as cnn_csv_to_json # Mengonversi hasil prediksi CNN (CSV) menjadi format JSON agar mudah dibaca oleh peta interaktif atau dashboard web.
 from VolcanoAI.engines.cnn_map_generator import CNNMapGenerator # Membuat peta visualisasi (biasanya file HTML) berdasarkan hasil prediksi spasial CNN.
+from VolcanoAI.utils.presentation_exporter import generate_presentation_excel
 
 # ==============================================================================
 # 1. SYSTEM INITIALIZATION & PATH SETUP
@@ -415,6 +416,26 @@ class VolcanoAiPipeline: # Kelas utama pengatur seluruh alur kerja AI
         self.logger.info(f"✅ CNN latest overwritten: {latest_path}")
 
         # =========================
+        # PRESENTATION EXCEL EXPORT (CLIENT)
+        # =========================
+        try:
+            presentation_dir = (
+                Path(self.config.OUTPUT.directory)
+                / "cnn_results"
+                / "presentation"
+            )
+
+            excel_path = generate_presentation_excel(
+                csv_latest_path=latest_path,
+                output_dir=presentation_dir
+            )
+
+            self.logger.info(f"📊 Presentation Excel generated: {excel_path}")
+
+        except Exception as e:
+            self.logger.exception(f"[PRESENTATION EXCEL] failed: {e}")
+
+        # =========================
         # JSON EXPORT
         # =========================
         try:
@@ -677,7 +698,7 @@ class VolcanoAiPipeline: # Kelas utama pengatur seluruh alur kerja AI
 
                 # 4. PREDICION FLOW 
                 df_pred, anomalies = self.lstm_engine.process_live_stream(df_target) # Proses aliran data baru menggunakan engine LSTM
-                df_pred = self.cnn_engine.predict(df_pred, self.lstm_engine) # Lakukan prediksi menggunakan engine CNN
+                df_pred = self.cnn_engine.predict_and_export(df_pred, self.lstm_engine) # Lakukan prediksi menggunakan engine CNN
                 df_pred, _ = self.nb_engine.evaluate(df_pred) # Lakukan evaluasi menggunakan engine Naive Bayes
 
                 # =========================
