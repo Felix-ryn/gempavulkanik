@@ -1,1 +1,1 @@
-C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\output\cnn_results\maps\cnn_prediction_map_20260118_024641.html
+C:\Users\USER\Downloads\Earthquake_Volcan\Earthquake_Volcano\output\cnn_results\maps\cnn_prediction_map_20260118_125807.html
