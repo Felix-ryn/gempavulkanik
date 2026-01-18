@@ -356,8 +356,17 @@ class CnnEngine:
 
     def predict(self, df_predict: pd.DataFrame, lstm_engine=None) -> pd.DataFrame:
         df_out = df_predict.copy()
-        for col in ['cnn_angle_deg', 'cnn_distance_km', 'cnn_confidence', 'cnn_cardinal']:
+        for col in [
+            'cnn_angle_deg',
+            'cnn_distance_km',
+            'cnn_confidence',
+            'cnn_cardinal',
+            'cnn_dx_km',
+            'cnn_dy_km',
+            'cnn_direction_text'
+        ]:
             df_out[col] = np.nan
+
         unique_clusters = sorted([c for c in df_out['cluster_id'].unique() if c != -1])
 
         for cid in unique_clusters:
@@ -398,10 +407,27 @@ class CnnEngine:
                 angles = np.abs(preds_real[:,0]) % 360.0
                 dists = np.abs(preds_real[:,1])
                 idx_aligned = df_c_proc.index
+
+                cardinals = []
+                dx_list, dy_list, text_list = [], [], []
+
+                for a, d in zip(angles, dists):
+                    card = self._get_cardinal(a)
+                    dx, dy = self._bearing_to_vector(a, d)
+
+                    cardinals.append(card)
+                    dx_list.append(dx)
+                    dy_list.append(dy)
+                    text_list.append(f"Bergerak ke arah {card} sejauh {d:.2f} km")
+
                 df_out.loc[idx_aligned, 'cnn_angle_deg'] = angles
                 df_out.loc[idx_aligned, 'cnn_distance_km'] = dists
                 df_out.loc[idx_aligned, 'cnn_confidence'] = 0.85
-                df_out.loc[idx_aligned, 'cnn_cardinal'] = [self._get_cardinal(a) for a in angles]
+                df_out.loc[idx_aligned, 'cnn_cardinal'] = cardinals
+                df_out.loc[idx_aligned, 'cnn_dx_km'] = dx_list
+                df_out.loc[idx_aligned, 'cnn_dy_km'] = dy_list
+                df_out.loc[idx_aligned, 'cnn_direction_text'] = text_list
+
             except Exception as e:
                 logger.error(f"Prediction error c{cid}: {e}")
 
@@ -444,6 +470,18 @@ class CnnEngine:
         dirs = ["Utara", "Timur Laut", "Timur", "Tenggara", "Selatan", "Barat Daya", "Barat", "Barat Laut"]
         ix = int(round(angle / (360. / len(dirs))))
         return dirs[ix % len(dirs)]
+
+    def _bearing_to_vector(self, angle_deg: float, distance_km: float):
+        """
+        Konversi bearing + jarak menjadi vektor arah (dx, dy)
+        dx: positif = Timur, negatif = Barat
+        dy: positif = Utara, negatif = Selatan
+        """
+        rad = np.radians(angle_deg)
+        dx = distance_km * np.sin(rad)
+        dy = distance_km * np.cos(rad)
+        return dx, dy
+
 
     # -------------------
     # Utility: weight & bias summary and manual forward
@@ -547,7 +585,18 @@ class CnnEngine:
             fname = filename if filename else f"cnn_presentation_{ts}.xlsx"
             out_path = out_dir / fname
             in_cols = []
-            for c in ('Acquired_Date','aco_center_lat','aco_center_lon','aco_area_km2'):
+            for c in (
+                'Acquired_Date',
+                'cluster_id',
+                'cnn_angle_deg',
+                'cnn_distance_km',
+                'cnn_cardinal',
+                'cnn_dx_km',
+                'cnn_dy_km',
+                'cnn_direction_text',
+                'cnn_confidence'
+            ):
+
                 if c in df_input.columns:
                     in_cols.append(c)
             if in_cols:
@@ -563,7 +612,18 @@ class CnnEngine:
             else:
                 input_summary = pd.DataFrame(columns=['Acquired_Date','aco_center_lat','aco_center_lon','aco_area_km2'])
             out_cols = []
-            for c in ('Acquired_Date','cluster_id','cnn_angle_deg','cnn_distance_km','cnn_confidence','cnn_cardinal'):
+            for c in (
+                'Acquired_Date',
+                'cluster_id',
+                'cnn_angle_deg',
+                'cnn_distance_km',
+                'cnn_cardinal',
+                'cnn_dx_km',
+                'cnn_dy_km',
+                'cnn_direction_text',
+                'cnn_confidence'
+            ):
+
                 if c in df_output.columns:
                     out_cols.append(c)
             if out_cols:

@@ -404,6 +404,10 @@ class VolcanoAiPipeline: # Kelas utama pengatur seluruh alur kerja AI
             "luas_cnn",
             "cnn_angle_deg",
             "cnn_distance_km",
+            "cnn_cardinal",
+            "cnn_dx_km",
+            "cnn_dy_km",
+            "cnn_direction_text",
         ]
         export_cols = [c for c in export_cols if c in df_processed.columns]
 
