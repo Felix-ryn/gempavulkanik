@@ -577,81 +577,107 @@ class CnnEngine:
     # =========================================================
     # EXPORT & EVALUATION (tidak banyak berubah)
     # =========================================================
-    def export_results(self, df_input: pd.DataFrame, df_output: pd.DataFrame, meta: Optional[Dict[str, Any]] = None, filename: Optional[str] = None) -> Optional[Path]:
+    def export_results(
+        self,
+        df_input: pd.DataFrame,
+        df_output: pd.DataFrame,
+        meta: Optional[Dict[str, Any]] = None,
+        filename: Optional[str] = None
+    ) -> Optional[Path]:
+        """
+        Export hasil CNN ke Excel multi-sheet.
+        - Sheet utama: CNN_Presentation (untuk client)
+        - Sheet Meta
+        - Sheet Raw_Output (untuk engineer)
+        """
+
         try:
+            # =========================
+            # OUTPUT PATH
+            # =========================
             out_dir = Path(self.results_dir)
             out_dir.mkdir(parents=True, exist_ok=True)
+
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             fname = filename if filename else f"cnn_presentation_{ts}.xlsx"
             out_path = out_dir / fname
-            in_cols = []
-            for c in (
-                'Acquired_Date',
-                'cluster_id',
-                'cnn_angle_deg',
-                'cnn_distance_km',
-                'cnn_cardinal',
-                'cnn_dx_km',
-                'cnn_dy_km',
-                'cnn_direction_text',
-                'cnn_confidence'
-            ):
 
-                if c in df_input.columns:
-                    in_cols.append(c)
-            if in_cols:
-                input_summary = df_input[in_cols].copy()
-                input_summary = input_summary.dropna(how='all')
-                # optional dedup based on config
-                if self.cfg.get('dedup_input_summary', True):
-                    input_summary = input_summary.drop_duplicates().reset_index(drop=True)
-                else:
-                    input_summary = input_summary.reset_index(drop=True)
-                if 'Acquired_Date' in input_summary.columns:
-                    input_summary['Acquired_Date'] = input_summary['Acquired_Date'].astype(str)
-            else:
-                input_summary = pd.DataFrame(columns=['Acquired_Date','aco_center_lat','aco_center_lon','aco_area_km2'])
-            out_cols = []
-            for c in (
-                'Acquired_Date',
-                'cluster_id',
-                'cnn_angle_deg',
-                'cnn_distance_km',
-                'cnn_cardinal',
-                'cnn_dx_km',
-                'cnn_dy_km',
-                'cnn_direction_text',
-                'cnn_confidence'
-            ):
+            # =========================
+            # CLIENT PRESENTATION DATA
+            # (HARUS dari df_output)
+            # =========================
+            present_cols = [
+                "Acquired_Date",      # waktu
+                "cnn_angle_deg",      # sudut
+                "cnn_cardinal",       # arah
+                "cnn_distance_km",    # jarak
+            ]
+            present_cols = [c for c in present_cols if c in df_output.columns]
 
-                if c in df_output.columns:
-                    out_cols.append(c)
-            if out_cols:
-                output_summary = df_output[out_cols].copy()
-                if 'Acquired_Date' in output_summary.columns:
-                    output_summary['Acquired_Date'] = output_summary['Acquired_Date'].astype(str)
+            if present_cols:
+                output_summary = df_output[present_cols].copy()
+
+                if "Acquired_Date" in output_summary.columns:
+                    output_summary["Acquired_Date"] = (
+                        output_summary["Acquired_Date"].astype(str)
+                    )
             else:
-                output_summary = pd.DataFrame(columns=out_cols)
+                output_summary = pd.DataFrame(columns=present_cols)
+
+            # =========================
+            # META INFO
+            # =========================
             meta = meta or {}
-            meta.setdefault('generated_at', datetime.now().isoformat())
-            meta.setdefault('notes', 'CNN presentation export (revised, relu-only)')
-            with pd.ExcelWriter(out_path, engine='openpyxl') as writer:
-                input_summary.to_excel(writer, sheet_name='CNN_Input_ACO', index=False)
-                output_summary.to_excel(writer, sheet_name='CNN_Output_Pred', index=False)
-                pd.DataFrame([meta]).to_excel(writer, sheet_name='Meta', index=False)
+            meta.setdefault("engine", "CNN")
+            meta.setdefault("model_type", "Simple NN (5 Input / 2 Output) ReLU-only")
+            meta.setdefault("rows_input", int(len(df_input)))
+            meta.setdefault("rows_output", int(len(df_output)))
+            meta.setdefault("generated_at", datetime.now().isoformat())
+            meta.setdefault(
+                "notes",
+                "CNN presentation export (prediction-based, client-ready)"
+            )
+
+            # =========================
+            # WRITE EXCEL (MULTI-SHEET)
+            # =========================
+            with pd.ExcelWriter(out_path, engine="openpyxl") as writer:
+
+                # 1️⃣ SHEET UTAMA (CLIENT)
+                output_summary.to_excel(
+                    writer,
+                    sheet_name="CNN_Presentation",
+                    index=False
+                )
+
+                # 2️⃣ META
+                pd.DataFrame([meta]).to_excel(
+                    writer,
+                    sheet_name="Meta",
+                    index=False
+                )
+
+                # 3️⃣ RAW OUTPUT (ENGINEER)
                 try:
-                    df_input.to_excel(writer, sheet_name='Raw_Input', index=False)
+                    df_output.to_excel(
+                        writer,
+                        sheet_name="Raw_Output",
+                        index=False
+                    )
                 except Exception:
-                    pd.DataFrame(df_input).to_excel(writer, sheet_name='Raw_Input', index=False)
-                try:
-                    df_output.to_excel(writer, sheet_name='Raw_Output', index=False)
-                except Exception:
-                    pd.DataFrame(df_output).to_excel(writer, sheet_name='Raw_Output', index=False)
+                    pd.DataFrame(df_output).to_excel(
+                        writer,
+                        sheet_name="Raw_Output",
+                        index=False
+                    )
+
             logger.info(f"[CNN] Presentation Excel saved → {out_path}")
             return out_path
+
         except Exception as e:
-            logger.error(f"[CNN] export_results failed: {e}", exc_info=True)
+            logger.error("[CNN] export_results failed", exc_info=True)
             return None
+
 
     def evaluate_predictions(self, df_out: pd.DataFrame, thresholds: Dict[str, float]) -> pd.DataFrame:
         df = df_out.copy()
