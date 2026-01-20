@@ -1048,185 +1048,181 @@ class LstmEngine:
         return success > 0
 
     @execution_telemetry
-    def predict_on_static(self, df_test): # fungsi prediksi pada data statis    
+    def predict_on_static(self, df_test): 
+        # [FIX] Pastikan kita punya data input
         if df_test is None or df_test.empty: 
             return df_test, pd.DataFrame() 
 
-        # Prepare Cleanly
-        df_proc = self.processor.prepare(df_test)
-        df_out = df_proc.copy()
+        # 1. SIMPAN DATA ASLI (RAW) & URUTKAN WAKTU
+        # Ini penting agar kolom ACO/GA/CNN bawaan tidak hilang
+        df_raw = df_test.copy()
+        if 'Acquired_Date' in df_raw.columns:
+            df_raw['Acquired_Date'] = pd.to_datetime(df_raw['Acquired_Date'], errors='coerce')
+            df_raw = df_raw.sort_values('Acquired_Date').reset_index(drop=True)
+        
+        # 2. PROSES DATA UNTUK MODEL (Cleaning & Scaling)
+        # df_proc ini hanya berisi angka-angka untuk input LSTM, kolom lain dibuang disini
+        df_proc = self.processor.prepare(df_raw) 
+        
+        # Kita butuh df_out sebagai wadah hasil prediksi, tapi basisnya tetap data asli
+        # Supaya aman, kita clone df_raw sebagai base output
+        df_out = df_raw.copy()
 
-        # Init Columns
-        df_out['lstm_prediction'] = np.nan 
-        df_out['prediction_sigma'] = np.nan 
-        df_out['prediction_error'] = np.nan 
-        df_out['anomaly_score'] = 0.0 
+        # Inisialisasi kolom hasil jika belum ada
+        cols_to_init = ['lstm_prediction', 'prediction_sigma', 'prediction_error', 'anomaly_score']
+        for c in cols_to_init:
+            df_out[c] = np.nan
+        df_out['anomaly_score'] = 0.0
 
+        # --- MULAI PROSES PREDIKSI (Sama seperti sebelumnya) ---
         anomalies = [] 
-        if 'cluster_id' not in df_out.columns: 
-            df_out['cluster_id'] = -1 
+        if 'cluster_id' not in df_proc.columns: df_proc['cluster_id'] = -1 
 
+        # Kita loop berdasarkan cluster, tapi update-nya ke df_out (yang berisi data asli)
         for cid in self.vault.list_clusters(): 
-            mask = df_out['cluster_id'] == cid 
-            if not mask.any(): 
-                continue
+            # Ambil data yang sudah diproses untuk masuk ke model
+            mask_proc = df_proc['cluster_id'] == cid 
+            if not mask_proc.any(): continue
             
-            df_c = df_out.loc[mask].sort_values('Acquired_Date')
+            df_c_proc = df_proc.loc[mask_proc].sort_values('Acquired_Date')
 
-            # Cache Lookup
+            # Load Model
             if cid in self.models_cache: 
                 model, scaler = self.models_cache[cid] 
             else: 
                 model, scaler = self.vault.load_cluster_state(cid) 
-                if model:
-                    self.models_cache[cid] = (model, scaler) 
+                if model: self.models_cache[cid] = (model, scaler) 
 
-            if not model: 
-                continue 
+            if not model: continue 
 
-            # Feature check
-            feats = getattr(scaler, 'feature_names_in_', None) 
-            if feats is None: 
-                feats = list(self.cfg.features) 
-
-            # Preserve Extra Columns
-            ga_cols = [c for c in df_c.columns if c.startswith('ga_') or c in 
-                       ('ga_pred_lat', 'ga_pred_lon', 'ga_bearing', 'ga_distance_km', 'ga_confidence')]
-            for g in ga_cols:
-                if g not in feats: feats.append(g)
-
-            aco_cols = [c for c in df_c.columns if c.startswith('aco_') or c in 
-                       ('aco_center_lat', 'aco_center_lon', 'aco_area_km2', 'aco_confidence')]
-            for a in aco_cols:
-                if a not in feats: feats.append(a)
-
-            if not all(f in df_c.columns for f in feats): 
-                logger.warning(f"[LSTM] Missing features for cluster {cid}. Required: {feats}") 
-                continue 
-
-            # Transform & Tensor
-            expected_feats = list(feats) 
-            for ef in expected_feats: 
-                if ef not in df_c.columns: 
-                    df_c[ef] = 0.0 
+            # Validasi Fitur
+            feats = getattr(scaler, 'feature_names_in_', list(self.cfg.features)) 
             
-            data_to_transform = df_c[expected_feats].fillna(0)
+            # Handling kolom GA/ACO yang mungkin jadi fitur tambahan
+            extra_cols = [c for c in df_c_proc.columns if any(x in c for x in ['ga_', 'aco_'])]
+            current_feats = list(feats)
+            for ec in extra_cols:
+                if ec not in current_feats: current_feats.append(ec)
+
+            # Siapkan data untuk transform
+            data_subset = df_c_proc.reindex(columns=current_feats).fillna(0)
             
-            if data_to_transform.shape[1] != scaler.n_features_in_:
+            # Jika fitur tidak cocok dengan scaler, paksa sesuaikan
+            if data_subset.shape[1] != scaler.n_features_in_:
                  valid_feats = getattr(scaler, 'feature_names_in_', self.cfg.features)
-                 data_to_transform = df_c[valid_feats].fillna(0)
+                 data_subset = df_c_proc.reindex(columns=valid_feats).fillna(0)
 
-            data_mtx = scaler.transform(data_to_transform) 
-            
-            tfactory = TensorFactory(list(data_to_transform.columns), self.cfg.target_feature, self.cfg.input_seq_len, self.cfg.target_seq_len) 
-            X_enc = tfactory.construct_inference_tensor(data_mtx) 
-            
-            if len(X_enc) == 0: 
-                continue 
-
-            X_dec_dummy = np.zeros((len(X_enc), self.cfg.target_seq_len, X_enc.shape[2])) 
-            preds = model.predict([X_enc, X_dec_dummy], verbose=0) 
-
-            preds = np.squeeze(preds)
-            if preds.ndim == 2:
-                mu_seq = preds[:, 0]
-            else:
-                mu_seq = preds  
-
-            sigma_seq = np.zeros_like(mu_seq)
-
-            from sklearn.preprocessing import MinMaxScaler 
-            target_scaler = MinMaxScaler()
-            target_scaler.fit(df_c[[self.cfg.target_feature]].values)
-
-            res_mu = target_scaler.inverse_transform(mu_seq.reshape(-1, 1)).ravel()
-            res_sigma = np.zeros_like(res_mu)
-
-            start_idx = self.cfg.input_seq_len
-            valid_idx = df_c.index[start_idx : start_idx + len(res_mu)]
-            min_l = min(len(valid_idx), len(res_mu))
-            final_idx = list(valid_idx[:min_l])
-
-            if len(final_idx) == 0:
+            try:
+                data_mtx = scaler.transform(data_subset) 
+            except Exception:
                 continue
 
-            df_out.loc[final_idx, 'lstm_prediction'] = res_mu[:min_l]
-            df_out.loc[final_idx, 'prediction_sigma'] = res_sigma[:min_l]
+            # Buat Tensor
+            tfactory = TensorFactory(list(data_subset.columns), self.cfg.target_feature, self.cfg.input_seq_len, self.cfg.target_seq_len) 
+            X_enc = tfactory.construct_inference_tensor(data_mtx) 
+            
+            if len(X_enc) == 0: continue 
 
-            actual = df_c.loc[final_idx, self.cfg.target_feature].values
-            err = np.abs(res_mu[:min_l] - actual)
-            df_out.loc[final_idx, 'prediction_error'] = err
+            # Predict
+            X_dec_dummy = np.zeros((len(X_enc), self.cfg.target_seq_len, X_enc.shape[2])) 
+            preds = model.predict([X_enc, X_dec_dummy], verbose=0) 
+            preds = np.squeeze(preds)
+            if preds.ndim == 2: mu_seq = preds[:, 0]
+            else: mu_seq = preds  
 
-            # ---------------------------------------------------------
-            # INTEGRATION BLOCK (FIXED FOR JSON STRUCTURE)
-            # ---------------------------------------------------------
-            try:
-                if not df_out.empty:
-                    last_idx = df_out.index[-1]
+            # Inverse Scale Target
+            from sklearn.preprocessing import MinMaxScaler 
+            target_scaler = MinMaxScaler()
+            target_vals = df_c_proc[[self.cfg.target_feature]].values
+            if len(target_vals) > 0:
+                target_scaler.fit(target_vals)
+                res_mu = target_scaler.inverse_transform(mu_seq.reshape(-1, 1)).ravel()
+            else:
+                res_mu = mu_seq # Fallback
+
+            # Mapping Index Hasil Prediksi ke DataFrame Asli
+            # Kita gunakan index dari df_c_proc karena index-nya inherit dari df_raw (reset_index(drop=True) diatas)
+            # Hati-hati: df_proc mungkin punya index berbeda kalau di filter
+            # Strategi aman: Gunakan Acquired_Date untuk mapping balik
+            
+            start_idx = self.cfg.input_seq_len
+            valid_dates = df_c_proc['Acquired_Date'].iloc[start_idx : start_idx + len(res_mu)]
+            
+            # Update ke df_out berdasarkan Tanggal yang cocok
+            # Ini memastikan kita menempelkan hasil ke baris yang benar di data asli
+            common_dates = valid_dates[valid_dates.isin(df_out['Acquired_Date'])]
+            
+            if len(common_dates) > 0:
+                # Ambil nilai aktual untuk error
+                actual = df_out.loc[df_out['Acquired_Date'].isin(common_dates), self.cfg.target_feature].values
+                pred_vals = res_mu[:len(common_dates)]
                 
-                    # 1. ACO
-                    aco_path = os.path.join("output", "aco_results", "aco_to_ga.json")
-                    if os.path.exists(aco_path):
-                        with open(aco_path, 'r') as f:
-                            aco_data = json.load(f)
+                err = np.abs(pred_vals - actual)
+                
+                # Update DataFrame
+                df_out.loc[df_out['Acquired_Date'].isin(common_dates), 'lstm_prediction'] = pred_vals
+                df_out.loc[df_out['Acquired_Date'].isin(common_dates), 'prediction_error'] = err
+                
+                # Anomaly Score
+                err_mean = np.mean(err)
+                err_std = np.std(err)
+                if err_std < 1e-6: z_score = np.zeros_like(err)
+                else: z_score = (err - err_mean) / err_std
+                
+                df_out.loc[df_out['Acquired_Date'].isin(common_dates), 'anomaly_score'] = z_score
+
+                # Collect Anomalies
+                idx_anom = df_out.loc[df_out['Acquired_Date'].isin(common_dates)][z_score > 2.5].index
+                if len(idx_anom) > 0:
+                    anomalies.append(df_out.loc[idx_anom])
+
+        # 3. INTEGRASI DATA EKSTERNAL (UPDATE LAST ROW DARI JSON)
+        # Ini menimpa baris terakhir dengan data realtime dari JSON (GA/ACO/CNN)
+        # hanya jika file JSON ada.
+        try:
+            if not df_out.empty:
+                last_idx = df_out.index[-1]
+                
+                # --- ACO ---
+                aco_path = os.path.join("output", "aco_results", "aco_to_ga.json")
+                if os.path.exists(aco_path):
+                    with open(aco_path, 'r') as f: aco_data = json.load(f)
+                    # Timpa nilai hanya jika JSON valid
+                    if 'center_lat' in aco_data:
                         df_out.loc[last_idx, 'aco_center_lat'] = aco_data.get('center_lat')
                         df_out.loc[last_idx, 'aco_center_lon'] = aco_data.get('center_lon')
                         df_out.loc[last_idx, 'aco_area_km2'] = aco_data.get('area_km2')
-                        df_out.loc[last_idx, 'aco_confidence'] = aco_data.get('confidence', 1.0)
 
-                    # 2. GA 
-                    ga_path = os.path.join("output", "ga_results", "ga_vector.json")
-                    if os.path.exists(ga_path):
-                        with open(ga_path, 'r') as f:
-                            ga_data = json.load(f)
+                # --- GA ---
+                ga_path = os.path.join("output", "ga_results", "ga_vector.json")
+                if os.path.exists(ga_path):
+                    with open(ga_path, 'r') as f: ga_data = json.load(f)
+                    if 'bearing_degree' in ga_data:
                         df_out.loc[last_idx, 'ga_bearing'] = ga_data.get('bearing_degree')
                         df_out.loc[last_idx, 'ga_distance_km'] = ga_data.get('distance_km')
-                
-                    # 3. CNN (FIXED HERE)
-                    cnn_path = os.path.join("output", "cnn_results", "cnn_predictions_latest.json")
-                    if os.path.exists(cnn_path):
-                        with open(cnn_path, 'r') as f:
-                            cnn_data = json.load(f)
-                        
-                        # Cek struktur nested 'next_event'
-                        if 'next_event' in cnn_data:
-                            event = cnn_data['next_event']
-                            df_out.loc[last_idx, 'cnn_bearing'] = event.get('direction_deg')
-                            df_out.loc[last_idx, 'cnn_angle'] = event.get('direction_deg')
-                            df_out.loc[last_idx, 'cnn_distance'] = event.get('distance_km')
-                            df_out.loc[last_idx, 'cnn_confidence'] = event.get('confidence')
-                        else:
-                            # Fallback struktur lama
-                            df_out.loc[last_idx, 'cnn_bearing'] = cnn_data.get('bearing_degree')
-                            df_out.loc[last_idx, 'cnn_angle'] = cnn_data.get('angle', 0.0)
+
+                # --- CNN ---
+                cnn_path = os.path.join("output", "cnn_results", "cnn_predictions_latest.json")
+                if os.path.exists(cnn_path):
+                    with open(cnn_path, 'r') as f: cnn_data = json.load(f)
+                    # Handle structure variation
+                    val_bearing = cnn_data.get('next_event', {}).get('direction_deg', cnn_data.get('bearing_degree'))
+                    val_dist = cnn_data.get('next_event', {}).get('distance_km', cnn_data.get('distance_km'))
                     
-                    logger.info("[LSTM] Data terbaru berhasil diperkaya dengan vektor ACO, GA & CNN.")
-                
-            except Exception as e:
-                logger.warning(f"[LSTM] Gagal integrasi data eksternal ke record: {e}")
-            # ---------------------------------------------------------
+                    if val_bearing is not None:
+                         # Kita simpan di kolom cnn_bearing (atau timpa ga_bearing jika diminta client)
+                         # Sesuai request: "hasil GA sudut dan arah" -> biarkan kolom ga_
+                         # Tapi "output CNN arah dan sudut" -> kita simpan juga
+                         df_out.loc[last_idx, 'cnn_bearing'] = val_bearing
+                         df_out.loc[last_idx, 'cnn_distance'] = val_dist
 
-            err_mean = err.mean()
-            err_std = err.std()
+        except Exception as e:
+            logger.warning(f"[LSTM] Integration error: {e}")
 
-            if err_std < 1e-6:
-                z_score = np.zeros_like(err)
-            else:
-                z_score = (err - err_mean) / err_std
-
-            df_out.loc[final_idx, 'anomaly_score'] = z_score
-
-            is_anom = z_score > 2.5 
-            if is_anom.any():
-                anomalies.append(df_out.loc[final_idx][is_anom])
-
-            try:
-                self.viz_manager.plot_probabilistic_forecast(actual, res_mu[:min_l], res_sigma[:min_l], cid)
-            except Exception as e:
-                logger.warning(f"[Viz] plotting failed c{cid}: {e}")
-
+        # Gabungkan semua anomali yang ditemukan
         final_anoms = pd.concat(anomalies) if anomalies else pd.DataFrame() 
 
+        # 4. SAVE (Panggil fungsi save yang baru)
         try: 
             self._save_lstm_records(df_out, final_anoms)
         except Exception as e:
@@ -1360,120 +1356,211 @@ class LstmEngine:
             logger.warning(f"[LSTM] Failed auto-save during live stream: {e}")
 
         return final_pred, final_anom
+
     # fungsi simpan record LSTM ke CSV 
     def _save_lstm_records(self, df_full: pd.DataFrame, anomalies: pd.DataFrame):
-            """
-            Simpan file CSV:
-             - master file: semua record 2 tahun terakhir
-             - recent file: 15 hari terakhir
-             - anomalies file: hasil deteksi anomaly
-             - summary files: ringkasan khusus ACO, GA, dan CNN (Sesuai Request Client)
+        """
+        [FIXED FINAL V3] Menyimpan output dengan pemuatan data ACO & GA yang DIPAKSA.
+        Membaca path spesifik: output/aco_results/ dan output/ga_results/
+        """
+        # Direktori output utama untuk hasil LSTM
+        out_root = getattr(self.cfg, 'output_dir', 'output/lstm_results')
+        os.makedirs(out_root, exist_ok=True)
 
-            Timestamp diambil dari TANGGAL DATA TERBARU (Acquired_Date),
-            dan file akan DITIMPA jika timestamp sama.
-            """
-
-            out_root = getattr(self.cfg, 'output_dir', 'output/lstm_results') # direktori output
-            os.makedirs(out_root, exist_ok=True) # buat direktori jika belum ada
-
-            df = df_full.copy() # salin data
-
-            # ===============================
-            # 1. Pastikan kolom waktu valid
-            # ===============================
-            if 'Acquired_Date' not in df.columns:
-                logger.error("[LSTM] Acquired_Date tidak ditemukan, batal simpan CSV.")
-                return {}
-
-            df['Acquired_Date'] = pd.to_datetime(df['Acquired_Date'], errors='coerce')
-            df = df.dropna(subset=['Acquired_Date'])
-
-            if df.empty:
-                logger.warning("[LSTM] Data kosong setelah parsing tanggal.")
-                return {}
-
-            df = df.sort_values("Acquired_Date")
+        # 1. Siapkan DataFrame Utama
+        df = df_full.copy()
         
-            # ===============================
-            # 2. Ambil timestamp & Filter Waktu
-            # ===============================
-            latest_date = pd.Timestamp.now()
-            ts = latest_date.strftime("%Y%m%d")
+        # Validasi Kolom Waktu
+        if 'Acquired_Date' not in df.columns:
+            logger.error("[LSTM] Acquired_Date tidak ditemukan.")
+            return {}
 
-            two_years_ago = latest_date - pd.Timedelta(days=365 * 2)
-            recent_15d = latest_date - pd.Timedelta(days=15)
+        df['Acquired_Date'] = pd.to_datetime(df['Acquired_Date'], errors='coerce')
+        df = df.dropna(subset=['Acquired_Date']).sort_values("Acquired_Date")
         
-            df_2y = df[df['Acquired_Date'] >= two_years_ago].copy()
-            df_recent = df[df['Acquired_Date'] >= recent_15d].copy()
+        # =====================================================================
+        # BAGIAN 1: LOAD & MERGE DATA ACO (Zoning Data)
+        # =====================================================================
+        try:
+            aco_source = None
+            
+            # [FIX] DAFTAR LOKASI FILE ACO YANG AKAN DICARI (Urutan Prioritas)
+            aco_search_paths = [
+                r"output/aco_results/aco_zoning_data_for_lstm.xlsx",  # Path Relatif Standard
+                r"output/aco_results/aco_zoning_data_for_lstm.csv",
+                os.path.join(out_root, "aco_zoning_data_for_lstm.xlsx"),
+                "aco_zoning_data_for_lstm.xlsx" # Di folder root
+            ]
 
-            # ===============================
-            # 3. Definisikan Path
-            # ===============================
-            master_path = os.path.join(out_root, f"lstm_records_2y_{ts}.csv")
-            recent_path = os.path.join(out_root, f"lstm_recent_15d_{ts}.csv")
-            anom_path   = os.path.join(out_root, f"lstm_anomalies_{ts}.csv")
-        
-            # Path untuk Summary External Engines (Sesuai Request Client)
-            ga_summary_path = os.path.join(out_root, f"lstm_ga_summary_{ts}.csv")
-            aco_summary_path = os.path.join(out_root, f"lstm_aco_summary_{ts}.csv")
-            cnn_summary_path = os.path.join(out_root, f"lstm_cnn_summary_{ts}.csv")
-
-            # ===============================
-            # 4. EKSEKUSI PENYIMPANAN
-            # ===============================
-            try:
-                # A. Simpan Master & Recent (Data Utama - Termasuk hasil integrasi)
-                df_2y.to_csv(master_path, index=False)
-                df_recent.to_csv(recent_path, index=False)
-
-                # B. Simpan Anomali
-                if anomalies is not None and not anomalies.empty:
-                    anomalies.to_csv(anom_path, index=False)
+            # Loop cari file
+            found_aco = None
+            for p in aco_search_paths:
+                # Cek file exist (handle path windows/linux)
+                norm_p = os.path.normpath(p) 
+                if os.path.exists(norm_p):
+                    found_aco = norm_p
+                    break
+            
+            if found_aco:
+                logger.info(f"[LSTM] Membaca data ACO dari: {found_aco}")
+                if found_aco.endswith('.xlsx'):
+                    aco_source = pd.read_excel(found_aco)
                 else:
-                    pd.DataFrame().to_csv(anom_path, index=False) # Keep structure consistent
+                    aco_source = pd.read_csv(found_aco)
+            else:
+                logger.warning("[LSTM] FILE ACO TIDAK DITEMUKAN di path manapun!")
 
-                # C. Simpan GA Summary (Sekarang kode ini DAPAT DIJALANKAN)
-                ga_cols = [c for c in df.columns if c.startswith('ga_') or c in (
-                    'ga_pred_lat', 'ga_pred_lon', 'ga_bearing', 'ga_distance_km', 'ga_confidence'
-                )]
-                if ga_cols:
-                    (df[ga_cols].dropna(how='all').drop_duplicates()
-                     .to_csv(ga_summary_path, index=False))
-                    logger.info(f"[LSTM] GA summary saved: {ga_summary_path}")
+            if aco_source is not None:
+                # Standarisasi Kolom Tanggal ACO
+                if 'Tanggal' in aco_source.columns:
+                    aco_source['Tanggal'] = pd.to_datetime(aco_source['Tanggal'], errors='coerce')
+                    aco_source = aco_source.sort_values('Tanggal')
+                    
+                    # Hitung Area (Area = pi * r^2) jika belum ada
+                    if 'Radius_Visual_KM' in aco_source.columns:
+                        aco_source['Calculated_Area'] = np.pi * (aco_source['Radius_Visual_KM'] ** 2)
+                    
+                    # Rename agar mudah dikenali saat merge
+                    aco_renamed = aco_source.rename(columns={
+                        'Lintang': 'aco_lat_merged',
+                        'Bujur': 'aco_lon_merged',
+                        'Radius_Visual_KM': 'aco_radius_merged',
+                        'Calculated_Area': 'aco_area_merged'
+                    })
 
-                # D. Simpan ACO Summary (Sekarang kode ini DAPAT DIJALANKAN)
-                aco_cols = [c for c in df.columns if c.startswith('aco_') or c in (
-                    'aco_center_lat', 'aco_center_lon', 'aco_area_km2', 'aco_confidence'
-                )]
-                if aco_cols:
-                    (df[aco_cols].dropna(how='all').drop_duplicates()
-                     .to_csv(aco_summary_path, index=False))
-                    logger.info(f"[LSTM] ACO summary saved: {aco_summary_path}")
+                    # Merge AsOf
+                    df = pd.merge_asof(
+                        df, 
+                        aco_renamed[['Tanggal', 'aco_lat_merged', 'aco_lon_merged', 'aco_area_merged']], 
+                        left_on='Acquired_Date', 
+                        right_on='Tanggal', 
+                        direction='nearest',
+                        tolerance=pd.Timedelta('2h') # Toleransi diperlebar jadi 2 jam
+                    )
+                    logger.info("[LSTM] Merge Data ACO Berhasil.")
+        except Exception as e:
+            logger.warning(f"[LSTM] Gagal load data ACO: {e}")
 
-                # E. Simpan CNN Summary (TAMBAHAN BARU agar sesuai request client)
-                cnn_cols = [c for c in df.columns if c.startswith('cnn_') or c in (
-                    'cnn_bearing', 'cnn_distance', 'cnn_confidence', 'cnn_angle'
-                )]
-                if cnn_cols:
-                    (df[cnn_cols].dropna(how='all').drop_duplicates()
-                     .to_csv(cnn_summary_path, index=False))
-                    logger.info(f"[LSTM] CNN summary saved: {cnn_summary_path}")
+        # =====================================================================
+        # BAGIAN 2: LOAD & MERGE DATA GA (Report Data)
+        # =====================================================================
+        try:
+            ga_data_ready = None
+            
+            # [FIX] DAFTAR LOKASI FILE GA YANG AKAN DICARI
+            ga_search_paths = [
+                r"output/ga_results/ga_report.xlsx", # Path Relatif Standard
+                os.path.join(out_root, "ga_report.xlsx"),
+                "ga_report.xlsx"
+            ]
 
-                logger.info(f"[LSTM] All records saved successfully for timestamp {ts}")
+            found_ga = None
+            for p in ga_search_paths:
+                norm_p = os.path.normpath(p)
+                if os.path.exists(norm_p):
+                    found_ga = norm_p
+                    break
+            
+            if found_ga:
+                logger.info(f"[LSTM] Membaca GA Report dari: {found_ga}")
+                # Baca sheet RawData (Waktu) dan GA_Output (Nilai)
+                try:
+                    df_raw = pd.read_excel(found_ga, sheet_name='RawData')
+                    df_out_ga = pd.read_excel(found_ga, sheet_name='GA_Output')
+                    # Gabung side-by-side (asumsi baris sinkron)
+                    ga_data_ready = pd.concat([df_raw, df_out_ga], axis=1)
+                except Exception as sub_e:
+                    logger.warning(f"[LSTM] Gagal baca sheet Excel GA: {sub_e}")
 
-                # Return dict berisi semua path yang berhasil dibuat
-                return {
-                    "master": master_path,
-                    "recent": recent_path,
-                    "anomalies": anom_path,
-                    "ga_summary": ga_summary_path if ga_cols else None,
-                    "aco_summary": aco_summary_path if aco_cols else None,
-                    "cnn_summary": cnn_summary_path if cnn_cols else None
-                }
+            if ga_data_ready is not None and 'Tanggal' in ga_data_ready.columns:
+                ga_data_ready['Tanggal'] = pd.to_datetime(ga_data_ready['Tanggal'], errors='coerce')
+                ga_data_ready = ga_data_ready.sort_values('Tanggal')
+                
+                # Rename kolom penting GA
+                # Cek nama kolom di file GA_Output.csv Anda: 'angle_deg' dan 'distance_km'
+                rename_map = {}
+                if 'angle_deg' in ga_data_ready.columns: rename_map['angle_deg'] = 'ga_angle_merged'
+                if 'distance_km' in ga_data_ready.columns: rename_map['distance_km'] = 'ga_dist_merged'
+                
+                ga_ready = ga_data_ready.rename(columns=rename_map)
+                
+                cols_to_merge = ['Tanggal'] + list(rename_map.values())
+                
+                df = pd.merge_asof(
+                    df,
+                    ga_ready[cols_to_merge],
+                    left_on='Acquired_Date',
+                    right_on='Tanggal',
+                    direction='nearest',
+                    tolerance=pd.Timedelta('2h') # Toleransi 2 jam
+                )
+                logger.info("[LSTM] Merge Data GA Berhasil.")
 
-            except Exception as e:
-                logger.error(f"[LSTM] Gagal menyimpan CSV LSTM: {e}")
-                return {}
+        except Exception as e:
+            logger.warning(f"[LSTM] Gagal load data GA: {e}")
+
+        # =====================================================================
+        # BAGIAN 3: FINAL MAPPING & SAVING
+        # =====================================================================
+        
+        # Persiapan Kolom Anomali
+        df['Anomaly_Status'] = 'Normal'
+        if anomalies is not None and not anomalies.empty:
+            df.loc[df.index.isin(anomalies.index), 'Anomaly_Status'] = 'Anomaly'
+
+        df['Waktu'] = df['Acquired_Date']
+
+        # [FIX] Helper Mapping yang LEBIH AGRESIF
+        # Mengutamakan kolom hasil merge (_merged)
+        def get_val(targets, default=0.0):
+            for t in targets:
+                if t in df.columns:
+                    # Ambil nilai, isi NaN dengan default
+                    return df[t].fillna(default)
+            return default
+
+        # Mapping: Prioritas kolom hasil Merge -> Kolom Bawaan -> Nama Lain
+        df['ACO_Pusat_Lat'] = get_val(['aco_lat_merged', 'aco_center_lat', 'Lintang'])
+        df['ACO_Pusat_Lon'] = get_val(['aco_lon_merged', 'aco_center_lon', 'Bujur'])
+        df['ACO_Area']      = get_val(['aco_area_merged', 'aco_area_km2', 'Area'])
+        
+        df['GA_Sudut']      = get_val(['ga_angle_merged', 'ga_bearing', 'angle_deg'])
+        df['GA_Arah_Jarak'] = get_val(['ga_dist_merged', 'ga_distance_km', 'distance_km'])
+        
+        df['Anomali'] = df['Anomaly_Status']
+
+        # Final Select 6 Kolom
+        final_cols = ['Waktu', 'ACO_Pusat_Lat', 'ACO_Pusat_Lon', 'ACO_Area', 'GA_Sudut', 'GA_Arah_Jarak', 'Anomali']
+        
+        # Pastikan kolom ada
+        for c in final_cols:
+            if c not in df.columns: df[c] = 0.0
+            
+        df_final = df[final_cols].copy()
+
+        # Splitting
+        mask_old = (df_final['Waktu'].dt.year >= 2022) & (df_final['Waktu'].dt.year <= 2024)
+        df_old = df_final.loc[mask_old]
+
+        mask_new = df_final['Waktu'].dt.year == 2025
+        df_new = df_final.loc[mask_new]
+
+        try:
+            path_old = os.path.join(out_root, "data_lama_2022_2024.csv")
+            path_new = os.path.join(out_root, "data_baru_2025.csv")
+
+            df_old.to_csv(path_old, index=False)
+            df_new.to_csv(path_new, index=False)
+            
+            logger.info(f"[LSTM] Data saved successfully with FULL MERGED DATA.")
+            logger.info(f"   1. {path_old} (Rows: {len(df_old)})")
+            logger.info(f"   2. {path_new} (Rows: {len(df_new)})")
+
+            return {"old": path_old, "new": path_new}
+
+        except Exception as e:
+            logger.error(f"[LSTM] Save failed: {e}")
+            return {}
 
     # fungsi prediksi realtime (dummy untuk kompatibilitas)
     def predict_realtime(self, *args):
