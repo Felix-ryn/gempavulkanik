@@ -624,6 +624,7 @@ class CnnEngine:
             else:
                 output_summary = pd.DataFrame(columns=present_cols)
 
+
             # =========================
             # META INFO
             # =========================
