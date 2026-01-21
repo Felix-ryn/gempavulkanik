@@ -1562,6 +1562,7 @@ class LstmEngine:
             logger.error(f"[LSTM] Save failed: {e}")
             return {}
 
+
     # fungsi prediksi realtime (dummy untuk kompatibilitas)
     def predict_realtime(self, *args):
         return pd.DataFrame(), pd.DataFrame()
