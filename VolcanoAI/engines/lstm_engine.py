@@ -1343,30 +1343,6 @@ class LstmEngine:
             logger.warning(f"[LSTM] extract_hidden_states failed: {e}")
             return None
 
-            # Build sub-model to extract states; many Keras versions differ on outputs
-            # We'll attempt to call enc.cell or use sub-model and then infer outputs shape
-            sub_model = Model(inputs=model.inputs[0], outputs=enc.output)
-            outs = sub_model.predict(X_input, verbose=0)
-
-            # enc.output may be a sequence (seq_out) or tuple; try to find hidden states from original model
-            # Fallback strategy: call model.predict and use intermediary states via function if available
-            # Typical bidirectional LSTM with return_state returns [seq_out, fh, fc, bh, bc]
-            if isinstance(outs, list) or isinstance(outs, tuple):
-                # try get h states at position 1 and 3
-                if len(outs) >= 4:
-                    fh = outs[1]
-                    bh = outs[3]
-                    return np.concatenate([fh, bh], axis=-1)
-            # If enc.output returned only sequence (n_samples, timesteps, features)
-            # we can't extract states directly -> fallback to pooling
-            # Use GlobalAveragePooling over timesteps as a proxy
-            if outs.ndim == 3:
-                return np.mean(outs, axis=1)
-            return None
-        except Exception as e:
-            logger.warning(f"[LSTM] extract_hidden_states failed for c{cid}: {e}")
-            return None
-
     # fungsi proses data live stream 
     def process_live_stream(self, df_new):
         if df_new.empty: return pd.DataFrame(), pd.DataFrame()
@@ -1571,6 +1547,25 @@ class LstmEngine:
                     return df[t].fillna(default)
             return default
 
+        def deg_to_compass(deg):
+            try:
+                if pd.isna(deg):
+                    return "Tidak diketahui"
+
+                deg = deg % 360
+
+                directions = [
+                    "Utara", "Timur Laut", "Timur", "Tenggara",
+                    "Selatan", "Barat Daya", "Barat", "Barat Laut"
+                ]
+
+                idx = int((deg + 22.5) // 45) % 8
+                return directions[idx]
+
+            except Exception:
+                return "Tidak diketahui"
+
+
         # Mapping: Prioritas kolom hasil Merge -> Kolom Bawaan -> Nama Lain
         df['ACO_Pusat_Lat'] = get_val(['aco_lat_merged', 'aco_center_lat', 'Lintang'])
         df['ACO_Pusat_Lon'] = get_val(['aco_lon_merged', 'aco_center_lon', 'Bujur'])
@@ -1578,12 +1573,15 @@ class LstmEngine:
         
         df['GA_Sudut']      = get_val(['ga_angle_merged', 'ga_bearing', 'angle_deg'])
         df['GA_Arah_Jarak'] = get_val(['ga_dist_merged', 'ga_distance_km', 'distance_km'])
-        
-        df['Anomali'] = df['Anomaly_Status']
+        df['GA_Arah'] = df['GA_Sudut'].apply(deg_to_compass)
 
-        # Final Select 6 Kolom
-        final_cols = ['Waktu', 'ACO_Pusat_Lat', 'ACO_Pusat_Lon', 'ACO_Area', 'GA_Sudut', 'GA_Arah_Jarak', 'Anomali']
+        df['Anomali'] = df['Anomaly_Status']
+      
         
+        # Final Select 6 Kolom
+        final_cols = ['Waktu', 'ACO_Pusat_Lat', 'ACO_Pusat_Lon', 'ACO_Area',
+              'GA_Sudut', 'GA_Arah', 'GA_Arah_Jarak', 'Anomali']
+
         # Pastikan kolom ada
         for c in final_cols:
             if c not in df.columns: df[c] = 0.0
