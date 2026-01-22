@@ -1120,7 +1120,46 @@ class LstmEngine:
             # Buat Tensor
             tfactory = TensorFactory(list(data_subset.columns), self.cfg.target_feature, self.cfg.input_seq_len, self.cfg.target_seq_len) 
             X_enc = tfactory.construct_inference_tensor(data_mtx) 
-            
+            # =====================================================
+            # [GA TIME-SERIES AWARE INPUT ADAPTER — SAFE MODE]
+            # =====================================================
+            try:
+                expected_feats = model.input_shape[-1]  # contoh: 6
+                current_feats = X_enc.shape[-1]
+
+                if current_feats == expected_feats:
+                    # AMAN → model memang dilatih dengan GA
+                    ga_event_path = os.path.join("output", "ga_results", "ga_events.csv")
+
+                    if os.path.exists(ga_event_path):
+                        df_ga_evt = pd.read_csv(ga_event_path, parse_dates=["timestamp"])
+                        df_ga_evt = df_ga_evt.sort_values("timestamp")
+
+                        ga_feats = df_ga_evt[["ga_bearing_deg", "ga_distance_km"]].values
+                        window = self.cfg.input_seq_len
+
+                        if len(ga_feats) < window:
+                            pad = np.zeros((window - len(ga_feats), 2))
+                            ga_feats = np.vstack([pad, ga_feats])
+
+                        ga_seq = ga_feats[-window:]
+                        ga_seq = ga_seq.reshape(1, window, 2)
+                        ga_seq = np.repeat(ga_seq, X_enc.shape[0], axis=0)
+
+                        X_enc = np.concatenate([X_enc, ga_seq], axis=-1)
+
+                        logger.info("[LSTM] GA time-series injected into encoder input")
+
+                else:
+                    # MODEL LAMA → JANGAN DIPAKSA
+                    logger.warning(
+                        f"[LSTM] GA NOT injected. Model expects {expected_feats} features, "
+                        f"but GA would increase to {current_feats + 2}. Retrain required."
+                    )
+
+            except Exception as e:
+                logger.warning(f"[LSTM] GA adapter skipped: {e}")
+
             if len(X_enc) == 0: continue 
 
             # Predict
@@ -1428,16 +1467,23 @@ class LstmEngine:
                         'Calculated_Area': 'aco_area_merged'
                     })
 
-                    # Merge AsOf
+                    # =======================
+                    # MERGE ACO (STATE BASED)
+                    # =======================
                     df = pd.merge_asof(
-                        df, 
-                        aco_renamed[['Tanggal', 'aco_lat_merged', 'aco_lon_merged', 'aco_area_merged']], 
-                        left_on='Acquired_Date', 
-                        right_on='Tanggal', 
-                        direction='nearest',
-                        tolerance=pd.Timedelta('2h') # Toleransi diperlebar jadi 2 jam
+                        df.sort_values('Acquired_Date'),
+                        aco_renamed[['Tanggal', 'aco_lat_merged', 'aco_lon_merged', 'aco_area_merged']]
+                            .sort_values('Tanggal'),
+                        left_on='Acquired_Date',
+                        right_on='Tanggal',
+                        direction='backward'   # ⬅️ PENTING
                     )
-                    logger.info("[LSTM] Merge Data ACO Berhasil.")
+
+                    # ⬇️ WAJIB: propagasi state ACO
+                    for col in ['aco_lat_merged', 'aco_lon_merged', 'aco_area_merged']:
+                        if col in df.columns:
+                            df[col] = df[col].ffill()
+
         except Exception as e:
             logger.warning(f"[LSTM] Gagal load data ACO: {e}")
 
@@ -1486,15 +1532,21 @@ class LstmEngine:
                 
                 cols_to_merge = ['Tanggal'] + list(rename_map.values())
                 
+                # =======================
+                # MERGE GA (STATE BASED)
+                # =======================
                 df = pd.merge_asof(
-                    df,
-                    ga_ready[cols_to_merge],
+                    df.sort_values('Acquired_Date'),
+                    ga_ready[cols_to_merge].sort_values('Tanggal'),
                     left_on='Acquired_Date',
                     right_on='Tanggal',
-                    direction='nearest',
-                    tolerance=pd.Timedelta('2h') # Toleransi 2 jam
+                    direction='backward'   # ⬅️ PENTING
                 )
-                logger.info("[LSTM] Merge Data GA Berhasil.")
+
+                # ⬇️ WAJIB: propagasi state GA
+                for col in ['ga_angle_merged', 'ga_dist_merged']:
+                    if col in df.columns:
+                        df[col] = df[col].ffill()
 
         except Exception as e:
             logger.warning(f"[LSTM] Gagal load data GA: {e}")

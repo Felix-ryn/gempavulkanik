@@ -601,6 +601,66 @@ class DynamicAcoEngine: # mesin utama ACO dengan konfigurasi dinamis
         # finalisasi hasil
         df_out, meta = self._finalize_results(df)
         center_info = self._compute_impact_center(df_out)
+        # =====================================================
+        # [OPSI 1] TIME-AWARE ACO EVENT (AFTER ACO FINISHED)
+        # =====================================================
+
+        # =========================
+        # EXTRACT EVENT TIMESTAMP
+        # =========================
+        event_time = None
+        time_candidates = [
+            'Tanggal', 'Acquired_Date', 'Timestamp', 'EventTime',
+            'Tanggal_Kejadian', 'Date', 'date'
+        ]
+
+        for c in time_candidates:
+            if c in df_out.columns:
+                ts_series = pd.to_datetime(df_out[c], errors='coerce').dropna()
+                if not ts_series.empty:
+                    event_time = ts_series.iloc[-1]
+                    break
+
+        if event_time is None or pd.isna(event_time):
+            event_time = pd.Timestamp.utcnow()
+
+        # =========================
+        # BUILD ACO EVENT RECORD
+        # =========================
+        area_info = self._compute_impact_area(df_out)
+
+        aco_event = {
+            "timestamp": event_time,
+            "aco_center_lat": float(center_info.get("center_lat", 0.0)),
+            "aco_center_lon": float(center_info.get("center_lon", 0.0)),
+            "aco_area_km2": float(area_info.get("impact_area_km2", 0.0))
+        }
+
+        # =========================
+        # APPEND ACO EVENT (CSV)
+        # =========================
+        try:
+            aco_event_path = os.path.join(
+                os.path.dirname(self.output_paths['aco_state_file']),
+                "aco_events.csv"
+            )
+
+            df_event = pd.DataFrame([aco_event])
+
+            if os.path.exists(aco_event_path):
+                df_old = pd.read_csv(aco_event_path, parse_dates=['timestamp'])
+                df_all = pd.concat([df_old, df_event], ignore_index=True)
+            else:
+                df_all = df_event
+
+            df_all.sort_values("timestamp", inplace=True)
+            df_all.to_csv(aco_event_path, index=False)
+
+            self.logger.info(f"[ACO] Event ACO tersimpan → {aco_event_path}")
+
+        except Exception as e:
+            self.logger.warning(f"[ACO] Gagal menyimpan ACO event: {e}")
+
         # Export presentation Excel (untuk klien/presentasi)
         try:
             self._export_presentation_excel(df_out, center_info, meta)

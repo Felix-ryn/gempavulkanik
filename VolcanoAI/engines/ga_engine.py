@@ -1292,9 +1292,44 @@ class GaEngine: # GA Engine utama
                         "bearing_degree": ga_vectors[0]["bearing_degree"],
                         "distance_km": ga_vectors[0]["distance_km"]
                     }
+                # =====================================================
+                # [OPSI 1] TIME-AWARE GA EVENT (ALWAYS EXECUTED)
+                # =====================================================
 
+                ga_event_time = None
+                if "timestamp" in aco_payload:
+                    ga_event_time = pd.to_datetime(aco_payload["timestamp"], errors="coerce")
 
-               # =====================================================
+                if ga_event_time is None or pd.isna(ga_event_time):
+                    ga_event_time = pd.Timestamp.utcnow()
+
+                ga_event = {
+                    "timestamp": ga_event_time,
+                    "ga_bearing_deg": float(pred["bearing_degree"]),
+                    "ga_distance_km": float(pred["distance_km"]),
+                    "ga_direction": GeoMathCore.bearing_to_compass_static(pred["bearing_degree"])
+                }
+
+                try:
+                    ga_event_path = os.path.join(self.output_dir, "ga_events.csv")
+
+                    df_evt = pd.DataFrame([ga_event])
+
+                    if os.path.exists(ga_event_path):
+                        df_old = pd.read_csv(ga_event_path, parse_dates=["timestamp"])
+                        df_all = pd.concat([df_old, df_evt], ignore_index=True)
+                    else:
+                        df_all = df_evt
+
+                    df_all.sort_values("timestamp", inplace=True)
+                    df_all.to_csv(ga_event_path, index=False)
+
+                    logger.info(f"[GA] Event GA tersimpan → {ga_event_path}")
+
+                except Exception as e:
+                    logger.warning(f"[GA] Gagal menyimpan GA event: {e}")
+
+                # =====================================================
                 # WRITE BACK GA PATH (PER TITIK ACO)
                 # =====================================================
                 ga_path = []
