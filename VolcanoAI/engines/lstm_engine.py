@@ -1375,8 +1375,7 @@ class LstmEngine:
     # fungsi simpan record LSTM ke CSV 
     def _save_lstm_records(self, df_full: pd.DataFrame, anomalies: pd.DataFrame):
         """
-        [FIXED FINAL V3] Menyimpan output dengan pemuatan data ACO & GA yang DIPAKSA.
-        Membaca path spesifik: output/aco_results/ dan output/ga_results/
+        [MODIFIED V4] Menyimpan output untuk Client DAN output khusus untuk CNN Engine.
         """
         # Direktori output utama untuk hasil LSTM
         out_root = getattr(self.cfg, 'output_dir', 'output/lstm_results')
@@ -1399,18 +1398,16 @@ class LstmEngine:
         try:
             aco_source = None
             
-            # [FIX] DAFTAR LOKASI FILE ACO YANG AKAN DICARI (Urutan Prioritas)
+            # Daftar lokasi file ACO
             aco_search_paths = [
-                r"output/aco_results/aco_zoning_data_for_lstm.xlsx",  # Path Relatif Standard
+                r"output/aco_results/aco_zoning_data_for_lstm.xlsx",
                 r"output/aco_results/aco_zoning_data_for_lstm.csv",
                 os.path.join(out_root, "aco_zoning_data_for_lstm.xlsx"),
-                "aco_zoning_data_for_lstm.xlsx" # Di folder root
+                "aco_zoning_data_for_lstm.xlsx"
             ]
 
-            # Loop cari file
             found_aco = None
             for p in aco_search_paths:
-                # Cek file exist (handle path windows/linux)
                 norm_p = os.path.normpath(p) 
                 if os.path.exists(norm_p):
                     found_aco = norm_p
@@ -1426,16 +1423,13 @@ class LstmEngine:
                 logger.warning("[LSTM] FILE ACO TIDAK DITEMUKAN di path manapun!")
 
             if aco_source is not None:
-                # Standarisasi Kolom Tanggal ACO
                 if 'Tanggal' in aco_source.columns:
                     aco_source['Tanggal'] = pd.to_datetime(aco_source['Tanggal'], errors='coerce')
                     aco_source = aco_source.sort_values('Tanggal')
                     
-                    # Hitung Area (Area = pi * r^2) jika belum ada
                     if 'Radius_Visual_KM' in aco_source.columns:
                         aco_source['Calculated_Area'] = np.pi * (aco_source['Radius_Visual_KM'] ** 2)
                     
-                    # Rename agar mudah dikenali saat merge
                     aco_renamed = aco_source.rename(columns={
                         'Lintang': 'aco_lat_merged',
                         'Bujur': 'aco_lon_merged',
@@ -1443,19 +1437,14 @@ class LstmEngine:
                         'Calculated_Area': 'aco_area_merged'
                     })
 
-                    # =======================
-                    # MERGE ACO (STATE BASED)
-                    # =======================
                     df = pd.merge_asof(
                         df.sort_values('Acquired_Date'),
-                        aco_renamed[['Tanggal', 'aco_lat_merged', 'aco_lon_merged', 'aco_area_merged']]
-                            .sort_values('Tanggal'),
+                        aco_renamed[['Tanggal', 'aco_lat_merged', 'aco_lon_merged', 'aco_area_merged']].sort_values('Tanggal'),
                         left_on='Acquired_Date',
                         right_on='Tanggal',
-                        direction='backward'   # ⬅️ PENTING
+                        direction='backward'
                     )
 
-                    # ⬇️ WAJIB: propagasi state ACO
                     for col in ['aco_lat_merged', 'aco_lon_merged', 'aco_area_merged']:
                         if col in df.columns:
                             df[col] = df[col].ffill()
@@ -1468,10 +1457,8 @@ class LstmEngine:
         # =====================================================================
         try:
             ga_data_ready = None
-            
-            # [FIX] DAFTAR LOKASI FILE GA YANG AKAN DICARI
             ga_search_paths = [
-                r"output/ga_results/ga_report.xlsx", # Path Relatif Standard
+                r"output/ga_results/ga_report.xlsx",
                 os.path.join(out_root, "ga_report.xlsx"),
                 "ga_report.xlsx"
             ]
@@ -1485,12 +1472,10 @@ class LstmEngine:
             
             if found_ga:
                 logger.info(f"[LSTM] Membaca GA Report dari: {found_ga}")
-                # Baca sheet RawData (Waktu) dan GA_Output (Nilai)
                 try:
-                    df_raw = pd.read_excel(found_ga, sheet_name='RawData')
+                    df_raw_ga = pd.read_excel(found_ga, sheet_name='RawData')
                     df_out_ga = pd.read_excel(found_ga, sheet_name='GA_Output')
-                    # Gabung side-by-side (asumsi baris sinkron)
-                    ga_data_ready = pd.concat([df_raw, df_out_ga], axis=1)
+                    ga_data_ready = pd.concat([df_raw_ga, df_out_ga], axis=1)
                 except Exception as sub_e:
                     logger.warning(f"[LSTM] Gagal baca sheet Excel GA: {sub_e}")
 
@@ -1498,28 +1483,21 @@ class LstmEngine:
                 ga_data_ready['Tanggal'] = pd.to_datetime(ga_data_ready['Tanggal'], errors='coerce')
                 ga_data_ready = ga_data_ready.sort_values('Tanggal')
                 
-                # Rename kolom penting GA
-                # Cek nama kolom di file GA_Output.csv Anda: 'angle_deg' dan 'distance_km'
                 rename_map = {}
                 if 'angle_deg' in ga_data_ready.columns: rename_map['angle_deg'] = 'ga_angle_merged'
                 if 'distance_km' in ga_data_ready.columns: rename_map['distance_km'] = 'ga_dist_merged'
                 
                 ga_ready = ga_data_ready.rename(columns=rename_map)
-                
                 cols_to_merge = ['Tanggal'] + list(rename_map.values())
                 
-                # =======================
-                # MERGE GA (STATE BASED)
-                # =======================
                 df = pd.merge_asof(
                     df.sort_values('Acquired_Date'),
                     ga_ready[cols_to_merge].sort_values('Tanggal'),
                     left_on='Acquired_Date',
                     right_on='Tanggal',
-                    direction='backward'   # ⬅️ PENTING
+                    direction='backward'
                 )
 
-                # ⬇️ WAJIB: propagasi state GA
                 for col in ['ga_angle_merged', 'ga_dist_merged']:
                     if col in df.columns:
                         df[col] = df[col].ffill()
@@ -1528,7 +1506,49 @@ class LstmEngine:
             logger.warning(f"[LSTM] Gagal load data GA: {e}")
 
         # =====================================================================
-        # BAGIAN 3: FINAL MAPPING & SAVING
+        # BAGIAN 3: EXPORT KHUSUS UNTUK CNN ENGINE (MODIFIKASI PENTING DISINI)
+        # =====================================================================
+        try:
+            # Kita buat copy khusus agar tidak mengganggu format Client
+            df_for_cnn = df.copy()
+
+            # Helper untuk mengambil value prioritas (Merge > JSON > Kolom Asli)
+            def get_val_raw(targets, default=0.0):
+                for t in targets:
+                    if t in df_for_cnn.columns:
+                        return df_for_cnn[t].fillna(default)
+                return default
+
+            # 1. Pastikan kolom yang dibutuhkan TabularFeatureExtractor (CNN) tersedia
+            # Mapping ke nama variabel yang dimengerti CNN Engine
+            df_for_cnn['aco_center_lat'] = get_val_raw(['aco_lat_merged', 'aco_center_lat', 'Lintang'])
+            df_for_cnn['aco_area_km2']   = get_val_raw(['aco_area_merged', 'aco_area_km2', 'Area'])
+            
+            # Anomaly Score / LSTM Prediction (Input node ke-5 CNN)
+            if 'anomaly_score' not in df_for_cnn.columns:
+                df_for_cnn['anomaly_score'] = 0.0
+            
+            # Target Calculation di CNN butuh koordinat EQ asli
+            if 'EQ_Lintang' not in df_for_cnn.columns: df_for_cnn['EQ_Lintang'] = 0.0
+            if 'EQ_Bujur' not in df_for_cnn.columns: df_for_cnn['EQ_Bujur'] = 0.0
+            if 'cluster_id' not in df_for_cnn.columns: df_for_cnn['cluster_id'] = -1
+
+            # Select Columns spesifik untuk CNN
+            cnn_cols = [
+                'Acquired_Date', 'EQ_Lintang', 'EQ_Bujur', 'cluster_id',
+                'aco_center_lat', 'aco_area_km2', 'anomaly_score'
+            ]
+            
+            path_cnn_input = os.path.join(out_root, "cnn_input_data.csv")
+            df_for_cnn[cnn_cols].to_csv(path_cnn_input, index=False)
+            logger.info(f"[LSTM] >>> FILE KHUSUS CNN DIBUAT: {path_cnn_input}")
+            
+        except Exception as e:
+            logger.error(f"[LSTM] Gagal membuat file input CNN: {e}")
+
+
+        # =====================================================================
+        # BAGIAN 4: FINAL MAPPING & SAVING UNTUK CLIENT (FORMAT DATA LAMA/BARU)
         # =====================================================================
         
         # Persiapan Kolom Anomali
@@ -1538,35 +1558,23 @@ class LstmEngine:
 
         df['Waktu'] = df['Acquired_Date']
 
-        # [FIX] Helper Mapping yang LEBIH AGRESIF
-        # Mengutamakan kolom hasil merge (_merged)
+        # Helper Mapping Client (Bahasa Indonesia/User Friendly)
         def get_val(targets, default=0.0):
             for t in targets:
                 if t in df.columns:
-                    # Ambil nilai, isi NaN dengan default
                     return df[t].fillna(default)
             return default
 
         def deg_to_compass(deg):
             try:
-                if pd.isna(deg):
-                    return "Tidak diketahui"
-
+                if pd.isna(deg): return "Tidak diketahui"
                 deg = deg % 360
-
-                directions = [
-                    "Utara", "Timur Laut", "Timur", "Tenggara",
-                    "Selatan", "Barat Daya", "Barat", "Barat Laut"
-                ]
-
+                directions = ["Utara", "Timur Laut", "Timur", "Tenggara", "Selatan", "Barat Daya", "Barat", "Barat Laut"]
                 idx = int((deg + 22.5) // 45) % 8
                 return directions[idx]
+            except: return "Tidak diketahui"
 
-            except Exception:
-                return "Tidak diketahui"
-
-
-        # Mapping: Prioritas kolom hasil Merge -> Kolom Bawaan -> Nama Lain
+        # Mapping Client Output
         df['ACO_Pusat_Lat'] = get_val(['aco_lat_merged', 'aco_center_lat', 'Lintang'])
         df['ACO_Pusat_Lon'] = get_val(['aco_lon_merged', 'aco_center_lon', 'Bujur'])
         df['ACO_Area']      = get_val(['aco_area_merged', 'aco_area_km2', 'Area'])
@@ -1576,19 +1584,17 @@ class LstmEngine:
         df['GA_Arah'] = df['GA_Sudut'].apply(deg_to_compass)
 
         df['Anomali'] = df['Anomaly_Status']
-      
-        
-        # Final Select 6 Kolom
+       
+        # Final Select 8 Kolom Client
         final_cols = ['Waktu', 'ACO_Pusat_Lat', 'ACO_Pusat_Lon', 'ACO_Area',
-              'GA_Sudut', 'GA_Arah', 'GA_Arah_Jarak', 'Anomali']
+                      'GA_Sudut', 'GA_Arah', 'GA_Arah_Jarak', 'Anomali']
 
-        # Pastikan kolom ada
         for c in final_cols:
             if c not in df.columns: df[c] = 0.0
             
         df_final = df[final_cols].copy()
 
-        # Splitting
+        # Splitting berdasarkan tahun
         mask_old = (df_final['Waktu'].dt.year >= 2022) & (df_final['Waktu'].dt.year <= 2024)
         df_old = df_final.loc[mask_old]
 
@@ -1602,7 +1608,7 @@ class LstmEngine:
             df_old.to_csv(path_old, index=False)
             df_new.to_csv(path_new, index=False)
             
-            logger.info(f"[LSTM] Data saved successfully with FULL MERGED DATA.")
+            logger.info(f"[LSTM] Data Client saved successfully.")
             logger.info(f"   1. {path_old} (Rows: {len(df_old)})")
             logger.info(f"   2. {path_new} (Rows: {len(df_new)})")
 

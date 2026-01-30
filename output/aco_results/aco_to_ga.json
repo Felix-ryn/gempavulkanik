@@ -3214,5 +3214,9 @@
       "distance_km": 13.301190454592424
     }
   ],
-  "_ga_generated_at": "2026-01-22T15:32:20.427197"
+  "_ga_generated_at": "2026-01-30T11:05:51.673360",
+  "next_event": {
+    "angle_deg": 281.19947416494085,
+    "direction": "Selatan"
+  }
 }
