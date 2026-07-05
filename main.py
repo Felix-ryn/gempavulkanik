@@ -243,11 +243,10 @@ class VolcanoAiPipeline: # Kelas utama pengatur seluruh alur kerja AI
         if df_full is None or df_full.empty: # Cek lagi apakah data gabungan kosong
             return False # Jika kosong, hentikan proses dan kembalikan False
 
-        self.df_train, self.df_test = train_test_split(
-            df_full, 
-            test_size=self.config.DATA_SPLIT.test_size,
-            random_state=self.config.DATA_SPLIT.random_state,
-        ) # Bagi data gabungan menjadi data latih dan data uji berdasarkan konfigurasi
+        # tidak diacak/displit! 
+        # Paksa seluruh data masuk ke df_train agar diekspor ke cnn_predictions_latest.csv
+        self.df_train = df_full.copy()
+        self.df_test = df_full.copy()
 
         self.state_mgr.update_stage("DataLoading", "Success") # Update status tahapan pemuatan data menjadi sukses
         return True # Kembalikan True menandakan proses berhasil
@@ -468,6 +467,18 @@ class VolcanoAiPipeline: # Kelas utama pengatur seluruh alur kerja AI
                     self.logger.info(f"🗺️ CNN map generated: {map_path}")
         except Exception as e:
             self.logger.exception(f"[CNN MAP] failed: {e}")
+
+        # =========================
+        # EMPIRICAL ACTIVATION PLOT
+        # =========================
+        try:
+            from VolcanoAI.visualization.generate_activation_plot import generate_relu_activation_plot
+            self.logger.info("📊 Membuat grafik empiris aktivasi CNN ReLU...")
+            plot_path = generate_relu_activation_plot(cluster_id=0)
+            if plot_path:
+                self.logger.info(f"✅ Grafik Aktivasi CNN disimpan di: {plot_path}")
+        except Exception as e:
+            self.logger.warning(f"[CNN PLOT] Pembuatan grafik aktivasi dilewati: {e}")
 
         # =========================
         # ARCHIVE
@@ -1128,11 +1139,21 @@ def build_dashboard_context(output_dir: Path) -> dict:
     if cnn_latest.exists():
         ctx["CNN_PRED_CSV"] = _file_url_for(cnn_latest)
         try:
-            df = pd.read_csv(cnn_latest, parse_dates=["Acquired_Date"])
-            if not df.empty:
-                last = df.tail(1)
-                ctx["LATEST_ROW_HTML"] = last.to_html(index=False, classes="table", border=0)
-        except Exception:
+            df_cnn = pd.read_csv(cnn_latest, parse_dates=["Acquired_Date"])
+            if not df_cnn.empty:
+                # [FIX DASHBOARD]: Paksa urutkan data berdasarkan Tanggal, 
+                # sehingga baris data Tahun 2026 PASTI berada di paling bawah!
+                df_cnn = df_cnn.sort_values(by="Acquired_Date", ascending=True)
+                
+                # Ambil 1 baris terbawah yang merupakan event paling akhir/terbaru
+                last_event = df_cnn.tail(1).copy()
+                
+                # Ubah isi yang kosong (NaN) agar tabel HTML tidak error
+                last_event = last_event.fillna("-")
+                
+                ctx["LATEST_ROW_HTML"] = last_event.to_html(index=False, classes="table", border=0)
+        except Exception as e:
+            ctx["LATEST_ROW_HTML"] = f"<em>Error memproses data: {e}</em>"
             pass
 
     cnn_json = out / "cnn_results" / "cnn_predictions_latest.json"
@@ -1140,8 +1161,12 @@ def build_dashboard_context(output_dir: Path) -> dict:
         ctx["CNN_PRED_JSON"] = _file_url_for(cnn_json)
 
     cnn_img = out / "cnn_results" / "cnn_prediction_map.png"
+    html_imgs = []
     if cnn_img.exists():
-        ctx["CNN_IMAGE_LIST_HTML"] = f'<img src="{_file_url_for(cnn_img)}" class="plot" alt="CNN Prediction Map">'
+        html_imgs.append(f'<img src="{_file_url_for(cnn_img)}" class="plot" alt="CNN Prediction Map">')
+
+    if html_imgs:
+        ctx["CNN_IMAGE_LIST_HTML"] = "<br><br>".join(html_imgs)
     else:
         ctx["CNN_IMAGE_LIST_HTML"] = "<p class='muted'></p>"
 

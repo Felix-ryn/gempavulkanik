@@ -316,60 +316,44 @@ class FeatureEngineer:  # fasad utama pengolahan fitur
     # =========================================================================
 
     @engineer_telemetry
-    def basic_cleanup(self, df: pd.DataFrame) -> pd.DataFrame:  # pembersihan dasar
-        """Membersihkan data dasar (Tanggal, Numerik, String) + normalisasi nama kolom."""
+    def basic_cleanup(self, df: pd.DataFrame) -> pd.DataFrame:  
+        """Membersihkan data dasar (Tanggal, Numerik, String) secara AMAN."""
         if df is None or df.empty:
-            return pd.DataFrame()  # return empty df jika input kosong
+            return pd.DataFrame() 
 
-        df_clean = df.copy()  # salin data
+        df_clean = df.copy() 
 
-        # 🟢 1. Normalisasi nama kolom
+        # 1. Normalisasi nama kolom
         rename_map = {
             "Lintang": "EQ_Lintang", "Latitude": "EQ_Lintang", "Lat": "EQ_Lintang",
             "Bujur": "EQ_Bujur", "Longitude": "EQ_Bujur", "Lon": "EQ_Bujur",
             "Kedalaman_km": "Kedalaman (km)", "Depth": "Kedalaman (km)"
-        }  # mapping nama kolom
-
+        } 
         for old, new in rename_map.items():
             if old in df_clean.columns and new not in df_clean.columns:
-                df_clean.rename(columns={old: new}, inplace=True)  # ganti nama kolom jika perlu
+                df_clean.rename(columns={old: new}, inplace=True) 
 
-        # 🟢 2. Pastikan kolom wajib SELALU ADA
+        # 2. Pastikan kolom wajib SELALU ADA
         required_cols = ["EQ_Lintang", "EQ_Bujur", "Magnitudo", "Kedalaman (km)", "VRP_Max"]
-        df_clean = DataGuard.enforce_numeric(df_clean, required_cols)  # paksa numeric pada kolom wajib
-        for col in required_cols:
-            if col not in df_clean.columns:
-                df_clean[col] = 0.0  # fallback aman jika kolom hilang
+        df_clean = DataGuard.enforce_numeric(df_clean, required_cols) 
         
-        # [CATATAN]: PheromoneScore TIDAK boleh dipaksa 0.0 di sini karena akan diimpute nanti.
-        if 'PheromoneScore' in df_clean.columns:
-            df_clean['PheromoneScore'] = pd.to_numeric(df_clean['PheromoneScore'], errors='coerce')  # parse pheromone
-        if 'Pheromone_Score' in df_clean.columns:
-            df_clean['Pheromone_Score'] = pd.to_numeric(df_clean['Pheromone_Score'], errors='coerce')  # parse alternate name
-
-        # 🟢 3. Date Sanitization
-        df_clean = DataGuard.sanitize_dates(df_clean, 'Acquired_Date')  # sanitize tanggal
-        
-        # 🟢 3.5 Sinkronisasi Tanggal (FIX KRITIS)
+        # 3. Sinkronisasi Tanggal (SANGAT KRITIS)
+        # Jangan melakukan dropna di sini secara membabi buta
         if 'Acquired_Date' in df_clean.columns:
-            df_clean['Tanggal'] = pd.to_datetime(
-                df_clean['Acquired_Date'],
-                errors='coerce'
-            )  # buat kolom Tanggal sinkron
-        # 🟢 4. Numeric Sanitization
-        df_clean = DataGuard.enforce_numeric(df_clean, required_cols)  # enforce numeric lagi
+            # Pastikan tipe datanya adalah datetime
+            df_clean['Acquired_Date'] = pd.to_datetime(df_clean['Acquired_Date'], errors='coerce')
+            df_clean['Tanggal'] = df_clean['Acquired_Date'] # Duplikasi aman untuk engine lain
+            
+            # Buang yang BENAR-BENAR bukan tanggal
+            df_clean = df_clean.dropna(subset=['Acquired_Date'])
 
-        # 🟢 5. Text Sanitization
+        # 4. Keterangan
         if "Keterangan" not in df_clean.columns:
             df_clean["Keterangan"] = "Unknown"
         else:
-            df_clean["Keterangan"] = (
-                df_clean["Keterangan"]
-                .fillna("Unknown")
-                .astype(str)
-            )
+            df_clean["Keterangan"] = df_clean["Keterangan"].fillna("Unknown").astype(str)
 
-        return df_clean  # kembalikan df bersih
+        return df_clean
 
 
     @engineer_telemetry
