@@ -1,5 +1,5 @@
 ﻿"""
-TectonicAI - ACO Engine (Titanium Edition)
+ACO Engine (Titanium Edition)
 Module: Advanced Ant Colony Optimization for Seismic Risk Zoning
 """
 import os # operasi path dan file system
