@@ -1,12 +1,12 @@
-﻿# VolcanoAI/engines/naive_bayes_engine.py  (repaired)
+﻿# VolcanoAI/engines/naive_bayes_engine.py  (repaired & CNN-Integrated)
 # -- coding: utf-8 --
 """
-Perbaikan & penyederhanaan Naive Bayes Engine untuk kasus BINARY:
-- Membuat target ``Normal`` / ``Tidak Normal`` berdasarkan jarak & magnitudo
+Naive Bayes Engine (Terintegrasi Output CNN):
+- Target ``Normal`` / ``Tidak Normal`` kini dievaluasi berdasarkan Error output CNN 
+  (Arah dan Sudut prediksi CNN vs Kejadian Aktual)
 - Membersihkan decimal koma pada kolom koordinat
 - Menyediakan mapping coords sederhana untuk beberapa gunung contoh
-- Menghindari "label leakage": target hanya bergantung pada distance + magnitude
-- Perbaikan preprocessor transform agar robust ke kolom yang hilang
+- Menghindari "label leakage": target hanya bergantung pada validation prediksi spasial
 """
 
 import os
@@ -80,9 +80,7 @@ def _atomic_write(path, data_bytes):
 
 
 def haversine_km(lat1, lon1, lat2, lon2):
-    """Return distance in km between pairs (arrays/scalars).
-    Accepts scalars or numpy arrays. Inputs must be in degrees.
-    """
+    """Return distance in km between pairs (arrays/scalars)."""
     try:
         lat1 = np.asarray(lat1, dtype=float)
         lon1 = np.asarray(lon1, dtype=float)
@@ -91,14 +89,12 @@ def haversine_km(lat1, lon1, lat2, lon2):
     except Exception:
         return float("inf")
 
-    # convert to radians
     phi1 = np.radians(lat1)
     phi2 = np.radians(lat2)
     dphi = np.radians(lat2 - lat1)
     dlambda = np.radians(lon2 - lon1)
 
     a = np.sin(dphi/2.0)**2 + np.cos(phi1) * np.cos(phi2) * np.sin(dlambda/2.0)**2
-    # numerical safety
     a = np.minimum(1.0, np.maximum(0.0, a))
     R = 6371.0
     return R * 2 * np.arctan2(np.sqrt(a), np.sqrt(1.0 - a))
@@ -106,43 +102,32 @@ def haversine_km(lat1, lon1, lat2, lon2):
 
 # ------------------ Preprocessor ------------------
 class ClassificationPreprocessor:
-    """
-    Preprocessor yang menyimpan nama kolom input saat fit() sehingga transform()
-    selalu menerima kolom dalam nama/urutan yang sama.
-    """
     def __init__(self, config: Dict[str, Any]):
         self.config = config or {}
         self.features_in: List[str] = self.config.get("features", [])
         self.k_best = int(self.config.get("k_best_features", 7))
         self.pipeline: Optional[Pipeline] = None
         self.selected_features: List[str] = []
-        self.feature_columns_: List[str] = []  # <-- kolom yang digunakan saat fit (penentu urutan)
+        self.feature_columns_: List[str] = [] 
 
     def fit(self, df: pd.DataFrame, target: Any):
-        # select only features that are present in df (order preserved by features_in)
         valid_features = [f for f in self.features_in if f in df.columns]
         if not valid_features:
-            # fallback to numeric columns in df
             valid_features = df.select_dtypes(include=[np.number]).columns.tolist()
             if not valid_features:
                 raise ValueError("Tidak ada fitur numeric untuk training.")
 
-        # KUNCI daftar kolom: ini harus sama saat transform
         self.feature_columns_ = list(valid_features)
-
         X = df[self.feature_columns_].copy()
         y = pd.Series(target) if not isinstance(target, pd.Series) else target
 
         k = max(1, min(self.k_best, X.shape[1]))
-
-        # pipeline: imputer -> scaler -> selector
         steps = [
             ("imputer", SimpleImputer(strategy="median")),
             ("scaler", SkStandardScaler()),
             ("selector", SelectKBest(f_classif, k=k)),
         ]
 
-        # jika target hanya 1 kelas, jangan pakai selector (selector butuh >1 class)
         try:
             if y.nunique() <= 1:
                 self.pipeline = Pipeline([("imputer", SimpleImputer(strategy="median")), ("scaler", SkStandardScaler())])
@@ -157,7 +142,6 @@ class ClassificationPreprocessor:
             warnings.simplefilter("ignore")
             self.pipeline.fit(X, y)
 
-        # compute selected features from selector support (map back to feature_columns_)
         if "selector" in self.pipeline.named_steps:
             mask = self.pipeline.named_steps["selector"].get_support()
             self.selected_features = [f for f, m in zip(self.feature_columns_, mask) if m]
@@ -167,17 +151,12 @@ class ClassificationPreprocessor:
     def transform(self, df: pd.DataFrame) -> Optional[np.ndarray]:
         if self.pipeline is None:
             return None
-
-        # Ensure all expected columns exist; if missing, create with NaN, then order exactly
         X = pd.DataFrame(index=df.index)
         for col in self.feature_columns_:
             if col in df.columns:
                 X[col] = df[col]
             else:
-                # missing columns are inserted as NaN so pipeline can impute
                 X[col] = np.nan
-
-        # Finally transform (pipeline expects same column count/order as fit)
         try:
             return self.pipeline.transform(X)
         except Exception as e:
@@ -186,14 +165,13 @@ class ClassificationPreprocessor:
 
     def fit_transform(self, df: pd.DataFrame, target: Any) -> np.ndarray:
         self.fit(df, target)
-        # After fit, pipeline expects exactly the columns in self.feature_columns_
         X = pd.DataFrame(index=df.index)
         for col in self.feature_columns_:
             X[col] = df[col] if col in df.columns else np.nan
         return self.pipeline.transform(X)
 
 
-# ------------------ Evaluator & Reporter (unchanged semantics) ------------------
+# ------------------ Evaluator & Reporter ------------------
 class ModelEvaluator:
     def __init__(self, class_names: List[str]):
         self.class_names = class_names
@@ -272,18 +250,15 @@ class ClassificationReporter:
         ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         fname = f"confusion_matrix_{ts}.png"
 
-        # simpan asli
         fullpath = os.path.join(self.output_dir, fname)
         plt.savefig(fullpath)
 
-        # 🔥 COPY KE STATIC
         static_dir = os.path.join("static", "naive_bayes")
         os.makedirs(static_dir, exist_ok=True)
         static_path = os.path.join(static_dir, "confusion_matrix_latest.png")
         shutil.copyfile(fullpath, static_path)
 
         plt.close()
-
 
     def _plot_roc(self, roc_data):
         plt.figure(figsize=(8, 6))
@@ -307,15 +282,17 @@ class NaiveBayesEngine:
         self.output_dir = self.config.get("output_dir", "output/naive_bayes_results")
         os.makedirs(self.output_dir, exist_ok=True)
 
-        # BINARY target classes
         self.class_names = ["Normal", "Tidak Normal"]
         self.target_col = "binary_status"
 
-        # thresholds (tweakable or config)
+        # --- CNN vs AKTUAL THRESHOLDS (New Logic) ---
+        self.MAX_ANGLE_ERR = float(self.config.get("nb_max_angle_err", 45.0)) # Derajat
+        self.MAX_DIST_ERR = float(self.config.get("nb_max_dist_err", 15.0))   # Km
+
+        # Fallback thresholds
         self.DIST_THRESHOLD_KM = float(self.config.get("nb_dist_threshold_km", 90.0))
         self.MAG_THRESHOLD = float(self.config.get("nb_mag_threshold", 4.5))
 
-        # small volcano coords mapping (extend in production)
         self.volcano_coords = {
             "Kelud": (-7.93, 112.27),
             "Raung": (-8.12, 114.03),
@@ -335,9 +312,7 @@ class NaiveBayesEngine:
         self.evaluator = ModelEvaluator(self.class_names)
         self.reporter = ClassificationReporter(self.output_dir)
 
-    # --- utilities to clean & enrich df ---
     def _clean_numeric_commas(self, df: pd.DataFrame) -> pd.DataFrame:
-        # Replace comma decimals in numeric-like columns
         for c in ["Lintang", "Bujur", "EQ_Lintang", "EQ_Bujur", "Magnitudo", "Kedalaman (km)"]:
             if c in df.columns:
                 df[c] = df[c].astype(str).str.replace(',', '.', regex=False)
@@ -345,7 +320,6 @@ class NaiveBayesEngine:
         return df
 
     def _extract_volcano_name(self, df: pd.DataFrame, source_col: str = "Lokasi") -> pd.Series:
-        # Expect values like 'Gunung Kelud, Kediri' or 'Gunung Bromo, Probolinggo'
         if source_col not in df.columns:
             return pd.Series(['Unknown'] * len(df), index=df.index)
         names = (
@@ -356,10 +330,8 @@ class NaiveBayesEngine:
         return names
 
     def _compute_distance_to_volcano(self, df: pd.DataFrame) -> pd.Series:
-        # compute distance_km using available coords or volcano name mapping
         df = df.copy()
         df = self._clean_numeric_commas(df)
-
         vol_names = self._extract_volcano_name(df, source_col='Lokasi' if 'Lokasi' in df.columns else 'Nama')
         dist = np.full(len(df), np.nan)
 
@@ -367,8 +339,8 @@ class NaiveBayesEngine:
             for idx in range(len(df)):
                 vn = vol_names.iloc[idx]
                 try:
-                    lat_e = float(df.iloc[idx][ 'EQ_Lintang' ])
-                    lon_e = float(df.iloc[idx][ 'EQ_Bujur' ])
+                    lat_e = float(df.iloc[idx]['EQ_Lintang'])
+                    lon_e = float(df.iloc[idx]['EQ_Bujur'])
                 except Exception:
                     dist[idx] = np.nan
                     continue
@@ -376,43 +348,73 @@ class NaiveBayesEngine:
                     lat_v, lon_v = self.volcano_coords[vn]
                     dist[idx] = float(haversine_km(lat_e, lon_e, lat_v, lon_v))
                 else:
-                    # if volcano name not mapped, leave NaN (could be extended to geocode)
                     dist[idx] = np.nan
         else:
             dist[:] = np.nan
 
         return pd.Series(dist, index=df.index)
 
-    # --- target generation ---
+    # --- CNN ERROR EVALUATION ---
+    def _calculate_cnn_errors(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Menghitung Error CNN (Prediksi vs Kejadian Aktual)"""
+        df = df.copy()
+        # Hitung Error Sudut (Mempertimbangkan derajat sirkular, max 180 diff)
+        if 'cnn_angle_deg' in df.columns and 'ga_bearing_deg' in df.columns:
+            angle_err = (df['cnn_angle_deg'] - df['ga_bearing_deg']).abs() % 360
+            df['cnn_angle_err'] = angle_err.apply(lambda x: 360 - x if x > 180 else x)
+        
+        # Hitung Error Jarak
+        if 'cnn_distance_km' in df.columns and 'ga_distance_km' in df.columns:
+            df['cnn_dist_err'] = (df['cnn_distance_km'] - df['ga_distance_km']).abs()
+            
+        return df
+
+    # --- TARGET GENERATION (NEW LOGIC) ---
     def _calculate_binary_status(self, df: pd.DataFrame) -> pd.Series:
-        """Labeling ONLY by distance_km and Magnitudo (no leakage from model outputs).
-        Rules (example):
-          - Tidak Normal if distance_km <= DIST_THRESHOLD_KM and Magnitudo >= MAG_THRESHOLD
-          - Otherwise Normal
+        """
+        Labeling BERDASARKAN OUTPUT CNN vs DATA AKTUAL.
+        Jika error prediksi (arah/jarak) melebihi threshold -> "Tidak Normal" (Anomali aktivitas)
+        Jika sesuai dengan prediksi CNN -> "Normal" (Sesuai tren spasial)
         """
         df = df.copy()
-        df = self._clean_numeric_commas(df)
-        if 'distance_km' not in df.columns:
-            df['distance_km'] = self._compute_distance_to_volcano(df)
+        
+        has_cnn_error_cols = 'cnn_angle_err' in df.columns and 'cnn_dist_err' in df.columns
+        
+        if has_cnn_error_cols:
+            logger.info("[NB] Menggunakan output prediksi CNN vs Aktual untuk menentukan target kelas.")
+            
+            # Jika salah satu dari error Arah ATAU Jarak melampaui toleransi, maka terhitung "Tidak Normal"
+            mask_anomaly = (df['cnn_angle_err'] > self.MAX_ANGLE_ERR) | (df['cnn_dist_err'] > self.MAX_DIST_ERR)
+            status = np.where(mask_anomaly, 'Tidak Normal', 'Normal')
+            return pd.Series(status, index=df.index)
+            
+        else:
+            # FALLBACK Jika pipeline CNN belum jalan
+            logger.warning("[NB] Output Error CNN tidak ditemukan! Fallback ke penentuan target berbasis Magnitudo.")
+            df = self._clean_numeric_commas(df)
+            if 'distance_km' not in df.columns:
+                df['distance_km'] = self._compute_distance_to_volcano(df)
 
-        mag = df['Magnitudo'] if 'Magnitudo' in df.columns else pd.Series(np.zeros(len(df)), index=df.index)
-        dist = df['distance_km'].fillna(1e9)
+            mag = df['Magnitudo'] if 'Magnitudo' in df.columns else pd.Series(np.zeros(len(df)), index=df.index)
+            dist = df['distance_km'].fillna(1e9)
 
-        mask = (dist <= self.DIST_THRESHOLD_KM) & (mag.fillna(0.0) >= self.MAG_THRESHOLD)
-        status = np.where(mask, 'Tidak Normal', 'Normal')
-        return pd.Series(status, index=df.index)
+            mask = (dist <= self.DIST_THRESHOLD_KM) & (mag.fillna(0.0) >= self.MAG_THRESHOLD)
+            status = np.where(mask, 'Tidak Normal', 'Normal')
+            return pd.Series(status, index=df.index)
 
     # --- train / evaluate ---
     def train(self, df_train: pd.DataFrame) -> bool:
         df_train = df_train.copy()
 
-        # === SAFETY: pastikan semua fitur ada sebelum fit ===
+        # Kalkulasi error CNN jika datanya sudah ada
+        df_train = self._calculate_cnn_errors(df_train)
+
         for col in self.preprocessor.features_in:
             if col not in df_train.columns:
                 df_train[col] = 0.0
                 logger.warning(f"[NB] Feature '{col}' missing → filled with 0")
 
-        # create binary target
+        # create binary target dari error CNN
         df_train[self.target_col] = self._calculate_binary_status(df_train)
 
         logger.info(f"Distribusi Kelas Training (binary):\n{df_train[self.target_col].value_counts().to_dict()}")
@@ -425,7 +427,6 @@ class NaiveBayesEngine:
             self.le.fit(self.class_names)
             y_encoded = self.le.transform(y_raw)
 
-        # Fit preprocessor (this will set feature_columns_)
         X_processed = self.preprocessor.fit_transform(df_train, y_encoded)
         if X_processed is None:
             logger.error("Preprocessor returned None during training.")
@@ -445,9 +446,11 @@ class NaiveBayesEngine:
                 return df_test, {}
 
         df_out = df_test.copy()
+        
+        # Ekstrak Error CNN vs Aktual dulu sebelum dilabeli
+        df_out = self._calculate_cnn_errors(df_out)
         df_out[self.target_col] = self._calculate_binary_status(df_out)
 
-        # Ensure columns expected by preprocessor exist (fill with NaN -> imputer handles)
         if hasattr(self.preprocessor, "feature_columns_") and self.preprocessor.feature_columns_:
             for col in self.preprocessor.feature_columns_:
                 if col not in df_out.columns:
@@ -483,7 +486,6 @@ class NaiveBayesEngine:
 
         logger.info("Unique true labels (raw): %s", df_out[self.target_col].unique())
         logger.info("Unique pred labels (str): %s", df_out["kelas_prediksi"].unique())
-        logger.info("LabelEncoder classes (global): %s", list(self.le.classes_))
 
         metrics = {}
         try:
@@ -519,7 +521,6 @@ class NaiveBayesEngine:
         with open(os.path.join(self.output_dir, "latest_metrics.json"), "w", encoding="utf-8") as f:
             f.write(os.path.basename(metrics_path))
 
-        # --- NEW: export presentation Excel ---
         try:
             self._export_presentation_excel(df_out, metrics)
         except Exception as e:
@@ -527,16 +528,6 @@ class NaiveBayesEngine:
 
 
     def _export_presentation_excel(self, df_out: pd.DataFrame, metrics: Dict[str, Any], filename: Optional[str] = None) -> Optional[str]:
-        """
-        Export presentation-ready Excel for Naive Bayes results.
-
-        Sheets created:
-         - NB_Summary        : ringkasan utama tiap baris (date, coords, magnitude, distance, status, pred, confidence, anomaly)
-         - NB_Normal         : subset hasil yang 'Normal' (untuk presentasi cepat)
-         - NB_TidakNormal    : subset hasil yang 'Tidak Normal'
-         - Meta              : metadata singkat (params, thresholds, generated_at)
-         - Raw_Predictions   : dump lengkap df_out (raw)
-        """
         try:
             out_dir = Path(self.output_dir)
             out_dir.mkdir(parents=True, exist_ok=True)
@@ -545,64 +536,50 @@ class NaiveBayesEngine:
             fname = filename if filename else f"naive_bayes_presentation_{ts}.xlsx"
             out_path = out_dir / fname
 
-            # --- Prepare summary sheet ---
-            # pick helpful columns if exist, otherwise create fallbacks
             keep_cols = []
-            # prefer these columns if available
+            # Menambahkan indikator Error CNN agar mempermudah validasi Dosen Penguji
             pref = [
                 "Acquired_Date", "Nama", "Lokasi",
-                "EQ_Lintang", "EQ_Bujur",
-                "distance_km", "Magnitudo",
-                self.target_col, "kelas_prediksi", "nb_confidence", "anomaly_score", "is_anomaly"
+                "EQ_Lintang", "EQ_Bujur", "Magnitudo",
+                "cnn_angle_deg", "ga_bearing_deg", "cnn_angle_err",
+                "cnn_distance_km", "ga_distance_km", "cnn_dist_err",
+                self.target_col, "kelas_prediksi", "nb_confidence", "is_anomaly"
             ]
             for c in pref:
                 if c in df_out.columns:
                     keep_cols.append(c)
 
             if not keep_cols:
-                # fallback: include all columns (but keep readable)
                 summary_df = df_out.copy()
             else:
                 summary_df = df_out[keep_cols].copy()
 
-            # Ensure readable date string
             if 'Acquired_Date' in summary_df.columns:
                 summary_df['Acquired_Date'] = pd.to_datetime(summary_df['Acquired_Date'], errors='coerce').astype(str)
 
-            # create sub-tables
             normal_df = summary_df[summary_df[self.target_col] == "Normal"] if self.target_col in summary_df.columns else pd.DataFrame()
             tidaknormal_df = summary_df[summary_df[self.target_col] == "Tidak Normal"] if self.target_col in summary_df.columns else pd.DataFrame()
 
-            # --- Meta sheet ---
             meta = {
                 "generated_at": datetime.utcnow().isoformat(),
-                "engine": "NaiveBayesEngine",
-                "model_path": self.model_path,
-                "preprocessor_path": self.preproc_path,
-                "label_encoder_path": self.le_path,
-                "dist_threshold_km": self.DIST_THRESHOLD_KM,
-                "mag_threshold": self.MAG_THRESHOLD,
+                "engine": "NaiveBayesEngine (CNN Target Evaluator)",
+                "cnn_max_angle_err_threshold": self.MAX_ANGLE_ERR,
+                "cnn_max_dist_err_threshold": self.MAX_DIST_ERR,
                 "rows_input": int(len(df_out)),
-                "notes": "Naive Bayes binary export (Normal / Tidak Normal)"
+                "notes": "Target kelas dievaluasi berdasar seberapa akurat prediksi CNN terhadap realitas spasial."
             }
-            # Merge metrics minimal ke meta
             try:
                 meta["accuracy"] = metrics.get("accuracy", None)
             except Exception:
                 pass
 
-            # --- Write Excel ---
             with pd.ExcelWriter(out_path, engine="openpyxl") as writer:
-                # Summary
                 summary_df.to_excel(writer, sheet_name="NB_Summary", index=False)
-                # Normal / Tidak Normal sheets (if non-empty)
                 if not normal_df.empty:
                     normal_df.to_excel(writer, sheet_name="NB_Normal", index=False)
                 if not tidaknormal_df.empty:
                     tidaknormal_df.to_excel(writer, sheet_name="NB_TidakNormal", index=False)
-                # Meta
                 pd.DataFrame([meta]).to_excel(writer, sheet_name="Meta", index=False)
-                # Raw
                 try:
                     df_out.to_excel(writer, sheet_name="Raw_Predictions", index=False)
                 except Exception:
